@@ -33,8 +33,19 @@ void ConfigParser::apply_xdg_defaults(ServerConfig& config) {
 ServerConfig ConfigParser::parse(int argc, char* argv[]) {
     ServerConfig config = default_config();
 
-    // Apply XDG defaults first
-    apply_xdg_defaults(config);
+    // First, check for --no-xdg flag
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        if (arg == "--no-xdg") {
+            config.use_xdg = false;
+            break;
+        }
+    }
+
+    // Apply XDG defaults only if enabled
+    if (config.use_xdg) {
+        apply_xdg_defaults(config);
+    }
 
     // Check if config file is specified
     for (int i = 1; i < argc; i++) {

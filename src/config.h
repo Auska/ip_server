@@ -12,6 +12,7 @@ struct ServerConfig {
     std::string city_db_path;
     std::string asn_db_path;
     int thread_pool_size = 4;
+    size_t cache_size = 10000;
     std::filesystem::path config_file;
     bool use_xdg = true;
 };

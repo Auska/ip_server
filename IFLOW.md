@@ -46,6 +46,8 @@
 - CMake 3.20+
 - OpenSSL 开发库
 - pthread
+- Google Test (用于单元测试)
+- Google Benchmark (用于性能测试，可选)
 
 ### 构建步骤
 
@@ -63,6 +65,27 @@ cmake --build . -j$(nproc)
 # 可执行文件位置
 # build/bin/ip_server
 ```
+
+### 构建基准测试
+
+```bash
+# 配置项目并启用基准测试
+cmake .. -DBUILD_BENCHMARKS=ON
+
+# 编译
+cmake --build . -j$(nproc)
+
+# 运行基准测试
+./build/bin/ip_server_benchmarks
+
+# 运行特定基准测试
+./build/bin/ip_server_benchmarks --benchmark_filter=CityDatabase.*
+
+# 使用便捷脚本运行所有基准测试
+./tests/run_benchmarks.sh
+```
+
+详细基准测试文档请参考 [tests/BENCHMARK.md](tests/BENCHMARK.md)
 
 ### 运行服务
 

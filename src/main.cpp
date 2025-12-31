@@ -13,8 +13,8 @@ class Application {
 public:
     Application(const ServerConfig& config)
         : config_(config),
-          geo_service_(config.city_db_path, config.asn_db_path),
-          http_server_(config.host, config.port) {
+          geo_service_(config.city_db_path, config.asn_db_path, config.cache_size),
+          http_server_(config.host, config.port, config.thread_pool_size) {
 
         http_server_.set_lookup_handler([this](const std::string& ip) {
             return geo_service_.lookup(ip);

@@ -11,7 +11,7 @@ class IPGeoHTTPServer {
 public:
     using LookupHandler = std::function<nlohmann::json(const std::string&)>;
 
-    explicit IPGeoHTTPServer(const std::string& host, uint16_t port);
+    explicit IPGeoHTTPServer(const std::string& host, uint16_t port, int thread_pool_size = 4);
     ~IPGeoHTTPServer() = default;
 
     IPGeoHTTPServer(const IPGeoHTTPServer&) = delete;
@@ -28,6 +28,7 @@ private:
 
     std::string host_;
     uint16_t port_;
+    int thread_pool_size_;
     httplib::Server server_;
     LookupHandler lookup_handler_;
 };

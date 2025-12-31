@@ -13,8 +13,8 @@ MaxMindDatabase::~MaxMindDatabase() {
 }
 
 MaxMindDatabase::MaxMindDatabase(MaxMindDatabase&& other) noexcept
-    : mmdb_(other.mmdb_), is_open_(other.is_open_) {
-    other.is_open_ = false;
+    : mmdb_(other.mmdb_), is_open_(other.is_open_.load(std::memory_order_acquire)) {
+    other.is_open_.store(false, std::memory_order_release);
     other.mmdb_ = {};
 }
 
@@ -22,15 +22,17 @@ MaxMindDatabase& MaxMindDatabase::operator=(MaxMindDatabase&& other) noexcept {
     if (this != &other) {
         close();
         mmdb_ = other.mmdb_;
-        is_open_ = other.is_open_;
-        other.is_open_ = false;
+        is_open_.store(other.is_open_.load(std::memory_order_acquire), std::memory_order_release);
+        other.is_open_.store(false, std::memory_order_release);
         other.mmdb_ = {};
     }
     return *this;
 }
 
 bool MaxMindDatabase::open(const std::string& db_path) {
-    if (is_open_) {
+    std::lock_guard<std::mutex> lock(open_close_mutex_);
+
+    if (is_open_.load(std::memory_order_acquire)) {
         close();
     }
 
@@ -40,15 +42,17 @@ bool MaxMindDatabase::open(const std::string& db_path) {
         return false;
     }
 
-    is_open_ = true;
+    is_open_.store(true, std::memory_order_release);
     LOG_INFO("Opened MaxMind database: " + db_path);
     return true;
 }
 
 void MaxMindDatabase::close() {
-    if (is_open_) {
+    std::lock_guard<std::mutex> lock(open_close_mutex_);
+
+    if (is_open_.load(std::memory_order_acquire)) {
         MMDB_close(&mmdb_);
-        is_open_ = false;
+        is_open_.store(false, std::memory_order_release);
         LOG_INFO("Closed MaxMind database");
     }
 }
@@ -191,17 +195,31 @@ nlohmann::json ASNDatabase::lookup(const std::string& ip_address) const {
 
 // IPGeoService implementation
 
-IPGeoService::IPGeoService(const std::string& city_db_path, const std::string& asn_db_path) {
+IPGeoService::IPGeoService(const std::string& city_db_path, const std::string& asn_db_path,
+                           size_t cache_size)
+    : cache_(cache_size) {
+
     if (!city_db_.open(city_db_path)) {
-        throw std::runtime_error("Failed to open city database: " + city_db_path);
+        throw std::runtime_error("Failed to open City database: " + city_db_path);
     }
+
     if (!asn_db_.open(asn_db_path)) {
         throw std::runtime_error("Failed to open ASN database: " + asn_db_path);
     }
-    LOG_INFO("IPGeoService initialized successfully");
+
+    LOG_INFO("IPGeoService initialized with cache size: " + std::to_string(cache_size));
 }
 
 nlohmann::json IPGeoService::lookup(const std::string& ip_address) const {
+    // Check cache first
+    if (cache_enabled_) {
+        auto cached = cache_.get(ip_address);
+        if (cached.has_value()) {
+            LOG_DEBUG("Cache hit for IP: " + ip_address);
+            return cached.value();
+        }
+    }
+
     nlohmann::json result;
     result["ip"] = ip_address;
     result["found"] = false;
@@ -239,6 +257,12 @@ nlohmann::json IPGeoService::lookup(const std::string& ip_address) const {
         if (asn_found) {
             if (asn_result.contains("as_organization")) result["as_organization"] = asn_result["as_organization"];
             if (asn_result.contains("as_number")) result["as_number"] = asn_result["as_number"];
+        }
+
+        // Cache the result
+        if (cache_enabled_ && result["found"]) {
+            cache_.put(ip_address, result);
+            LOG_DEBUG("Cached result for IP: " + ip_address);
         }
 
     } catch (const std::exception& e) {

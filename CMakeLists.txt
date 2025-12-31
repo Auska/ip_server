@@ -27,6 +27,7 @@ set(SOURCES
     src/logger.cpp
     src/types.cpp
     src/xdg.cpp
+    src/cache.h
 )
 
 # Build maxminddb library
@@ -52,6 +53,11 @@ set_target_properties(ip_server PROPERTIES
 
 # Build tests
 option(BUILD_TESTS "Build unit tests" ON)
-if(BUILD_TESTS)
+
+# Build benchmarks
+option(BUILD_BENCHMARKS "Build performance benchmarks" OFF)
+
+# Add tests and benchmarks subdirectory
+if(BUILD_TESTS OR BUILD_BENCHMARKS)
     add_subdirectory(tests)
 endif()

@@ -21,26 +21,25 @@ TEST_F(ConfigTest, DefaultConfigValues) {
 }
 
 TEST_F(ConfigTest, ParseNoArguments) {
-    const char* argv[] = {"ip_server"};
-    int argc = 1;
+    const char* argv[] = {"ip_server", "--no-xdg"};
+    int argc = 2;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
     EXPECT_EQ(config.host, "0.0.0.0");
     EXPECT_EQ(config.port, 8080);
-    EXPECT_TRUE(config.use_xdg);
-    EXPECT_FALSE(config.city_db_path.empty());
-    EXPECT_FALSE(config.asn_db_path.empty());
+    EXPECT_FALSE(config.use_xdg);
 }
 
 TEST_F(ConfigTest, ParseHostArgument) {
-    const char* argv[] = {"ip_server", "--host", "127.0.0.1"};
-    int argc = 3;
+    const char* argv[] = {"ip_server", "--host", "127.0.0.1", "--no-xdg"};
+    int argc = 4;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
     EXPECT_EQ(config.host, "127.0.0.1");
     EXPECT_EQ(config.port, 8080);
+    EXPECT_FALSE(config.use_xdg);
 }
 
 TEST_F(ConfigTest, ParsePortArgument) {

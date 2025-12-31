@@ -4,6 +4,9 @@
 #include <nlohmann/json.hpp>
 #include <string>
 #include <memory>
+#include <mutex>
+#include <atomic>
+#include "cache.h"
 
 namespace ip_server {
 
@@ -19,13 +22,14 @@ public:
 
     bool open(const std::string& db_path);
     void close();
-    bool is_open() const { return is_open_; }
+    bool is_open() const { return is_open_.load(std::memory_order_acquire); }
 
     nlohmann::json lookup(const std::string& ip_address) const;
 
 protected:
     MMDB_s mmdb_{};
-    bool is_open_ = false;
+    std::atomic<bool> is_open_{false};
+    mutable std::mutex open_close_mutex_;  // Only for open/close operations
 };
 
 class CityDatabase : public MaxMindDatabase {
@@ -40,7 +44,8 @@ public:
 
 class IPGeoService {
 public:
-    explicit IPGeoService(const std::string& city_db_path, const std::string& asn_db_path);
+    explicit IPGeoService(const std::string& city_db_path, const std::string& asn_db_path,
+                         size_t cache_size = 10000);
     ~IPGeoService() = default;
 
     IPGeoService(const IPGeoService&) = delete;
@@ -48,10 +53,17 @@ public:
 
     nlohmann::json lookup(const std::string& ip_address) const;
 
+    // Cache control
+    void set_cache_enabled(bool enabled) { cache_enabled_ = enabled; }
+    void set_cache_size(size_t size) { IPCache(size).swap(cache_); }
+    void clear_cache() { cache_.clear(); }
+    size_t cache_size() const { return cache_.size(); }
+
 private:
     CityDatabase city_db_;
     ASNDatabase asn_db_;
-    mutable nlohmann::json cache_;
+    mutable IPCache cache_;
+    bool cache_enabled_ = true;
 };
 
 } // namespace ip_server

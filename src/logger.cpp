@@ -2,8 +2,67 @@
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <queue>
+#include <thread>
+#include <condition_variable>
 
 namespace ip_server {
+
+// Async logger implementation
+class AsyncLogger {
+public:
+    AsyncLogger() : running_(true) {
+        worker_thread_ = std::thread(&AsyncLogger::process_queue, this);
+    }
+
+    ~AsyncLogger() {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            running_ = false;
+            cv_.notify_all();
+        }
+        if (worker_thread_.joinable()) {
+            worker_thread_.join();
+        }
+    }
+
+    void log(const std::string& message) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        queue_.push(message);
+        cv_.notify_one();
+    }
+
+private:
+    void process_queue() {
+        while (running_ || !queue_.empty()) {
+            std::unique_lock<std::mutex> lock(mutex_);
+            cv_.wait(lock, [this] { return !queue_.empty() || !running_; });
+
+            while (!queue_.empty()) {
+                auto message = queue_.front();
+                queue_.pop();
+                lock.unlock();
+
+                // Write to stdout without holding lock
+                std::cout << message << std::endl;
+
+                lock.lock();
+            }
+        }
+    }
+
+    std::queue<std::string> queue_;
+    std::mutex mutex_;
+    std::condition_variable cv_;
+    std::thread worker_thread_;
+    bool running_;
+};
+
+// Global async logger instance
+static AsyncLogger& get_async_logger() {
+    static AsyncLogger instance;
+    return instance;
+}
 
 Logger& Logger::instance() {
     static Logger instance;
@@ -31,8 +90,6 @@ void Logger::log(LogLevel level, const std::string& message) {
         return;
     }
 
-    std::lock_guard<std::mutex> lock(mutex_);
-
     auto now = std::chrono::system_clock::now();
     auto time_t = std::chrono::system_clock::to_time_t(now);
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -50,7 +107,11 @@ void Logger::log(LogLevel level, const std::string& message) {
         case LogLevel::ERROR:   level_str = "ERROR"; break;
     }
 
-    std::cout << "[" << oss.str() << "] [" << level_str << "] " << message << std::endl;
+    std::ostringstream log_line;
+    log_line << "[" << oss.str() << "] [" << level_str << "] " << message;
+
+    // Send to async logger
+    get_async_logger().log(log_line.str());
 }
 
 } // namespace ip_server

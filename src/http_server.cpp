@@ -4,9 +4,10 @@
 
 namespace ip_server {
 
-IPGeoHTTPServer::IPGeoHTTPServer(const std::string& host, uint16_t port)
-    : host_(host), port_(port) {
-    LOG_INFO("HTTP server configured for " + host_ + ":" + std::to_string(port_));
+IPGeoHTTPServer::IPGeoHTTPServer(const std::string& host, uint16_t port, int thread_pool_size)
+    : host_(host), port_(port), thread_pool_size_(thread_pool_size) {
+    LOG_INFO("HTTP server configured for " + host_ + ":" + std::to_string(port_) + 
+            " with " + std::to_string(thread_pool_size_) + " threads");
 }
 
 void IPGeoHTTPServer::set_lookup_handler(LookupHandler handler) {
@@ -123,11 +124,17 @@ bool IPGeoHTTPServer::start() {
     setup_cors();
     setup_routes();
 
+    // Configure thread pool
+    server_.new_task_queue = [this] {
+        return new httplib::ThreadPool(thread_pool_size_);
+    };
+
     LOG_INFO("Starting HTTP server on " + host_ + ":" + std::to_string(port_));
     std::cout << "\n========================================" << std::endl;
     std::cout << "  IP Geolocation & AS Lookup Service" << std::endl;
     std::cout << "========================================" << std::endl;
     std::cout << "Server: http://" << host_ << ":" << port_ << std::endl;
+    std::cout << "Thread Pool: " << thread_pool_size_ << " threads" << std::endl;
     std::cout << "\nAPI Endpoints:" << std::endl;
     std::cout << "  GET  /                       - Service info" << std::endl;
     std::cout << "  GET  /health                 - Health check" << std::endl;
