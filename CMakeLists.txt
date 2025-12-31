@@ -1,0 +1,56 @@
+cmake_minimum_required(VERSION 3.20)
+project(ip_local_server VERSION 2.0.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Compiler warnings
+if(MSVC)
+    add_compile_options(/W4)
+else()
+    add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+# Include directories
+include_directories(
+    ${CMAKE_SOURCE_DIR}/external/include
+    ${CMAKE_SOURCE_DIR}/external/libmaxminddb-1.12.2/include
+)
+
+# Source files
+set(SOURCES
+    src/main.cpp
+    src/config.cpp
+    src/database.cpp
+    src/http_server.cpp
+    src/logger.cpp
+    src/types.cpp
+)
+
+# Build maxminddb library
+add_subdirectory(external/libmaxminddb-1.12.2)
+
+# Create executable
+add_executable(ip_server ${SOURCES})
+
+# Link libraries
+target_link_libraries(ip_server
+    maxminddb
+    pthread
+)
+
+# Find and link OpenSSL for httplib
+find_package(OpenSSL REQUIRED)
+target_link_libraries(ip_server OpenSSL::SSL OpenSSL::Crypto)
+
+# Set output directory
+set_target_properties(ip_server PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+# Build tests
+option(BUILD_TESTS "Build unit tests" ON)
+if(BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
