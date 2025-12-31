@@ -133,7 +133,11 @@ cmake --build . -j$(nproc)
 #### 单个 IP 查询
 
 ```bash
+# 查询指定 IP 地址
 GET /lookup?ip=8.8.8.8
+
+# 查询源 IP 地址（不带参数）
+GET /lookup
 ```
 
 响应示例：

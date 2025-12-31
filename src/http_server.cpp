@@ -49,13 +49,19 @@ void IPGeoHTTPServer::setup_routes() {
     // Single IP lookup endpoint
     server_.Get("/lookup", [this](const httplib::Request& req, httplib::Response& res) {
         auto ip_param = req.get_param_value("ip");
+        
+        // If no IP parameter provided, use the source IP address
         if (ip_param.empty()) {
-            res.status = 400;
-            nlohmann::json error;
-            error["error"] = "Missing 'ip' parameter";
-            res.set_content(error.dump(), "application/json");
-            LOG_WARNING("Lookup request missing IP parameter");
-            return;
+            ip_param = req.remote_addr;
+            if (ip_param.empty()) {
+                res.status = 400;
+                nlohmann::json error;
+                error["error"] = "Unable to determine source IP address";
+                res.set_content(error.dump(), "application/json");
+                LOG_WARNING("Lookup request: unable to determine source IP");
+                return;
+            }
+            LOG_DEBUG("Lookup request using source IP: " + ip_param);
         }
 
         try {
@@ -138,7 +144,7 @@ bool IPGeoHTTPServer::start() {
     std::cout << "\nAPI Endpoints:" << std::endl;
     std::cout << "  GET  /                       - Service info" << std::endl;
     std::cout << "  GET  /health                 - Health check" << std::endl;
-    std::cout << "  GET  /lookup?ip=<address>     - Single IP lookup" << std::endl;
+    std::cout << "  GET  /lookup[?ip=<address>]   - IP lookup (uses source IP if no param)" << std::endl;
     std::cout << "  POST /lookup                 - Batch lookup" << std::endl;
     std::cout << "\nPress Ctrl+C to stop the server" << std::endl;
     std::cout << "========================================\n" << std::endl;
