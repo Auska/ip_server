@@ -1,5 +1,18 @@
 cmake_minimum_required(VERSION 3.20)
 
+# Optimization level
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+endif()
+
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    if(MSVC)
+        add_compile_options(/O2)
+    else()
+        add_compile_options(-O2)
+    endif()
+endif()
+
 # Find Google Test
 find_package(GTest REQUIRED)
 include_directories(${GTEST_INCLUDE_DIRS})

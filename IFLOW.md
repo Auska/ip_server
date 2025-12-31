@@ -56,15 +56,21 @@
 mkdir build
 cd build
 
-# 配置项目
+# Debug 模式（默认，无优化）
 cmake ..
+cmake --build . -j$(nproc)
 
-# 编译（使用所有可用核心）
+# Release 模式（-O2 优化，推荐生产环境）
+cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . -j$(nproc)
 
 # 可执行文件位置
 # build/bin/ip_server
 ```
+
+**性能对比**:
+- Debug 模式: 启用缓存 ~13.5μs (75k QPS)
+- Release 模式: 启用缓存 ~1.56μs (647k QPS) - **性能提升约 8.6 倍**
 
 ### 构建基准测试
 

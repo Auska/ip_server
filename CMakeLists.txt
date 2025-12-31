@@ -12,6 +12,19 @@ else()
     add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+# Optimization level
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+endif()
+
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    if(MSVC)
+        add_compile_options(/O2)
+    else()
+        add_compile_options(-O2)
+    endif()
+endif()
+
 # Include directories
 include_directories(
     ${CMAKE_SOURCE_DIR}/external/include
