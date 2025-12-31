@@ -102,10 +102,11 @@ TEST_F(HTTPServerTest, LookupEndpointMissingIP) {
     auto result = client.Get("/lookup");
 
     ASSERT_TRUE(result);
-    EXPECT_EQ(result->status, 400);
+    EXPECT_EQ(result->status, 200);
 
     auto json = nlohmann::json::parse(result->body);
-    EXPECT_TRUE(json.contains("error"));
+    EXPECT_TRUE(json.contains("ip"));
+    EXPECT_EQ(json["ip"], "127.0.0.1");
 }
 
 TEST_F(HTTPServerTest, LookupEndpointInvalidIP) {

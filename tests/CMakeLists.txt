@@ -54,10 +54,6 @@ target_link_libraries(ip_server_tests
     maxminddb
 )
 
-# Link OpenSSL for httplib
-find_package(OpenSSL REQUIRED)
-target_link_libraries(ip_server_tests OpenSSL::SSL OpenSSL::Crypto)
-
 # Enable testing
 enable_testing()
 
@@ -86,9 +82,6 @@ if(BUILD_BENCHMARKS)
         pthread
         maxminddb
     )
-
-    # Link OpenSSL for httplib
-    target_link_libraries(ip_server_benchmarks OpenSSL::SSL OpenSSL::Crypto)
 
     # Set output directory
     set_target_properties(ip_server_benchmarks PROPERTIES
