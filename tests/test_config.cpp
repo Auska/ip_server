@@ -16,8 +16,7 @@ protected:
 TEST_F(ConfigTest, DefaultConfigValues) {
     EXPECT_EQ(default_config.host, "0.0.0.0");
     EXPECT_EQ(default_config.port, 8080);
-    EXPECT_EQ(default_config.city_db_path, "db/GeoLite2-City.mmdb");
-    EXPECT_EQ(default_config.asn_db_path, "db/GeoLite2-ASN.mmdb");
+    EXPECT_TRUE(default_config.use_xdg);
     EXPECT_EQ(default_config.thread_pool_size, 4);
 }
 
@@ -29,8 +28,9 @@ TEST_F(ConfigTest, ParseNoArguments) {
 
     EXPECT_EQ(config.host, "0.0.0.0");
     EXPECT_EQ(config.port, 8080);
-    EXPECT_EQ(config.city_db_path, "db/GeoLite2-City.mmdb");
-    EXPECT_EQ(config.asn_db_path, "db/GeoLite2-ASN.mmdb");
+    EXPECT_TRUE(config.use_xdg);
+    EXPECT_FALSE(config.city_db_path.empty());
+    EXPECT_FALSE(config.asn_db_path.empty());
 }
 
 TEST_F(ConfigTest, ParseHostArgument) {
@@ -60,6 +60,7 @@ TEST_F(ConfigTest, ParseCityDbArgument) {
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
     EXPECT_EQ(config.city_db_path, "/path/to/city.mmdb");
+    EXPECT_FALSE(config.use_xdg);
 }
 
 TEST_F(ConfigTest, ParseAsnDbArgument) {
@@ -69,6 +70,7 @@ TEST_F(ConfigTest, ParseAsnDbArgument) {
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
     EXPECT_EQ(config.asn_db_path, "/path/to/asn.mmdb");
+    EXPECT_FALSE(config.use_xdg);
 }
 
 TEST_F(ConfigTest, ParseThreadsArgument) {
@@ -98,6 +100,7 @@ TEST_F(ConfigTest, ParseMultipleArguments) {
     EXPECT_EQ(config.city_db_path, "/custom/city.mmdb");
     EXPECT_EQ(config.asn_db_path, "/custom/asn.mmdb");
     EXPECT_EQ(config.thread_pool_size, 16);
+    EXPECT_FALSE(config.use_xdg);
 }
 
 TEST_F(ConfigTest, InvalidPortNumber) {

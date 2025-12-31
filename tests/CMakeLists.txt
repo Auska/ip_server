@@ -27,6 +27,7 @@ set(PROJECT_SOURCES
     ${CMAKE_SOURCE_DIR}/src/http_server.cpp
     ${CMAKE_SOURCE_DIR}/src/types.cpp
     ${CMAKE_SOURCE_DIR}/src/logger.cpp
+    ${CMAKE_SOURCE_DIR}/src/xdg.cpp
 )
 
 # Create test executable

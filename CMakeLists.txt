@@ -26,6 +26,7 @@ set(SOURCES
     src/http_server.cpp
     src/logger.cpp
     src/types.cpp
+    src/xdg.cpp
 )
 
 # Build maxminddb library
