@@ -123,7 +123,7 @@ void IPGeoHTTPServer::setup_routes() {
         info["service"] = "IP Geolocation & AS Lookup Service";
         info["version"] = "2.0.0";
         info["endpoints"] = nlohmann::json::array({"/", "/lookup", "/health"});
-        res.set_content(info.dump(2), "application/json");
+        res.set_content(info.dump(), "application/json");
     });
 
     // Health check endpoint
@@ -174,7 +174,7 @@ void IPGeoHTTPServer::setup_routes() {
         try {
             LOG_DEBUG("Lookup request for IP: " + ip_param);
             auto result = lookup_handler_(ip_param);
-            res.set_content(result.dump(2), "application/json");
+            res.set_content(result.dump(), "application/json");
         } catch (const std::exception& e) {
             res.status = 500;
             nlohmann::json error;
@@ -249,7 +249,7 @@ void IPGeoHTTPServer::setup_routes() {
             }
 
             LOG_INFO("Batch lookup completed for " + std::to_string(results.size()) + " IPs");
-            res.set_content(results.dump(2), "application/json");
+            res.set_content(results.dump(), "application/json");
 
         } catch (const nlohmann::json::exception& e) {
             res.status = 400;
