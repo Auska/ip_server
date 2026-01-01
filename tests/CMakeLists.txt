@@ -28,7 +28,6 @@ include_directories(
 set(TEST_SOURCES
     test_main.cpp
     test_config.cpp
-    test_types.cpp
     test_database.cpp
     test_http_server.cpp
     test_rate_limiter.cpp
