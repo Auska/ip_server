@@ -6,6 +6,8 @@
 #include <string>
 #include <memory>
 #include <chrono>
+#include <atomic>
+#include "types.h"
 
 namespace ip_server {
 
@@ -16,7 +18,7 @@ class Metrics;
 
 class IPGeoHTTPServer {
 public:
-    using LookupHandler = std::function<nlohmann::json(const std::string&)>;
+    using LookupHandler = std::function<LookupResult(const std::string&)>;
 
     explicit IPGeoHTTPServer(const std::string& host, uint16_t port, int thread_pool_size = 4,
                             bool enable_rate_limiter = true, int max_requests_per_minute = 100,
@@ -43,6 +45,9 @@ private:
     void send_error_response(httplib::Response& res, int status, const std::string& error, const std::string& message);
     void send_json_response(httplib::Response& res, const nlohmann::json& data, int status = 200);
 
+    // Cleanup thread for rate limiter
+    void cleanup_thread_func(std::atomic<bool>& shutdown_requested);
+
     std::string host_;
     uint16_t port_;
     int thread_pool_size_;
@@ -55,6 +60,8 @@ private:
     std::unique_ptr<RateLimiter> rate_limiter_;
     std::unique_ptr<APIAuth> api_auth_;
     std::unique_ptr<Metrics> metrics_;
+    std::thread cleanup_thread_;
+    std::atomic<bool> cleanup_thread_running_;
 };
 
 } // namespace ip_server

@@ -7,6 +7,7 @@
 #include <mutex>
 #include <atomic>
 #include "cache.h"
+#include "types.h"
 
 namespace ip_server {
 
@@ -51,7 +52,7 @@ public:
     IPGeoService(const IPGeoService&) = delete;
     IPGeoService& operator=(const IPGeoService&) = delete;
 
-    nlohmann::json lookup(const std::string& ip_address) const;
+    LookupResult lookup(const std::string& ip_address) const;
 
     // Cache control
     void set_cache_enabled(bool enabled) { cache_enabled_ = enabled; }

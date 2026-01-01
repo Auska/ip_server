@@ -1,10 +1,18 @@
 #pragma once
 
-// This file is kept for future use but currently contains no type definitions
-// The project uses nlohmann::json directly for data transfer
+#include <nlohmann/json.hpp>
 
 namespace ip_server {
 
-// Future type definitions can be added here
+// Result of an IP lookup with cache hit information
+struct LookupResult {
+    nlohmann::json data;
+    bool cache_hit;
+    double latency_ms;
+
+    LookupResult() : cache_hit(false), latency_ms(0.0) {}
+    LookupResult(const nlohmann::json& d, bool hit, double latency)
+        : data(d), cache_hit(hit), latency_ms(latency) {}
+};
 
 } // namespace ip_server

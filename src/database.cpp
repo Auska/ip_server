@@ -3,6 +3,7 @@
 #include "logger.h"
 #include <stdexcept>
 #include <cstring>
+#include <chrono>
 
 namespace ip_server {
 
@@ -210,13 +211,19 @@ IPGeoService::IPGeoService(const std::string& city_db_path, const std::string& a
     LOG_INFO("IPGeoService initialized with cache size: " + std::to_string(cache_size));
 }
 
-nlohmann::json IPGeoService::lookup(const std::string& ip_address) const {
+LookupResult IPGeoService::lookup(const std::string& ip_address) const {
+    auto start = std::chrono::high_resolution_clock::now();
+    bool cache_hit = false;
+
     // Check cache first
     if (cache_enabled_) {
         auto cached = cache_.get(ip_address);
         if (cached.has_value()) {
             LOG_DEBUG("Cache hit for IP: " + ip_address);
-            return cached.value();
+            cache_hit = true;
+            auto end = std::chrono::high_resolution_clock::now();
+            double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
+            return LookupResult(cached.value(), true, latency_ms);
         }
     }
 
@@ -230,14 +237,18 @@ nlohmann::json IPGeoService::lookup(const std::string& ip_address) const {
 
         if (city_result.contains("error")) {
             result["error"] = city_result["error"];
-            return result;
+            auto end = std::chrono::high_resolution_clock::now();
+            double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
+            return LookupResult(result, false, latency_ms);
         }
 
         bool city_found = city_result.value("found", false);
         bool asn_found = asn_result.value("found", false);
 
         if (!city_found && !asn_found) {
-            return result;
+            auto end = std::chrono::high_resolution_clock::now();
+            double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
+            return LookupResult(result, false, latency_ms);
         }
 
         result["found"] = true;
@@ -270,7 +281,9 @@ nlohmann::json IPGeoService::lookup(const std::string& ip_address) const {
         result["error"] = e.what();
     }
 
-    return result;
+    auto end = std::chrono::high_resolution_clock::now();
+    double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
+    return LookupResult(result, cache_hit, latency_ms);
 }
 
 } // namespace ip_server

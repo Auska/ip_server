@@ -7,6 +7,8 @@
 #include <thread>
 #include <chrono>
 #include <atomic>
+#include <future>
+#include <vector>
 
 namespace ip_server {
 
@@ -23,8 +25,14 @@ IPGeoHTTPServer::IPGeoHTTPServer(const std::string& host, uint16_t port, int thr
     metrics_ = std::make_unique<Metrics>();
 
     if (enable_rate_limiter_) {
-        rate_limiter_ = std::make_unique<RateLimiter>(max_requests_per_minute, std::chrono::seconds(60));
+        // Create rate limiter with max 10,000 IP records
+        rate_limiter_ = std::make_unique<RateLimiter>(
+            max_requests_per_minute,
+            std::chrono::seconds(60),
+            10000  // max_ip_records
+        );
         LOG_INFO("Rate limiter enabled: " + std::to_string(max_requests_per_minute) + " requests per minute");
+        LOG_INFO("Rate limiter max IP records: 10000");
     }
 
     if (enable_api_auth_) {
@@ -195,30 +203,21 @@ void IPGeoHTTPServer::setup_routes() {
         }
 
         auto ip_param = req.get_param_value("ip");
-        
+
         // If no IP parameter provided, use the source IP address
         if (ip_param.empty()) {
             ip_param = client_ip;
             LOG_DEBUG("Lookup request using source IP: " + ip_param);
         }
 
-        // Record request start time
-        auto start = std::chrono::high_resolution_clock::now();
-
         try {
             LOG_DEBUG("Lookup request for IP: " + ip_param);
             auto result = lookup_handler_(ip_param);
-            
-            // Record metrics
-            auto end = std::chrono::high_resolution_clock::now();
-            auto latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
-            
-            // Estimate cache hit based on latency (cache hits are typically < 1ms)
-            bool cache_hit = latency_ms < 1.0;
-            
-            metrics_->record_request(cache_hit, latency_ms);
-            
-            res.set_content(result.dump(), "application/json");
+
+            // Record metrics with accurate cache hit status
+            metrics_->record_request(result.cache_hit, result.latency_ms);
+
+            res.set_content(result.data.dump(), "application/json");
         } catch (const std::exception& e) {
             res.status = 500;
             nlohmann::json error;
@@ -271,29 +270,37 @@ void IPGeoHTTPServer::setup_routes() {
                 error["max_batch_size"] = max_batch_size_;
                 error["requested_size"] = batch_size;
                 send_json_response(res, error, 400);
-                LOG_WARNING("Batch lookup request exceeds size limit: " + std::to_string(batch_size) + 
+                LOG_WARNING("Batch lookup request exceeds size limit: " + std::to_string(batch_size) +
                            " > " + std::to_string(max_batch_size_));
                 return;
             }
 
-            nlohmann::json results = nlohmann::json::array();
+            // Extract IP strings
+            std::vector<std::string> ip_list;
+            ip_list.reserve(batch_size);
             for (const auto& ip : body["ips"]) {
                 if (ip.is_string()) {
-                    auto ip_str = ip.get<std::string>();
-                    LOG_DEBUG("Batch lookup for IP: " + ip_str);
-                    
-                    // Record request start time for each IP
-                    auto start = std::chrono::high_resolution_clock::now();
-                    auto result = lookup_handler_(ip_str);
-                    auto end = std::chrono::high_resolution_clock::now();
-                    auto latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
-                    
-                    // Estimate cache hit based on latency
-                    bool cache_hit = latency_ms < 1.0;
-                    metrics_->record_request(cache_hit, latency_ms);
-                    
-                    results.push_back(result);
+                    ip_list.push_back(ip.get<std::string>());
                 }
+            }
+
+            // Parallel lookup using std::async
+            std::vector<std::future<LookupResult>> futures;
+            futures.reserve(ip_list.size());
+
+            for (const auto& ip_str : ip_list) {
+                LOG_DEBUG("Batch lookup for IP: " + ip_str);
+                futures.push_back(std::async(std::launch::async, [this, ip_str]() {
+                    return lookup_handler_(ip_str);
+                }));
+            }
+
+            // Collect results
+            nlohmann::json results = nlohmann::json::array();
+            for (auto& future : futures) {
+                auto result = future.get();
+                metrics_->record_request(result.cache_hit, result.latency_ms);
+                results.push_back(result.data);
             }
 
             LOG_INFO("Batch lookup completed for " + std::to_string(results.size()) + " IPs");
@@ -339,6 +346,15 @@ bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
     std::cout << "\nPress Ctrl+C to stop the server" << std::endl;
     std::cout << "========================================\n" << std::endl;
 
+    // Start cleanup thread for rate limiter
+    if (enable_rate_limiter_ && rate_limiter_) {
+        cleanup_thread_running_.store(true);
+        cleanup_thread_ = std::thread([this, &shutdown_requested]() {
+            cleanup_thread_func(shutdown_requested);
+        });
+        LOG_INFO("Rate limiter cleanup thread started");
+    }
+
     // Start server in a separate thread to allow graceful shutdown
     std::atomic<bool> server_running(true);
     std::thread server_thread([this, &server_running]() {
@@ -355,6 +371,10 @@ bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
         if (server_thread.joinable()) {
             server_thread.join();
         }
+        if (cleanup_thread_.joinable()) {
+            cleanup_thread_running_.store(false);
+            cleanup_thread_.join();
+        }
         return false;
     }
 
@@ -369,12 +389,48 @@ bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
         server_thread.join();
     }
 
+    // Stop cleanup thread
+    if (cleanup_thread_.joinable()) {
+        cleanup_thread_running_.store(false);
+        cleanup_thread_.join();
+        LOG_INFO("Rate limiter cleanup thread stopped");
+    }
+
     return true;
 }
 
 void IPGeoHTTPServer::stop() {
     LOG_INFO("Stopping HTTP server");
     server_.stop();
+}
+
+void IPGeoHTTPServer::cleanup_thread_func(std::atomic<bool>& shutdown_requested) {
+    LOG_INFO("Rate limiter cleanup thread running");
+
+    while (!shutdown_requested.load()) {
+        // Sleep for 5 minutes between cleanups
+        for (int i = 0; i < 300 && !shutdown_requested.load(); ++i) {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+
+        if (shutdown_requested.load()) {
+            break;
+        }
+
+        // Perform cleanup
+        if (rate_limiter_) {
+            rate_limiter_->cleanup();
+
+            // Log memory statistics
+            auto stats = rate_limiter_->get_memory_stats();
+            LOG_INFO("Rate limiter memory stats: " +
+                    std::to_string(stats.ip_record_count) + " IP records, " +
+                    std::to_string(stats.total_timestamps) + " timestamps, " +
+                    std::to_string(stats.estimated_memory_bytes / 1024) + " KB");
+        }
+    }
+
+    LOG_INFO("Rate limiter cleanup thread exiting");
 }
 
 } // namespace ip_server

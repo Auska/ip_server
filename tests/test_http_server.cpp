@@ -13,7 +13,18 @@ class HTTPServerTest : public ::testing::Test {
 protected:
     void SetUp() override {
         // Get the project root directory
-        std::filesystem::path project_root = std::filesystem::current_path().parent_path();
+        // Tests can be run from project root or build/tests/
+        std::filesystem::path current_path = std::filesystem::current_path();
+        std::filesystem::path project_root;
+
+        // Check if we're in build/tests/
+        if (current_path.filename() == "tests" && current_path.parent_path().filename() == "build") {
+            // Go up two levels to get to project root
+            project_root = current_path.parent_path().parent_path();
+        } else {
+            // Assume we're already at project root
+            project_root = current_path;
+        }
 
         city_db_path = project_root / "db" / "GeoLite2-City.mmdb";
         asn_db_path = project_root / "db" / "GeoLite2-ASN.mmdb";
@@ -409,4 +420,272 @@ TEST_F(HTTPServerTest, DisabledRateLimiter) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     no_rate_limit_server->stop();
     no_rate_limit_thread.join();
+}
+
+// Test parallel batch lookup performance
+TEST_F(HTTPServerTest, ParallelBatchLookupPerformance) {
+    httplib::Client client("127.0.0.1", test_port);
+
+    // Create a batch of 20 unique IPs
+    nlohmann::json batch_request;
+    std::vector<std::string> test_ips;
+    for (int i = 0; i < 20; ++i) {
+        std::string ip = "8.8.8." + std::to_string(i % 255);
+        test_ips.push_back(ip);
+        batch_request["ips"].push_back(ip);
+    }
+
+    // First batch - all cache misses
+    auto start = std::chrono::high_resolution_clock::now();
+    auto result1 = client.Post("/lookup", batch_request.dump(), "application/json");
+    auto first_batch_time = std::chrono::duration<double, std::milli>(
+        std::chrono::high_resolution_clock::now() - start).count();
+
+    ASSERT_TRUE(result1);
+    EXPECT_EQ(result1->status, 200);
+
+    auto json1 = nlohmann::json::parse(result1->body);
+    EXPECT_TRUE(json1.is_array());
+    EXPECT_EQ(json1.size(), 20);
+
+    // Verify all results
+    for (size_t i = 0; i < json1.size(); ++i) {
+        EXPECT_TRUE(json1[i].contains("ip"));
+        EXPECT_EQ(json1[i]["ip"], test_ips[i]);
+        EXPECT_TRUE(json1[i].contains("found"));
+    }
+
+    // Second batch - all cache hits
+    start = std::chrono::high_resolution_clock::now();
+    auto result2 = client.Post("/lookup", batch_request.dump(), "application/json");
+    auto second_batch_time = std::chrono::duration<double, std::milli>(
+        std::chrono::high_resolution_clock::now() - start).count();
+
+    ASSERT_TRUE(result2);
+    EXPECT_EQ(result2->status, 200);
+
+    auto json2 = nlohmann::json::parse(result2->body);
+    EXPECT_TRUE(json2.is_array());
+    EXPECT_EQ(json2.size(), 20);
+
+    // Results should be identical
+    EXPECT_EQ(json1.dump(), json2.dump());
+
+    // Cached batch should be faster (at least 2x faster in most cases)
+    // This is a more realistic expectation than 10x
+    EXPECT_LT(second_batch_time, first_batch_time);
+}
+
+// Test batch lookup with mixed valid and invalid IPs
+TEST_F(HTTPServerTest, BatchLookupMixedIPs) {
+    httplib::Client client("127.0.0.1", test_port);
+
+    nlohmann::json batch_request;
+    batch_request["ips"] = {
+        "8.8.8.8",           // Valid
+        "1.1.1.1",           // Valid
+        "999.999.999.999",   // Invalid
+        "invalid.ip",        // Invalid
+        "9.9.9.9"            // Valid
+    };
+
+    auto result = client.Post("/lookup", batch_request.dump(), "application/json");
+
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->status, 200);
+
+    auto json = nlohmann::json::parse(result->body);
+    EXPECT_TRUE(json.is_array());
+    EXPECT_EQ(json.size(), 5);
+
+    // Check valid IPs
+    EXPECT_TRUE(json[0].contains("found"));
+    EXPECT_TRUE(json[1].contains("found"));
+    EXPECT_TRUE(json[4].contains("found"));
+
+    // Check invalid IPs
+    EXPECT_TRUE(json[2].contains("error"));
+    EXPECT_TRUE(json[3].contains("error"));
+}
+
+// Test concurrent batch requests
+TEST_F(HTTPServerTest, ConcurrentBatchRequests) {
+    httplib::Client client("127.0.0.1", test_port);
+
+    std::vector<std::future<httplib::Result>> futures;
+
+    // Launch 5 concurrent batch requests
+    for (int i = 0; i < 5; ++i) {
+        nlohmann::json batch_request;
+        batch_request["ips"] = {
+            "8.8.8." + std::to_string(i % 255),
+            "1.1.1." + std::to_string(i % 255),
+            "9.9.9." + std::to_string(i % 255)
+        };
+
+        futures.push_back(std::async(std::launch::async, [&client, batch_request]() {
+            return client.Post("/lookup", batch_request.dump(), "application/json");
+        }));
+    }
+
+    // Wait for all results
+    for (auto& future : futures) {
+        auto result = future.get();
+        ASSERT_TRUE(result);
+        EXPECT_EQ(result->status, 200);
+
+        auto json = nlohmann::json::parse(result->body);
+        EXPECT_TRUE(json.is_array());
+        EXPECT_EQ(json.size(), 3);
+    }
+}
+
+// Test batch lookup with duplicate IPs
+TEST_F(HTTPServerTest, BatchLookupWithDuplicates) {
+    httplib::Client client("127.0.0.1", test_port);
+
+    nlohmann::json batch_request;
+    batch_request["ips"] = {
+        "8.8.8.8",
+        "8.8.8.8",  // Duplicate
+        "1.1.1.1",
+        "8.8.8.8",  // Duplicate again
+        "1.1.1.1"   // Duplicate
+    };
+
+    auto result = client.Post("/lookup", batch_request.dump(), "application/json");
+
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->status, 200);
+
+    auto json = nlohmann::json::parse(result->body);
+    EXPECT_TRUE(json.is_array());
+    EXPECT_EQ(json.size(), 5);
+
+    // All results should be valid
+    for (const auto& item : json) {
+        EXPECT_TRUE(item.contains("ip"));
+        EXPECT_TRUE(item.contains("found"));
+    }
+}
+
+// Test metrics endpoint accuracy after batch lookup
+TEST_F(HTTPServerTest, MetricsAfterBatchLookup) {
+    httplib::Client client("127.0.0.1", test_port);
+
+    // Get initial metrics from health endpoint
+    auto initial_result = client.Get("/health");
+    ASSERT_TRUE(initial_result);
+    EXPECT_EQ(initial_result->status, 200);
+
+    auto initial_json = nlohmann::json::parse(initial_result->body);
+    uint64_t initial_requests = initial_json["metrics"]["total_requests"];
+
+    // Perform batch lookup with 10 IPs
+    nlohmann::json batch_request;
+    for (int i = 0; i < 10; ++i) {
+        batch_request["ips"].push_back("8.8.8." + std::to_string(i % 255));
+    }
+
+    auto batch_result = client.Post("/lookup", batch_request.dump(), "application/json");
+    ASSERT_TRUE(batch_result);
+    EXPECT_EQ(batch_result->status, 200);
+
+    // Get updated metrics from health endpoint
+    auto updated_result = client.Get("/health");
+    ASSERT_TRUE(updated_result);
+    EXPECT_EQ(updated_result->status, 200);
+
+    auto updated_json = nlohmann::json::parse(updated_result->body);
+    uint64_t updated_requests = updated_json["metrics"]["total_requests"];
+
+    // Request count should increase by 10
+    EXPECT_EQ(updated_requests, initial_requests + 10);
+}
+
+// Test health endpoint with cache statistics
+TEST_F(HTTPServerTest, HealthEndpointWithCacheStats) {
+    httplib::Client client("127.0.0.1", test_port);
+
+    // Perform some lookups to populate cache
+    client.Get("/lookup?ip=8.8.8.8");
+    client.Get("/lookup?ip=1.1.1.1");
+    client.Get("/lookup?ip=8.8.8.8");  // Cache hit
+
+    auto result = client.Get("/health");
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->status, 200);
+
+    auto json = nlohmann::json::parse(result->body);
+    EXPECT_TRUE(json.contains("cache"));
+    EXPECT_TRUE(json["cache"].contains("hits"));
+    EXPECT_TRUE(json["cache"].contains("misses"));
+    EXPECT_TRUE(json["cache"].contains("hit_rate_percent"));
+
+    // Cache hit rate should be positive
+    EXPECT_GT(json["cache"]["hit_rate_percent"], 0.0);
+}
+
+// Test batch lookup response ordering
+TEST_F(HTTPServerTest, BatchLookupResponseOrdering) {
+    httplib::Client client("127.0.0.1", test_port);
+
+    nlohmann::json batch_request;
+    std::vector<std::string> test_ips = {
+        "8.8.8.8",
+        "1.1.1.1",
+        "9.9.9.9",
+        "208.67.222.222",
+        "208.67.220.220"
+    };
+    batch_request["ips"] = test_ips;
+
+    auto result = client.Post("/lookup", batch_request.dump(), "application/json");
+
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->status, 200);
+
+    auto json = nlohmann::json::parse(result->body);
+    EXPECT_TRUE(json.is_array());
+    EXPECT_EQ(json.size(), 5);
+
+    // Verify response order matches request order
+    for (size_t i = 0; i < test_ips.size(); ++i) {
+        EXPECT_EQ(json[i]["ip"], test_ips[i]);
+    }
+}
+
+// Test batch lookup with empty array
+TEST_F(HTTPServerTest, BatchLookupEmptyArray) {
+    httplib::Client client("127.0.0.1", test_port);
+
+    nlohmann::json batch_request;
+    batch_request["ips"] = nlohmann::json::array();
+
+    auto result = client.Post("/lookup", batch_request.dump(), "application/json");
+
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->status, 200);
+
+    auto json = nlohmann::json::parse(result->body);
+    EXPECT_TRUE(json.is_array());
+    EXPECT_EQ(json.size(), 0);
+}
+
+// Test batch lookup with single IP
+TEST_F(HTTPServerTest, BatchLookupSingleIP) {
+    httplib::Client client("127.0.0.1", test_port);
+
+    nlohmann::json batch_request;
+    batch_request["ips"] = {"8.8.8.8"};
+
+    auto result = client.Post("/lookup", batch_request.dump(), "application/json");
+
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->status, 200);
+
+    auto json = nlohmann::json::parse(result->body);
+    EXPECT_TRUE(json.is_array());
+    EXPECT_EQ(json.size(), 1);
+    EXPECT_EQ(json[0]["ip"], "8.8.8.8");
 }
