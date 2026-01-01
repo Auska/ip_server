@@ -1,14 +1,31 @@
 #include "http_server.h"
+#include "rate_limiter.h"
 #include "logger.h"
 #include <stdexcept>
+#include <thread>
+#include <chrono>
+#include <atomic>
 
 namespace ip_server {
 
-IPGeoHTTPServer::IPGeoHTTPServer(const std::string& host, uint16_t port, int thread_pool_size)
-    : host_(host), port_(port), thread_pool_size_(thread_pool_size) {
+IPGeoHTTPServer::IPGeoHTTPServer(const std::string& host, uint16_t port, int thread_pool_size,
+                                bool enable_rate_limiter, int max_requests_per_minute,
+                                int max_batch_size)
+    : host_(host), port_(port), thread_pool_size_(thread_pool_size),
+      enable_rate_limiter_(enable_rate_limiter), max_requests_per_minute_(max_requests_per_minute),
+      max_batch_size_(max_batch_size) {
+
+    if (enable_rate_limiter_) {
+        rate_limiter_ = std::make_unique<RateLimiter>(max_requests_per_minute, std::chrono::seconds(60));
+        LOG_INFO("Rate limiter enabled: " + std::to_string(max_requests_per_minute) + " requests per minute");
+    }
+
     LOG_INFO("HTTP server configured for " + host_ + ":" + std::to_string(port_) + 
             " with " + std::to_string(thread_pool_size_) + " threads");
+    LOG_INFO("Batch size limit: " + std::to_string(max_batch_size_) + " IPs per request");
 }
+
+IPGeoHTTPServer::~IPGeoHTTPServer() = default;
 
 void IPGeoHTTPServer::set_lookup_handler(LookupHandler handler) {
     lookup_handler_ = std::move(handler);
@@ -48,19 +65,33 @@ void IPGeoHTTPServer::setup_routes() {
 
     // Single IP lookup endpoint
     server_.Get("/lookup", [this](const httplib::Request& req, httplib::Response& res) {
+        auto client_ip = req.remote_addr;
+        if (client_ip.empty()) {
+            res.status = 400;
+            nlohmann::json error;
+            error["error"] = "Unable to determine source IP address";
+            res.set_content(error.dump(), "application/json");
+            LOG_WARNING("Lookup request: unable to determine source IP");
+            return;
+        }
+
+        // Check rate limit
+        if (enable_rate_limiter_ && !rate_limiter_->is_allowed(client_ip)) {
+            res.status = 429;
+            nlohmann::json error;
+            error["error"] = "Rate limit exceeded";
+            error["remaining"] = rate_limiter_->get_remaining(client_ip);
+            res.set_header("Retry-After", "60");
+            res.set_content(error.dump(), "application/json");
+            LOG_WARNING("Rate limit exceeded for IP: " + client_ip);
+            return;
+        }
+
         auto ip_param = req.get_param_value("ip");
         
         // If no IP parameter provided, use the source IP address
         if (ip_param.empty()) {
-            ip_param = req.remote_addr;
-            if (ip_param.empty()) {
-                res.status = 400;
-                nlohmann::json error;
-                error["error"] = "Unable to determine source IP address";
-                res.set_content(error.dump(), "application/json");
-                LOG_WARNING("Lookup request: unable to determine source IP");
-                return;
-            }
+            ip_param = client_ip;
             LOG_DEBUG("Lookup request using source IP: " + ip_param);
         }
 
@@ -79,6 +110,28 @@ void IPGeoHTTPServer::setup_routes() {
 
     // Batch lookup endpoint
     server_.Post("/lookup", [this](const httplib::Request& req, httplib::Response& res) {
+        auto client_ip = req.remote_addr;
+        if (client_ip.empty()) {
+            res.status = 400;
+            nlohmann::json error;
+            error["error"] = "Unable to determine source IP address";
+            res.set_content(error.dump(), "application/json");
+            LOG_WARNING("Batch lookup request: unable to determine source IP");
+            return;
+        }
+
+        // Check rate limit
+        if (enable_rate_limiter_ && !rate_limiter_->is_allowed(client_ip)) {
+            res.status = 429;
+            nlohmann::json error;
+            error["error"] = "Rate limit exceeded";
+            error["remaining"] = rate_limiter_->get_remaining(client_ip);
+            res.set_header("Retry-After", "60");
+            res.set_content(error.dump(), "application/json");
+            LOG_WARNING("Rate limit exceeded for IP: " + client_ip);
+            return;
+        }
+
         try {
             auto body = nlohmann::json::parse(req.body);
 
@@ -88,6 +141,20 @@ void IPGeoHTTPServer::setup_routes() {
                 error["error"] = "Missing or invalid 'ips' array in request body";
                 res.set_content(error.dump(), "application/json");
                 LOG_WARNING("Batch lookup request missing 'ips' array");
+                return;
+            }
+
+            // Check batch size limit
+            size_t batch_size = body["ips"].size();
+            if (batch_size > static_cast<size_t>(max_batch_size_)) {
+                res.status = 400;
+                nlohmann::json error;
+                error["error"] = "Batch size exceeds maximum limit";
+                error["max_batch_size"] = max_batch_size_;
+                error["requested_size"] = batch_size;
+                res.set_content(error.dump(), "application/json");
+                LOG_WARNING("Batch lookup request exceeds size limit: " + std::to_string(batch_size) + 
+                           " > " + std::to_string(max_batch_size_));
                 return;
             }
 
@@ -149,9 +216,34 @@ bool IPGeoHTTPServer::start() {
     std::cout << "\nPress Ctrl+C to stop the server" << std::endl;
     std::cout << "========================================\n" << std::endl;
 
-    if (!server_.listen(host_.c_str(), port_)) {
-        LOG_ERROR("Failed to start HTTP server");
+    // Start server in a separate thread to allow graceful shutdown
+    std::atomic<bool> running(true);
+    std::thread server_thread([this, &running]() {
+        if (!server_.listen(host_.c_str(), port_)) {
+            LOG_ERROR("Failed to start HTTP server");
+            running.store(false);
+        }
+    });
+
+    // Wait for server to start or fail
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    if (!running.load()) {
+        if (server_thread.joinable()) {
+            server_thread.join();
+        }
         return false;
+    }
+
+    // Wait for shutdown signal from main
+    while (running.load() && server_.is_running()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    // Stop server and wait for thread to finish
+    server_.stop();
+    if (server_thread.joinable()) {
+        server_thread.join();
     }
 
     return true;

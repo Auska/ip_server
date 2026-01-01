@@ -97,6 +97,23 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
             }
         } else if (arg == "--no-xdg") {
             config.use_xdg = false;
+        } else if (arg == "--enable-rate-limiter" && i + 1 < argc) {
+            std::string value = argv[++i];
+            config.enable_rate_limiter = (value == "true" || value == "1");
+        } else if (arg == "--max-requests-per-minute" && i + 1 < argc) {
+            try {
+                config.max_requests_per_minute = std::stoi(argv[++i]);
+            } catch (const std::exception& e) {
+                LOG_ERROR("Invalid max requests per minute: " + std::string(argv[i]));
+                throw std::runtime_error("Invalid max requests per minute");
+            }
+        } else if (arg == "--max-batch-size" && i + 1 < argc) {
+            try {
+                config.max_batch_size = std::stoi(argv[++i]);
+            } catch (const std::exception& e) {
+                LOG_ERROR("Invalid max batch size: " + std::string(argv[i]));
+                throw std::runtime_error("Invalid max batch size");
+            }
         } else if (arg == "--help" || arg == "-h") {
             print_help(argv[0]);
             std::exit(0);
@@ -114,6 +131,11 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
     LOG_INFO("  ASN DB: " + config.asn_db_path);
     LOG_INFO("  Threads: " + std::to_string(config.thread_pool_size));
     LOG_INFO("  Use XDG: " + std::string(config.use_xdg ? "yes" : "no"));
+    LOG_INFO("  Rate Limiter: " + std::string(config.enable_rate_limiter ? "enabled" : "disabled"));
+    if (config.enable_rate_limiter) {
+        LOG_INFO("  Max Requests/Min: " + std::to_string(config.max_requests_per_minute));
+    }
+    LOG_INFO("  Max Batch Size: " + std::to_string(config.max_batch_size));
 
     return config;
 }
@@ -161,6 +183,12 @@ ServerConfig ConfigParser::load_from_file(const std::filesystem::path& config_fi
             config.asn_db_path = value;
         } else if (key == "threads") {
             config.thread_pool_size = std::stoi(value);
+        } else if (key == "enable_rate_limiter") {
+            config.enable_rate_limiter = (value == "true" || value == "1");
+        } else if (key == "max_requests_per_minute") {
+            config.max_requests_per_minute = std::stoi(value);
+        } else if (key == "max_batch_size") {
+            config.max_batch_size = std::stoi(value);
         }
     }
 
@@ -181,6 +209,9 @@ bool ConfigParser::save_to_file(const ServerConfig& config, const std::filesyste
     file << "city_db = " << config.city_db_path << "\n";
     file << "asn_db = " << config.asn_db_path << "\n";
     file << "threads = " << config.thread_pool_size << "\n";
+    file << "enable_rate_limiter = " << (config.enable_rate_limiter ? "true" : "false") << "\n";
+    file << "max_requests_per_minute = " << config.max_requests_per_minute << "\n";
+    file << "max_batch_size = " << config.max_batch_size << "\n";
 
     file.close();
     LOG_INFO("Configuration saved to: " + config_file.string());
@@ -202,6 +233,15 @@ void ConfigParser::print_help(const char* program_name) {
               << "                      (default: 8080)\n"
               << "  --threads <count>    Thread pool size\n"
               << "                      (default: 4)\n"
+              << "  --enable-rate-limiter <true|false>\n"
+              << "                      Enable rate limiting\n"
+              << "                      (default: true)\n"
+              << "  --max-requests-per-minute <count>\n"
+              << "                      Maximum requests per IP per minute\n"
+              << "                      (default: 100)\n"
+              << "  --max-batch-size <count>\n"
+              << "                      Maximum batch size for batch lookup\n"
+              << "                      (default: 100)\n"
               << "  --no-xdg             Disable XDG directory standard\n"
               << "  --help, -h           Show this help message\n\n"
               << "XDG Directories:\n"

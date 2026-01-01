@@ -6,6 +6,7 @@
 #include <iostream>
 #include <csignal>
 #include <memory>
+#include <atomic>
 
 namespace ip_server {
 
@@ -14,7 +15,9 @@ public:
     Application(const ServerConfig& config)
         : config_(config),
           geo_service_(config.city_db_path, config.asn_db_path, config.cache_size),
-          http_server_(config.host, config.port, config.thread_pool_size) {
+          http_server_(config.host, config.port, config.thread_pool_size,
+                      config.enable_rate_limiter, config.max_requests_per_minute,
+                      config.max_batch_size) {
 
         http_server_.set_lookup_handler([this](const std::string& ip) {
             return geo_service_.lookup(ip);
@@ -24,18 +27,33 @@ public:
     bool run() {
         LOG_INFO("Application starting...");
 
+        // Setup atomic flag for graceful shutdown
+        static std::atomic<bool> shutdown_requested(false);
+
         // Setup signal handlers for graceful shutdown
         std::signal(SIGINT, [](int) {
-            LOG_INFO("Received SIGINT, shutting down...");
-            std::exit(0);
+            if (!shutdown_requested.exchange(true)) {
+                LOG_INFO("Received SIGINT, shutting down gracefully...");
+            }
         });
 
         std::signal(SIGTERM, [](int) {
-            LOG_INFO("Received SIGTERM, shutting down...");
-            std::exit(0);
+            if (!shutdown_requested.exchange(true)) {
+                LOG_INFO("Received SIGTERM, shutting down gracefully...");
+            }
         });
 
-        return http_server_.start();
+        // Start server and wait for shutdown signal
+        bool result = http_server_.start();
+
+        // Perform graceful shutdown
+        if (shutdown_requested.load()) {
+            LOG_INFO("Performing graceful shutdown...");
+            http_server_.stop();
+            LOG_INFO("Application shutdown complete");
+        }
+
+        return result;
     }
 
 private:

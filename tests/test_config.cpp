@@ -121,3 +121,87 @@ TEST_F(ConfigTest, InvalidThreadCount) {
         std::runtime_error
     );
 }
+
+TEST_F(ConfigTest, ParseEnableRateLimiter) {
+    const char* argv[] = {"ip_server", "--enable-rate-limiter", "false", "--no-xdg"};
+    int argc = 4;
+
+    auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
+
+    EXPECT_FALSE(config.enable_rate_limiter);
+}
+
+TEST_F(ConfigTest, ParseMaxRequestsPerMinute) {
+    const char* argv[] = {"ip_server", "--max-requests-per-minute", "200", "--no-xdg"};
+    int argc = 4;
+
+    auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
+
+    EXPECT_EQ(config.max_requests_per_minute, 200);
+}
+
+TEST_F(ConfigTest, ParseMaxBatchSize) {
+    const char* argv[] = {"ip_server", "--max-batch-size", "50", "--no-xdg"};
+    int argc = 4;
+
+    auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
+
+    EXPECT_EQ(config.max_batch_size, 50);
+}
+
+TEST_F(ConfigTest, ParseAllNewParameters) {
+    const char* argv[] = {
+        "ip_server",
+        "--enable-rate-limiter", "true",
+        "--max-requests-per-minute", "150",
+        "--max-batch-size", "75",
+        "--no-xdg"
+    };
+    int argc = 9;
+
+    auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
+
+    EXPECT_TRUE(config.enable_rate_limiter);
+    EXPECT_EQ(config.max_requests_per_minute, 150);
+    EXPECT_EQ(config.max_batch_size, 75);
+}
+
+TEST_F(ConfigTest, DefaultNewParameters) {
+    const char* argv[] = {"ip_server", "--no-xdg"};
+    int argc = 2;
+
+    auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
+
+    EXPECT_TRUE(config.enable_rate_limiter);
+    EXPECT_EQ(config.max_requests_per_minute, 100);
+    EXPECT_EQ(config.max_batch_size, 100);
+}
+
+TEST_F(ConfigTest, InvalidMaxRequestsPerMinute) {
+    const char* argv[] = {"ip_server", "--max-requests-per-minute", "invalid"};
+    int argc = 3;
+
+    EXPECT_THROW(
+        ConfigParser::parse(argc, const_cast<char**>(argv)),
+        std::runtime_error
+    );
+}
+
+TEST_F(ConfigTest, InvalidMaxBatchSize) {
+    const char* argv[] = {"ip_server", "--max-batch-size", "invalid"};
+    int argc = 3;
+
+    EXPECT_THROW(
+        ConfigParser::parse(argc, const_cast<char**>(argv)),
+        std::runtime_error
+    );
+}
+
+TEST_F(ConfigTest, RateLimiterDisabledWithZeroRequests) {
+    const char* argv[] = {"ip_server", "--enable-rate-limiter", "false", "--no-xdg"};
+    int argc = 4;
+
+    auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
+
+    EXPECT_FALSE(config.enable_rate_limiter);
+}

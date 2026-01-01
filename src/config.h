@@ -15,6 +15,9 @@ struct ServerConfig {
     size_t cache_size = 10000;
     std::filesystem::path config_file;
     bool use_xdg = true;
+    bool enable_rate_limiter = true;
+    int max_requests_per_minute = 100;
+    int max_batch_size = 100;
 };
 
 class ConfigParser {
