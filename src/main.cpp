@@ -79,6 +79,29 @@ int main(int argc, char* argv[]) {
         // Parse configuration
         auto config = ConfigParser::parse(argc, argv);
 
+        // Apply logging configuration
+        LogConfig log_config;
+        log_config.enable_file_logging = config.enable_file_logging;
+        log_config.log_file_path = config.log_file_path;
+        log_config.enable_stdout = config.log_enable_stdout;
+        
+        // Parse rotation type
+        if (config.log_rotation_type == "size") {
+            log_config.rotation_type = RotationType::SIZE;
+        } else if (config.log_rotation_type == "time") {
+            log_config.rotation_type = RotationType::TIME;
+        } else if (config.log_rotation_type == "both") {
+            log_config.rotation_type = RotationType::BOTH;
+        } else {
+            log_config.rotation_type = RotationType::NONE;
+        }
+        
+        log_config.max_file_size = config.log_max_file_size;
+        log_config.rotation_interval = std::chrono::minutes(config.log_rotation_interval_minutes);
+        log_config.max_backup_files = config.log_max_backup_files;
+        
+        Logger::instance().set_config(log_config);
+
         // Ensure XDG directories exist
         if (config.use_xdg) {
             XDGPaths::instance().ensure_directories();

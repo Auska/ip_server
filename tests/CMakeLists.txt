@@ -33,6 +33,7 @@ set(TEST_SOURCES
     test_http_server.cpp
     test_rate_limiter.cpp
     test_auth.cpp
+    test_logger.cpp
 )
 
 # Add source files from src directory

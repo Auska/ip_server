@@ -21,6 +21,15 @@ struct ServerConfig {
     bool enable_api_auth = false;
     std::string api_keys_file;
     std::string default_api_key;
+    
+    // Logging configuration
+    bool enable_file_logging = false;
+    std::string log_file_path = "logs/ip_server.log";
+    std::string log_rotation_type = "size";  // "none", "size", "time", "both"
+    size_t log_max_file_size = 10 * 1024 * 1024;  // 10 MB
+    int log_rotation_interval_minutes = 1440;  // 24 hours
+    int log_max_backup_files = 5;
+    bool log_enable_stdout = true;
 };
 
 class ConfigParser {

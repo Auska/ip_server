@@ -121,6 +121,35 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
             config.api_keys_file = argv[++i];
         } else if (arg == "--default-api-key" && i + 1 < argc) {
             config.default_api_key = argv[++i];
+        } else if (arg == "--enable-file-logging" && i + 1 < argc) {
+            std::string value = argv[++i];
+            config.enable_file_logging = (value == "true" || value == "1");
+        } else if (arg == "--log-file" && i + 1 < argc) {
+            config.log_file_path = argv[++i];
+            config.enable_file_logging = true;
+        } else if (arg == "--log-rotation" && i + 1 < argc) {
+            config.log_rotation_type = argv[++i];
+        } else if (arg == "--log-max-size" && i + 1 < argc) {
+            try {
+                config.log_max_file_size = std::stoull(argv[++i]) * 1024 * 1024;
+            } catch (const std::exception& e) {
+                LOG_ERROR("Invalid log max file size: " + std::string(argv[i]));
+                throw std::runtime_error("Invalid log max file size");
+            }
+        } else if (arg == "--log-rotation-interval" && i + 1 < argc) {
+            try {
+                config.log_rotation_interval_minutes = std::stoi(argv[++i]);
+            } catch (const std::exception& e) {
+                LOG_ERROR("Invalid log rotation interval: " + std::string(argv[i]));
+                throw std::runtime_error("Invalid log rotation interval");
+            }
+        } else if (arg == "--log-max-backups" && i + 1 < argc) {
+            try {
+                config.log_max_backup_files = std::stoi(argv[++i]);
+            } catch (const std::exception& e) {
+                LOG_ERROR("Invalid log max backup files: " + std::string(argv[i]));
+                throw std::runtime_error("Invalid log max backup files");
+            }
         } else if (arg == "--help" || arg == "-h") {
             print_help(argv[0]);
             std::exit(0);
@@ -149,6 +178,18 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
         if (!config.default_api_key.empty()) {
             LOG_INFO("  Default API Key: " + config.default_api_key.substr(0, 8) + "...");
         }
+    }
+    LOG_INFO("  File Logging: " + std::string(config.enable_file_logging ? "enabled" : "disabled"));
+    if (config.enable_file_logging) {
+        LOG_INFO("  Log File: " + config.log_file_path);
+        LOG_INFO("  Log Rotation: " + config.log_rotation_type);
+        if (config.log_rotation_type == "size" || config.log_rotation_type == "both") {
+            LOG_INFO("  Max File Size: " + std::to_string(config.log_max_file_size / (1024 * 1024)) + " MB");
+        }
+        if (config.log_rotation_type == "time" || config.log_rotation_type == "both") {
+            LOG_INFO("  Rotation Interval: " + std::to_string(config.log_rotation_interval_minutes) + " minutes");
+        }
+        LOG_INFO("  Max Backup Files: " + std::to_string(config.log_max_backup_files));
     }
 
     // Validate configuration
@@ -198,6 +239,35 @@ void ConfigParser::validate(const ServerConfig& config) {
 
     if (!config.asn_db_path.empty() && !std::filesystem::exists(config.asn_db_path)) {
         LOG_WARNING("ASN database file does not exist: " + config.asn_db_path);
+    }
+
+    // Validate logging configuration
+    if (config.enable_file_logging) {
+        if (config.log_rotation_type != "none" && 
+            config.log_rotation_type != "size" && 
+            config.log_rotation_type != "time" && 
+            config.log_rotation_type != "both") {
+            LOG_ERROR("Invalid log rotation type: " + config.log_rotation_type);
+            throw std::runtime_error("Invalid log rotation type: must be none, size, time, or both");
+        }
+        
+        if (config.log_max_file_size < 1024 * 1024 || config.log_max_file_size > 1024 * 1024 * 1024) {
+            LOG_ERROR("Log max file size must be between 1 MB and 1 GB, got: " + 
+                     std::to_string(config.log_max_file_size / (1024 * 1024)) + " MB");
+            throw std::runtime_error("Invalid log max file size: must be between 1 MB and 1 GB");
+        }
+        
+        if (config.log_rotation_interval_minutes < 1 || config.log_rotation_interval_minutes > 10080) {
+            LOG_ERROR("Log rotation interval must be between 1 and 10080 minutes (1 week), got: " + 
+                     std::to_string(config.log_rotation_interval_minutes));
+            throw std::runtime_error("Invalid log rotation interval: must be between 1 and 10080 minutes");
+        }
+        
+        if (config.log_max_backup_files < 0 || config.log_max_backup_files > 100) {
+            LOG_ERROR("Log max backup files must be between 0 and 100, got: " + 
+                     std::to_string(config.log_max_backup_files));
+            throw std::runtime_error("Invalid log max backup files: must be between 0 and 100");
+        }
     }
 
     LOG_INFO("Configuration validation passed");
@@ -258,6 +328,19 @@ ServerConfig ConfigParser::load_from_file(const std::filesystem::path& config_fi
             config.api_keys_file = value;
         } else if (key == "default_api_key") {
             config.default_api_key = value;
+        } else if (key == "enable_file_logging") {
+            config.enable_file_logging = (value == "true" || value == "1");
+        } else if (key == "log_file") {
+            config.log_file_path = value;
+            config.enable_file_logging = true;
+        } else if (key == "log_rotation") {
+            config.log_rotation_type = value;
+        } else if (key == "log_max_file_size") {
+            config.log_max_file_size = std::stoull(value) * 1024 * 1024;
+        } else if (key == "log_rotation_interval_minutes") {
+            config.log_rotation_interval_minutes = std::stoi(value);
+        } else if (key == "log_max_backup_files") {
+            config.log_max_backup_files = std::stoi(value);
         }
     }
 
@@ -285,6 +368,14 @@ bool ConfigParser::save_to_file(const ServerConfig& config, const std::filesyste
     file << "api_keys_file = " << config.api_keys_file << "\n";
     if (!config.default_api_key.empty()) {
         file << "default_api_key = " << config.default_api_key << "\n";
+    }
+    file << "enable_file_logging = " << (config.enable_file_logging ? "true" : "false") << "\n";
+    if (config.enable_file_logging) {
+        file << "log_file = " << config.log_file_path << "\n";
+        file << "log_rotation = " << config.log_rotation_type << "\n";
+        file << "log_max_file_size = " << (config.log_max_file_size / (1024 * 1024)) << "\n";
+        file << "log_rotation_interval_minutes = " << config.log_rotation_interval_minutes << "\n";
+        file << "log_max_backup_files = " << config.log_max_backup_files << "\n";
     }
 
     file.close();
@@ -323,6 +414,22 @@ void ConfigParser::print_help(const char* program_name) {
               << "                      Path to file containing API keys (one per line)\n"
               << "  --default-api-key <key>\n"
               << "                      Default API key for testing\n"
+              << "  --enable-file-logging <true|false>\n"
+              << "                      Enable file logging\n"
+              << "                      (default: false)\n"
+              << "  --log-file <path>    Path to log file\n"
+              << "                      (default: logs/ip_server.log)\n"
+              << "  --log-rotation <type>\n"
+              << "                      Log rotation type: none, size, time, both\n"
+              << "                      (default: size)\n"
+              << "  --log-max-size <MB>  Maximum log file size in MB before rotation\n"
+              << "                      (default: 10)\n"
+              << "  --log-rotation-interval <minutes>\n"
+              << "                      Time interval in minutes for time-based rotation\n"
+              << "                      (default: 1440, 24 hours)\n"
+              << "  --log-max-backups <count>\n"
+              << "                      Maximum number of backup log files to keep\n"
+              << "                      (default: 5)\n"
               << "  --no-xdg             Disable XDG directory standard\n"
               << "  --help, -h           Show this help message\n\n"
               << "XDG Directories:\n"
