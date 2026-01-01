@@ -328,7 +328,7 @@ void IPGeoHTTPServer::setup_routes() {
     LOG_INFO("HTTP routes configured");
 }
 
-bool IPGeoHTTPServer::start() {
+bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
     if (!lookup_handler_) {
         LOG_ERROR("Cannot start server: lookup handler not set");
         return false;
@@ -357,18 +357,18 @@ bool IPGeoHTTPServer::start() {
     std::cout << "========================================\n" << std::endl;
 
     // Start server in a separate thread to allow graceful shutdown
-    std::atomic<bool> running(true);
-    std::thread server_thread([this, &running]() {
+    std::atomic<bool> server_running(true);
+    std::thread server_thread([this, &server_running]() {
         if (!server_.listen(host_.c_str(), port_)) {
             LOG_ERROR("Failed to start HTTP server");
-            running.store(false);
+            server_running.store(false);
         }
     });
 
     // Wait for server to start or fail
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    if (!running.load()) {
+    if (!server_running.load()) {
         if (server_thread.joinable()) {
             server_thread.join();
         }
@@ -376,7 +376,7 @@ bool IPGeoHTTPServer::start() {
     }
 
     // Wait for shutdown signal from main
-    while (running.load() && server_.is_running()) {
+    while (!shutdown_requested.load() && server_.is_running()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 

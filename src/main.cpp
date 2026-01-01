@@ -30,17 +30,17 @@ public:
         LOG_INFO("Application starting...");
 
         // Setup atomic flag for graceful shutdown
-        static std::atomic<bool> shutdown_requested(false);
+        shutdown_requested_.store(false);
 
         // Setup signal handlers for graceful shutdown
         std::signal(SIGINT, [](int) {
-            if (!shutdown_requested.exchange(true)) {
+            if (!shutdown_requested_.exchange(true)) {
                 LOG_INFO("Received SIGINT, shutting down gracefully...");
             }
         });
 
         std::signal(SIGTERM, [](int) {
-            if (!shutdown_requested.exchange(true)) {
+            if (!shutdown_requested_.exchange(true)) {
                 LOG_INFO("Received SIGTERM, shutting down gracefully...");
             }
         });
@@ -52,10 +52,10 @@ public:
         }
 
         // Start server and wait for shutdown signal
-        bool result = http_server_.start();
+        bool result = http_server_.start(shutdown_requested_);
 
         // Perform graceful shutdown
-        if (shutdown_requested.load()) {
+        if (shutdown_requested_.load()) {
             LOG_INFO("Performing graceful shutdown...");
             http_server_.stop();
             LOG_INFO("Application shutdown complete");
@@ -68,7 +68,11 @@ private:
     ServerConfig config_;
     IPGeoService geo_service_;
     IPGeoHTTPServer http_server_;
+    static std::atomic<bool> shutdown_requested_;
 };
+
+// Initialize static member
+std::atomic<bool> Application::shutdown_requested_(false);
 
 } // namespace ip_server
 

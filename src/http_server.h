@@ -33,7 +33,7 @@ public:
     // Get metrics collector
     Metrics* get_metrics() { return metrics_.get(); }
 
-    bool start();
+    bool start(std::atomic<bool>& shutdown_requested);
     void stop();
 
 private:

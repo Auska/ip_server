@@ -35,8 +35,9 @@ protected:
         });
 
         // Start server in background thread
+        shutdown_requested.store(false);
         server_thread = std::thread([this]() {
-            server->start();
+            server->start(shutdown_requested);
         });
 
         // Wait for server to start
@@ -45,6 +46,8 @@ protected:
 
     void TearDown() override {
         if (server) {
+            shutdown_requested.store(true);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             server->stop();
         }
         if (server_thread.joinable()) {
@@ -58,6 +61,7 @@ protected:
     std::unique_ptr<IPGeoHTTPServer> server;
     std::thread server_thread;
     uint16_t test_port;
+    std::atomic<bool> shutdown_requested;
 };
 
 TEST_F(HTTPServerTest, RootEndpoint) {
@@ -221,8 +225,9 @@ TEST_F(HTTPServerTest, RateLimiting) {
     });
 
     // Start server in background thread
-    std::thread rate_limit_thread([&rate_limited_server]() {
-        rate_limited_server->start();
+    std::atomic<bool> rl_shutdown_requested(false);
+    std::thread rate_limit_thread([&rate_limited_server, &rl_shutdown_requested]() {
+        rate_limited_server->start(rl_shutdown_requested);
     });
 
     // Wait for server to start
@@ -254,6 +259,8 @@ TEST_F(HTTPServerTest, RateLimiting) {
     EXPECT_GE(rate_limited_count, 1); // At least 1 should be rate limited
 
     // Cleanup
+    rl_shutdown_requested.store(true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     rate_limited_server->stop();
     rate_limit_thread.join();
 }
@@ -271,8 +278,9 @@ TEST_F(HTTPServerTest, BatchSizeLimit) {
     });
 
     // Start server in background thread
-    std::thread batch_limit_thread([&batch_limited_server]() {
-        batch_limited_server->start();
+    std::atomic<bool> bl_shutdown_requested(false);
+    std::thread batch_limit_thread([&batch_limited_server, &bl_shutdown_requested]() {
+        batch_limited_server->start(bl_shutdown_requested);
     });
 
     // Wait for server to start
@@ -309,6 +317,8 @@ TEST_F(HTTPServerTest, BatchSizeLimit) {
     EXPECT_EQ(json.size(), 2);
 
     // Cleanup
+    bl_shutdown_requested.store(true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     batch_limited_server->stop();
     batch_limit_thread.join();
 }
@@ -326,8 +336,9 @@ TEST_F(HTTPServerTest, RateLimitingWithBatchRequests) {
     });
 
     // Start server in background thread
-    std::thread rate_limit_thread([&rate_limited_server]() {
-        rate_limited_server->start();
+    std::atomic<bool> rlb_shutdown_requested(false);
+    std::thread rate_limit_thread([&rate_limited_server, &rlb_shutdown_requested]() {
+        rate_limited_server->start(rlb_shutdown_requested);
     });
 
     // Wait for server to start
@@ -357,6 +368,8 @@ TEST_F(HTTPServerTest, RateLimitingWithBatchRequests) {
     EXPECT_GE(rate_limited_count, 1); // At least 1 should be rate limited
 
     // Cleanup
+    rlb_shutdown_requested.store(true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     rate_limited_server->stop();
     rate_limit_thread.join();
 }
@@ -374,8 +387,9 @@ TEST_F(HTTPServerTest, DisabledRateLimiter) {
     });
 
     // Start server in background thread
-    std::thread no_rate_limit_thread([&no_rate_limit_server]() {
-        no_rate_limit_server->start();
+    std::atomic<bool> nrl_shutdown_requested(false);
+    std::thread no_rate_limit_thread([&no_rate_limit_server, &nrl_shutdown_requested]() {
+        no_rate_limit_server->start(nrl_shutdown_requested);
     });
 
     // Wait for server to start
@@ -391,6 +405,8 @@ TEST_F(HTTPServerTest, DisabledRateLimiter) {
     }
 
     // Cleanup
+    nrl_shutdown_requested.store(true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     no_rate_limit_server->stop();
     no_rate_limit_thread.join();
 }
