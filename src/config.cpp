@@ -114,6 +114,13 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
                 LOG_ERROR("Invalid max batch size: " + std::string(argv[i]));
                 throw std::runtime_error("Invalid max batch size");
             }
+        } else if (arg == "--enable-api-auth" && i + 1 < argc) {
+            std::string value = argv[++i];
+            config.enable_api_auth = (value == "true" || value == "1");
+        } else if (arg == "--api-keys-file" && i + 1 < argc) {
+            config.api_keys_file = argv[++i];
+        } else if (arg == "--default-api-key" && i + 1 < argc) {
+            config.default_api_key = argv[++i];
         } else if (arg == "--help" || arg == "-h") {
             print_help(argv[0]);
             std::exit(0);
@@ -136,8 +143,64 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
         LOG_INFO("  Max Requests/Min: " + std::to_string(config.max_requests_per_minute));
     }
     LOG_INFO("  Max Batch Size: " + std::to_string(config.max_batch_size));
+    LOG_INFO("  API Auth: " + std::string(config.enable_api_auth ? "enabled" : "disabled"));
+    if (config.enable_api_auth) {
+        LOG_INFO("  API Keys File: " + config.api_keys_file);
+        if (!config.default_api_key.empty()) {
+            LOG_INFO("  Default API Key: " + config.default_api_key.substr(0, 8) + "...");
+        }
+    }
+
+    // Validate configuration
+    validate(config);
 
     return config;
+}
+
+void ConfigParser::validate(const ServerConfig& config) {
+    // Validate port range
+    if (config.port < 1) {
+        LOG_ERROR("Port must be between 1 and 65535, got: " + std::to_string(config.port));
+        throw std::runtime_error("Invalid port number: must be between 1 and 65535");
+    }
+
+    // Validate thread pool size
+    if (config.thread_pool_size < 1 || config.thread_pool_size > 64) {
+        LOG_ERROR("Thread pool size must be between 1 and 64, got: " + std::to_string(config.thread_pool_size));
+        throw std::runtime_error("Invalid thread pool size: must be between 1 and 64");
+    }
+
+    // Validate cache size
+    if (config.cache_size > 1000000) {
+        LOG_ERROR("Cache size must be between 0 and 1000000, got: " + std::to_string(config.cache_size));
+        throw std::runtime_error("Invalid cache size: must be between 0 and 1000000");
+    }
+
+    // Validate rate limiter settings
+    if (config.enable_rate_limiter) {
+        if (config.max_requests_per_minute < 1 || config.max_requests_per_minute > 10000) {
+            LOG_ERROR("Max requests per minute must be between 1 and 10000, got: " + 
+                     std::to_string(config.max_requests_per_minute));
+            throw std::runtime_error("Invalid max requests per minute: must be between 1 and 10000");
+        }
+    }
+
+    // Validate batch size limit
+    if (config.max_batch_size < 1 || config.max_batch_size > 1000) {
+        LOG_ERROR("Max batch size must be between 1 and 1000, got: " + std::to_string(config.max_batch_size));
+        throw std::runtime_error("Invalid max batch size: must be between 1 and 1000");
+    }
+
+    // Validate database paths
+    if (!config.city_db_path.empty() && !std::filesystem::exists(config.city_db_path)) {
+        LOG_WARNING("City database file does not exist: " + config.city_db_path);
+    }
+
+    if (!config.asn_db_path.empty() && !std::filesystem::exists(config.asn_db_path)) {
+        LOG_WARNING("ASN database file does not exist: " + config.asn_db_path);
+    }
+
+    LOG_INFO("Configuration validation passed");
 }
 
 ServerConfig ConfigParser::load_from_file(const std::filesystem::path& config_file) {
@@ -189,6 +252,12 @@ ServerConfig ConfigParser::load_from_file(const std::filesystem::path& config_fi
             config.max_requests_per_minute = std::stoi(value);
         } else if (key == "max_batch_size") {
             config.max_batch_size = std::stoi(value);
+        } else if (key == "enable_api_auth") {
+            config.enable_api_auth = (value == "true" || value == "1");
+        } else if (key == "api_keys_file") {
+            config.api_keys_file = value;
+        } else if (key == "default_api_key") {
+            config.default_api_key = value;
         }
     }
 
@@ -212,6 +281,11 @@ bool ConfigParser::save_to_file(const ServerConfig& config, const std::filesyste
     file << "enable_rate_limiter = " << (config.enable_rate_limiter ? "true" : "false") << "\n";
     file << "max_requests_per_minute = " << config.max_requests_per_minute << "\n";
     file << "max_batch_size = " << config.max_batch_size << "\n";
+    file << "enable_api_auth = " << (config.enable_api_auth ? "true" : "false") << "\n";
+    file << "api_keys_file = " << config.api_keys_file << "\n";
+    if (!config.default_api_key.empty()) {
+        file << "default_api_key = " << config.default_api_key << "\n";
+    }
 
     file.close();
     LOG_INFO("Configuration saved to: " + config_file.string());
@@ -242,6 +316,13 @@ void ConfigParser::print_help(const char* program_name) {
               << "  --max-batch-size <count>\n"
               << "                      Maximum batch size for batch lookup\n"
               << "                      (default: 100)\n"
+              << "  --enable-api-auth <true|false>\n"
+              << "                      Enable API authentication\n"
+              << "                      (default: false)\n"
+              << "  --api-keys-file <path>\n"
+              << "                      Path to file containing API keys (one per line)\n"
+              << "  --default-api-key <key>\n"
+              << "                      Default API key for testing\n"
               << "  --no-xdg             Disable XDG directory standard\n"
               << "  --help, -h           Show this help message\n\n"
               << "XDG Directories:\n"

@@ -32,6 +32,7 @@ set(TEST_SOURCES
     test_database.cpp
     test_http_server.cpp
     test_rate_limiter.cpp
+    test_auth.cpp
 )
 
 # Add source files from src directory
@@ -43,6 +44,7 @@ set(PROJECT_SOURCES
     ${CMAKE_SOURCE_DIR}/src/logger.cpp
     ${CMAKE_SOURCE_DIR}/src/xdg.cpp
     ${CMAKE_SOURCE_DIR}/src/rate_limiter.cpp
+    ${CMAKE_SOURCE_DIR}/src/auth.cpp
 )
 
 # Create test executable

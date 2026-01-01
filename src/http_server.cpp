@@ -1,5 +1,6 @@
 #include "http_server.h"
 #include "rate_limiter.h"
+#include "auth.h"
 #include "logger.h"
 #include <stdexcept>
 #include <thread>
@@ -10,19 +11,43 @@ namespace ip_server {
 
 IPGeoHTTPServer::IPGeoHTTPServer(const std::string& host, uint16_t port, int thread_pool_size,
                                 bool enable_rate_limiter, int max_requests_per_minute,
-                                int max_batch_size)
+                                int max_batch_size, bool enable_api_auth,
+                                const std::string& api_keys_file,
+                                const std::string& default_api_key)
     : host_(host), port_(port), thread_pool_size_(thread_pool_size),
       enable_rate_limiter_(enable_rate_limiter), max_requests_per_minute_(max_requests_per_minute),
-      max_batch_size_(max_batch_size) {
+      max_batch_size_(max_batch_size), enable_api_auth_(enable_api_auth) {
 
     if (enable_rate_limiter_) {
         rate_limiter_ = std::make_unique<RateLimiter>(max_requests_per_minute, std::chrono::seconds(60));
         LOG_INFO("Rate limiter enabled: " + std::to_string(max_requests_per_minute) + " requests per minute");
     }
 
+    if (enable_api_auth_) {
+        api_auth_ = std::make_unique<APIAuth>(true);
+        
+        // Load API keys from file if specified
+        if (!api_keys_file.empty()) {
+            if (api_auth_->load_keys_from_file(api_keys_file)) {
+                LOG_INFO("Loaded " + std::to_string(api_auth_->key_count()) + " API keys from file");
+            }
+        }
+        
+        // Add default API key if specified
+        if (!default_api_key.empty()) {
+            api_auth_->add_key(default_api_key);
+            LOG_INFO("Added default API key");
+        }
+        
+        if (api_auth_->key_count() == 0) {
+            LOG_WARNING("API authentication enabled but no API keys configured!");
+        }
+    }
+
     LOG_INFO("HTTP server configured for " + host_ + ":" + std::to_string(port_) + 
             " with " + std::to_string(thread_pool_size_) + " threads");
     LOG_INFO("Batch size limit: " + std::to_string(max_batch_size_) + " IPs per request");
+    LOG_INFO("API Auth: " + std::string(enable_api_auth_ ? "enabled" : "disabled"));
 }
 
 IPGeoHTTPServer::~IPGeoHTTPServer() = default;
@@ -30,6 +55,52 @@ IPGeoHTTPServer::~IPGeoHTTPServer() = default;
 void IPGeoHTTPServer::set_lookup_handler(LookupHandler handler) {
     lookup_handler_ = std::move(handler);
     LOG_INFO("Lookup handler registered");
+}
+
+bool IPGeoHTTPServer::authenticate_request(const httplib::Request& req, httplib::Response& res) {
+    if (!enable_api_auth_ || !api_auth_) {
+        return true; // Authentication disabled, allow all requests
+    }
+
+    // Check for API key in Authorization header
+    auto auth_header = req.get_header_value("Authorization");
+    if (auth_header.empty()) {
+        res.status = 401;
+        nlohmann::json error;
+        error["error"] = "Unauthorized";
+        error["message"] = "Missing API key in Authorization header";
+        res.set_header("WWW-Authenticate", "Bearer");
+        res.set_content(error.dump(), "application/json");
+        LOG_WARNING("Unauthorized request: missing API key");
+        return false;
+    }
+
+    // Extract API key from "Bearer <key>" format
+    std::string prefix = "Bearer ";
+    if (auth_header.substr(0, prefix.length()) != prefix) {
+        res.status = 401;
+        nlohmann::json error;
+        error["error"] = "Unauthorized";
+        error["message"] = "Invalid Authorization header format. Expected: Bearer <api_key>";
+        res.set_header("WWW-Authenticate", "Bearer");
+        res.set_content(error.dump(), "application/json");
+        LOG_WARNING("Unauthorized request: invalid Authorization header format");
+        return false;
+    }
+
+    std::string api_key = auth_header.substr(prefix.length());
+    if (!api_auth_->is_valid(api_key)) {
+        res.status = 401;
+        nlohmann::json error;
+        error["error"] = "Unauthorized";
+        error["message"] = "Invalid API key";
+        res.set_header("WWW-Authenticate", "Bearer");
+        res.set_content(error.dump(), "application/json");
+        LOG_WARNING("Unauthorized request: invalid API key");
+        return false;
+    }
+
+    return true;
 }
 
 void IPGeoHTTPServer::setup_cors() {
@@ -65,6 +136,11 @@ void IPGeoHTTPServer::setup_routes() {
 
     // Single IP lookup endpoint
     server_.Get("/lookup", [this](const httplib::Request& req, httplib::Response& res) {
+        // Check authentication
+        if (!authenticate_request(req, res)) {
+            return;
+        }
+
         auto client_ip = req.remote_addr;
         if (client_ip.empty()) {
             res.status = 400;
@@ -110,6 +186,11 @@ void IPGeoHTTPServer::setup_routes() {
 
     // Batch lookup endpoint
     server_.Post("/lookup", [this](const httplib::Request& req, httplib::Response& res) {
+        // Check authentication
+        if (!authenticate_request(req, res)) {
+            return;
+        }
+
         auto client_ip = req.remote_addr;
         if (client_ip.empty()) {
             res.status = 400;

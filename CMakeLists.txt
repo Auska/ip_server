@@ -42,6 +42,7 @@ set(SOURCES
     src/xdg.cpp
     src/cache.h
     src/rate_limiter.cpp
+    src/auth.cpp
 )
 
 # Build maxminddb library

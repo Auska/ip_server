@@ -18,6 +18,9 @@ struct ServerConfig {
     bool enable_rate_limiter = true;
     int max_requests_per_minute = 100;
     int max_batch_size = 100;
+    bool enable_api_auth = false;
+    std::string api_keys_file;
+    std::string default_api_key;
 };
 
 class ConfigParser {
@@ -27,6 +30,7 @@ public:
     static ServerConfig default_config();
     static ServerConfig load_from_file(const std::filesystem::path& config_file);
     static bool save_to_file(const ServerConfig& config, const std::filesystem::path& config_file);
+    static void validate(const ServerConfig& config);
 
 private:
     static void apply_xdg_defaults(ServerConfig& config);

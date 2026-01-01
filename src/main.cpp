@@ -17,7 +17,8 @@ public:
           geo_service_(config.city_db_path, config.asn_db_path, config.cache_size),
           http_server_(config.host, config.port, config.thread_pool_size,
                       config.enable_rate_limiter, config.max_requests_per_minute,
-                      config.max_batch_size) {
+                      config.max_batch_size, config.enable_api_auth,
+                      config.api_keys_file, config.default_api_key) {
 
         http_server_.set_lookup_handler([this](const std::string& ip) {
             return geo_service_.lookup(ip);
