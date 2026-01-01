@@ -1,6 +1,7 @@
 #include "http_server.h"
 #include "rate_limiter.h"
 #include "auth.h"
+#include "metrics.h"
 #include "logger.h"
 #include <stdexcept>
 #include <thread>
@@ -17,6 +18,9 @@ IPGeoHTTPServer::IPGeoHTTPServer(const std::string& host, uint16_t port, int thr
     : host_(host), port_(port), thread_pool_size_(thread_pool_size),
       enable_rate_limiter_(enable_rate_limiter), max_requests_per_minute_(max_requests_per_minute),
       max_batch_size_(max_batch_size), enable_api_auth_(enable_api_auth) {
+
+    // Initialize metrics collector
+    metrics_ = std::make_unique<Metrics>();
 
     if (enable_rate_limiter_) {
         rate_limiter_ = std::make_unique<RateLimiter>(max_requests_per_minute, std::chrono::seconds(60));
@@ -127,10 +131,41 @@ void IPGeoHTTPServer::setup_routes() {
     });
 
     // Health check endpoint
-    server_.Get("/health", [](const httplib::Request&, httplib::Response& res) {
+    server_.Get("/health", [this](const httplib::Request&, httplib::Response& res) {
+        auto stats = metrics_->get_stats();
+        
         nlohmann::json health;
         health["status"] = "ok";
         health["timestamp"] = std::time(nullptr);
+        
+        // Database status
+        health["databases"] = {
+            {"city", {{"open", stats.city_db_open}}},
+            {"asn", {{"open", stats.asn_db_open}}}
+        };
+        
+        // Performance metrics
+        health["metrics"] = {
+            {"total_requests", stats.total_requests},
+            {"qps", round(stats.current_qps * 100) / 100},
+            {"avg_latency_ms", round(stats.avg_latency_ms * 1000) / 1000},
+            {"p50_latency_ms", round(stats.p50_latency_ms * 1000) / 1000},
+            {"p95_latency_ms", round(stats.p95_latency_ms * 1000) / 1000},
+            {"p99_latency_ms", round(stats.p99_latency_ms * 1000) / 1000}
+        };
+        
+        // Cache metrics
+        health["cache"] = {
+            {"hits", stats.cache_hits},
+            {"misses", stats.cache_misses},
+            {"hit_rate_percent", round(stats.cache_hit_rate * 100) / 100}
+        };
+        
+        // System metrics
+        health["system"] = {
+            {"memory_usage_mb", stats.memory_usage_mb}
+        };
+        
         res.set_content(health.dump(), "application/json");
     });
 
@@ -171,9 +206,22 @@ void IPGeoHTTPServer::setup_routes() {
             LOG_DEBUG("Lookup request using source IP: " + ip_param);
         }
 
+        // Record request start time
+        auto start = std::chrono::high_resolution_clock::now();
+
         try {
             LOG_DEBUG("Lookup request for IP: " + ip_param);
             auto result = lookup_handler_(ip_param);
+            
+            // Record metrics
+            auto end = std::chrono::high_resolution_clock::now();
+            auto latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
+            
+            // Estimate cache hit based on latency (cache hits are typically < 1ms)
+            bool cache_hit = latency_ms < 1.0;
+            
+            metrics_->record_request(cache_hit, latency_ms);
+            
             res.set_content(result.dump(), "application/json");
         } catch (const std::exception& e) {
             res.status = 500;
@@ -244,7 +292,18 @@ void IPGeoHTTPServer::setup_routes() {
                 if (ip.is_string()) {
                     auto ip_str = ip.get<std::string>();
                     LOG_DEBUG("Batch lookup for IP: " + ip_str);
-                    results.push_back(lookup_handler_(ip_str));
+                    
+                    // Record request start time for each IP
+                    auto start = std::chrono::high_resolution_clock::now();
+                    auto result = lookup_handler_(ip_str);
+                    auto end = std::chrono::high_resolution_clock::now();
+                    auto latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
+                    
+                    // Estimate cache hit based on latency
+                    bool cache_hit = latency_ms < 1.0;
+                    metrics_->record_request(cache_hit, latency_ms);
+                    
+                    results.push_back(result);
                 }
             }
 

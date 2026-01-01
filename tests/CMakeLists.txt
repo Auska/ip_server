@@ -45,6 +45,7 @@ set(PROJECT_SOURCES
     ${CMAKE_SOURCE_DIR}/src/xdg.cpp
     ${CMAKE_SOURCE_DIR}/src/rate_limiter.cpp
     ${CMAKE_SOURCE_DIR}/src/auth.cpp
+    ${CMAKE_SOURCE_DIR}/src/metrics.cpp
 )
 
 # Create test executable

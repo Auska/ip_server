@@ -58,6 +58,10 @@ public:
     void set_cache_size(size_t size) { IPCache(size).swap(cache_); }
     void clear_cache() { cache_.clear(); }
     size_t cache_size() const { return cache_.size(); }
+    
+    // Database status
+    bool is_city_db_open() const { return city_db_.is_open(); }
+    bool is_asn_db_open() const { return asn_db_.is_open(); }
 
 private:
     CityDatabase city_db_;

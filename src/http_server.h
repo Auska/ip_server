@@ -12,6 +12,7 @@ namespace ip_server {
 // Forward declaration
 class RateLimiter;
 class APIAuth;
+class Metrics;
 
 class IPGeoHTTPServer {
 public:
@@ -28,6 +29,9 @@ public:
     IPGeoHTTPServer& operator=(const IPGeoHTTPServer&) = delete;
 
     void set_lookup_handler(LookupHandler handler);
+    
+    // Get metrics collector
+    Metrics* get_metrics() { return metrics_.get(); }
 
     bool start();
     void stop();
@@ -48,6 +52,7 @@ private:
     LookupHandler lookup_handler_;
     std::unique_ptr<RateLimiter> rate_limiter_;
     std::unique_ptr<APIAuth> api_auth_;
+    std::unique_ptr<Metrics> metrics_;
 };
 
 } // namespace ip_server

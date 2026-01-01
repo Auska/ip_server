@@ -3,6 +3,7 @@
 #include "http_server.h"
 #include "logger.h"
 #include "xdg.h"
+#include "metrics.h"
 #include <iostream>
 #include <csignal>
 #include <memory>
@@ -43,6 +44,12 @@ public:
                 LOG_INFO("Received SIGTERM, shutting down gracefully...");
             }
         });
+
+        // Set database status in metrics
+        if (auto metrics = http_server_.get_metrics()) {
+            metrics->set_city_db_status(geo_service_.is_city_db_open());
+            metrics->set_asn_db_status(geo_service_.is_asn_db_open());
+        }
 
         // Start server and wait for shutdown signal
         bool result = http_server_.start();
