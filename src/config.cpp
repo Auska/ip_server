@@ -80,33 +80,18 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
             config.asn_db_path = argv[++i];
             config.use_xdg = false;
         } else if (arg == "--port" && i + 1 < argc) {
-            try {
-                config.port = static_cast<uint16_t>(std::stoi(argv[++i]));
-            } catch (const std::exception& e) {
-                LOG_ERROR("Invalid port number: " + std::string(argv[i]));
-                throw std::runtime_error("Invalid port number");
-            }
+            config.port = static_cast<uint16_t>(parse_int_arg(argv[++i], "port number"));
         } else if (arg == "--host" && i + 1 < argc) {
             config.host = argv[++i];
         } else if (arg == "--threads" && i + 1 < argc) {
-            try {
-                config.thread_pool_size = std::stoi(argv[++i]);
-            } catch (const std::exception& e) {
-                LOG_ERROR("Invalid thread count: " + std::string(argv[i]));
-                throw std::runtime_error("Invalid thread count");
-            }
+            config.thread_pool_size = parse_int_arg(argv[++i], "thread count");
         } else if (arg == "--no-xdg") {
             config.use_xdg = false;
         } else if (arg == "--enable-rate-limiter" && i + 1 < argc) {
             std::string value = argv[++i];
             config.enable_rate_limiter = (value == "true" || value == "1");
         } else if (arg == "--max-requests-per-minute" && i + 1 < argc) {
-            try {
-                config.max_requests_per_minute = std::stoi(argv[++i]);
-            } catch (const std::exception& e) {
-                LOG_ERROR("Invalid max requests per minute: " + std::string(argv[i]));
-                throw std::runtime_error("Invalid max requests per minute");
-            }
+            config.max_requests_per_minute = parse_int_arg(argv[++i], "max requests per minute");
         } else if (arg == "--max-batch-size" && i + 1 < argc) {
             try {
                 config.max_batch_size = std::stoi(argv[++i]);
@@ -130,26 +115,11 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
         } else if (arg == "--log-rotation" && i + 1 < argc) {
             config.log_rotation_type = argv[++i];
         } else if (arg == "--log-max-size" && i + 1 < argc) {
-            try {
-                config.log_max_file_size = std::stoull(argv[++i]) * 1024 * 1024;
-            } catch (const std::exception& e) {
-                LOG_ERROR("Invalid log max file size: " + std::string(argv[i]));
-                throw std::runtime_error("Invalid log max file size");
-            }
+            config.log_max_file_size = parse_size_arg(argv[++i], "log max file size") * 1024 * 1024;
         } else if (arg == "--log-rotation-interval" && i + 1 < argc) {
-            try {
-                config.log_rotation_interval_minutes = std::stoi(argv[++i]);
-            } catch (const std::exception& e) {
-                LOG_ERROR("Invalid log rotation interval: " + std::string(argv[i]));
-                throw std::runtime_error("Invalid log rotation interval");
-            }
+            config.log_rotation_interval_minutes = parse_int_arg(argv[++i], "log rotation interval");
         } else if (arg == "--log-max-backups" && i + 1 < argc) {
-            try {
-                config.log_max_backup_files = std::stoi(argv[++i]);
-            } catch (const std::exception& e) {
-                LOG_ERROR("Invalid log max backup files: " + std::string(argv[i]));
-                throw std::runtime_error("Invalid log max backup files");
-            }
+            config.log_max_backup_files = parse_int_arg(argv[++i], "log max backup files");
         } else if (arg == "--help" || arg == "-h") {
             print_help(argv[0]);
             std::exit(0);
@@ -453,6 +423,24 @@ void ConfigParser::print_help(const char* program_name) {
               << "  POST /lookup                 - Batch lookup\n"
               << "                                Body: {\"ips\": [\"1.1.1.1\", \"8.8.8.8\"]}\n\n"
               << "For more information, visit: https://dev.maxmind.com/geoip/geolite2-free-geolocation-data\n";
+}
+
+int ConfigParser::parse_int_arg(const char* arg, const char* name) {
+    try {
+        return std::stoi(arg);
+    } catch (const std::exception& e) {
+        LOG_ERROR(std::string("Invalid ") + name + ": " + arg);
+        throw std::runtime_error(std::string("Invalid ") + name);
+    }
+}
+
+size_t ConfigParser::parse_size_arg(const char* arg, const char* name) {
+    try {
+        return std::stoull(arg);
+    } catch (const std::exception& e) {
+        LOG_ERROR(std::string("Invalid ") + name + ": " + arg);
+        throw std::runtime_error(std::string("Invalid ") + name);
+    }
 }
 
 } // namespace ip_server

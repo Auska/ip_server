@@ -69,12 +69,8 @@ bool IPGeoHTTPServer::authenticate_request(const httplib::Request& req, httplib:
     // Check for API key in Authorization header
     auto auth_header = req.get_header_value("Authorization");
     if (auth_header.empty()) {
-        res.status = 401;
-        nlohmann::json error;
-        error["error"] = "Unauthorized";
-        error["message"] = "Missing API key in Authorization header";
+        send_error_response(res, 401, "Unauthorized", "Missing API key in Authorization header");
         res.set_header("WWW-Authenticate", "Bearer");
-        res.set_content(error.dump(), "application/json");
         LOG_WARNING("Unauthorized request: missing API key");
         return false;
     }
@@ -82,29 +78,33 @@ bool IPGeoHTTPServer::authenticate_request(const httplib::Request& req, httplib:
     // Extract API key from "Bearer <key>" format
     std::string prefix = "Bearer ";
     if (auth_header.substr(0, prefix.length()) != prefix) {
-        res.status = 401;
-        nlohmann::json error;
-        error["error"] = "Unauthorized";
-        error["message"] = "Invalid Authorization header format. Expected: Bearer <api_key>";
+        send_error_response(res, 401, "Unauthorized", "Invalid Authorization header format. Expected: Bearer <api_key>");
         res.set_header("WWW-Authenticate", "Bearer");
-        res.set_content(error.dump(), "application/json");
         LOG_WARNING("Unauthorized request: invalid Authorization header format");
         return false;
     }
 
     std::string api_key = auth_header.substr(prefix.length());
     if (!api_auth_->is_valid(api_key)) {
-        res.status = 401;
-        nlohmann::json error;
-        error["error"] = "Unauthorized";
-        error["message"] = "Invalid API key";
-        res.set_header("WWW-Authenticate", "Bearer");
-        res.set_content(error.dump(), "application/json");
-        LOG_WARNING("Unauthorized request: invalid API key");
+        send_error_response(res, 401, "Unauthorized", "Invalid API key");
+        LOG_WARNING("Unauthorized request: invalid API key from " + req.remote_addr);
         return false;
     }
 
     return true;
+}
+
+void IPGeoHTTPServer::send_error_response(httplib::Response& res, int status, const std::string& error, const std::string& message) {
+    nlohmann::json error_json;
+    error_json["error"] = error;
+    error_json["message"] = message;
+    res.status = status;
+    res.set_content(error_json.dump(), "application/json");
+}
+
+void IPGeoHTTPServer::send_json_response(httplib::Response& res, const nlohmann::json& data, int status) {
+    res.status = status;
+    res.set_content(data.dump(), "application/json");
 }
 
 void IPGeoHTTPServer::setup_cors() {
@@ -178,22 +178,18 @@ void IPGeoHTTPServer::setup_routes() {
 
         auto client_ip = req.remote_addr;
         if (client_ip.empty()) {
-            res.status = 400;
-            nlohmann::json error;
-            error["error"] = "Unable to determine source IP address";
-            res.set_content(error.dump(), "application/json");
+            send_error_response(res, 400, "Bad Request", "Unable to determine source IP address");
             LOG_WARNING("Lookup request: unable to determine source IP");
             return;
         }
 
         // Check rate limit
         if (enable_rate_limiter_ && !rate_limiter_->is_allowed(client_ip)) {
-            res.status = 429;
             nlohmann::json error;
             error["error"] = "Rate limit exceeded";
             error["remaining"] = rate_limiter_->get_remaining(client_ip);
+            send_json_response(res, error, 429);
             res.set_header("Retry-After", "60");
-            res.set_content(error.dump(), "application/json");
             LOG_WARNING("Rate limit exceeded for IP: " + client_ip);
             return;
         }
@@ -242,21 +238,18 @@ void IPGeoHTTPServer::setup_routes() {
         auto client_ip = req.remote_addr;
         if (client_ip.empty()) {
             res.status = 400;
-            nlohmann::json error;
-            error["error"] = "Unable to determine source IP address";
-            res.set_content(error.dump(), "application/json");
+            send_error_response(res, 400, "Bad Request", "Unable to determine source IP address");
             LOG_WARNING("Batch lookup request: unable to determine source IP");
             return;
         }
 
         // Check rate limit
         if (enable_rate_limiter_ && !rate_limiter_->is_allowed(client_ip)) {
-            res.status = 429;
             nlohmann::json error;
             error["error"] = "Rate limit exceeded";
             error["remaining"] = rate_limiter_->get_remaining(client_ip);
+            send_json_response(res, error, 429);
             res.set_header("Retry-After", "60");
-            res.set_content(error.dump(), "application/json");
             LOG_WARNING("Rate limit exceeded for IP: " + client_ip);
             return;
         }
@@ -265,10 +258,7 @@ void IPGeoHTTPServer::setup_routes() {
             auto body = nlohmann::json::parse(req.body);
 
             if (!body.contains("ips") || !body["ips"].is_array()) {
-                res.status = 400;
-                nlohmann::json error;
-                error["error"] = "Missing or invalid 'ips' array in request body";
-                res.set_content(error.dump(), "application/json");
+                send_error_response(res, 400, "Bad Request", "Missing or invalid 'ips' array in request body");
                 LOG_WARNING("Batch lookup request missing 'ips' array");
                 return;
             }
@@ -276,12 +266,11 @@ void IPGeoHTTPServer::setup_routes() {
             // Check batch size limit
             size_t batch_size = body["ips"].size();
             if (batch_size > static_cast<size_t>(max_batch_size_)) {
-                res.status = 400;
                 nlohmann::json error;
                 error["error"] = "Batch size exceeds maximum limit";
                 error["max_batch_size"] = max_batch_size_;
                 error["requested_size"] = batch_size;
-                res.set_content(error.dump(), "application/json");
+                send_json_response(res, error, 400);
                 LOG_WARNING("Batch lookup request exceeds size limit: " + std::to_string(batch_size) + 
                            " > " + std::to_string(max_batch_size_));
                 return;
@@ -311,16 +300,10 @@ void IPGeoHTTPServer::setup_routes() {
             res.set_content(results.dump(), "application/json");
 
         } catch (const nlohmann::json::exception& e) {
-            res.status = 400;
-            nlohmann::json error;
-            error["error"] = "Invalid JSON: " + std::string(e.what());
-            res.set_content(error.dump(), "application/json");
+            send_error_response(res, 400, "Bad Request", "Invalid JSON: " + std::string(e.what()));
             LOG_WARNING("Invalid JSON in batch lookup request: " + std::string(e.what()));
         } catch (const std::exception& e) {
-            res.status = 500;
-            nlohmann::json error;
-            error["error"] = e.what();
-            res.set_content(error.dump(), "application/json");
+            send_error_response(res, 500, "Internal Server Error", e.what());
             LOG_ERROR(std::string("Error processing batch lookup: ") + e.what());
         }
     });

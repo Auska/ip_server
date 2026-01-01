@@ -43,6 +43,8 @@ public:
 
 private:
     static void apply_xdg_defaults(ServerConfig& config);
+    static int parse_int_arg(const char* arg, const char* name);
+    static size_t parse_size_arg(const char* arg, const char* name);
 };
 
 } // namespace ip_server

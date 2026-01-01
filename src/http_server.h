@@ -40,6 +40,8 @@ private:
     void setup_routes();
     void setup_cors();
     bool authenticate_request(const httplib::Request& req, httplib::Response& res);
+    void send_error_response(httplib::Response& res, int status, const std::string& error, const std::string& message);
+    void send_json_response(httplib::Response& res, const nlohmann::json& data, int status = 200);
 
     std::string host_;
     uint16_t port_;
