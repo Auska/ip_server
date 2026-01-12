@@ -13,14 +13,15 @@
 - LRU 缓存提升查询性能
 - 速率限制防止 API 滥用
 - API 密钥认证支持
-- 日志文件轮转
+- 基于 spdlog 的日志系统，支持文件日志轮转
 - 遵循 XDG 目录标准
 
 ## 技术栈
 
-- **编程语言**: C++20
+- **编程语言**: C++23
 - **构建系统**: CMake 3.20+
 - **HTTP 服务器**: cpp-httplib
+- **日志库**: spdlog 1.17.0
 - **数据库**: 
   - MaxMind GeoLite2 (City + ASN)
   - SQLite3 (OUI 数据库)
@@ -33,13 +34,14 @@
 - **libmaxminddb**: MaxMind 数据库读取库（位于 `external/libmaxminddb-1.12.2`）
 - **httplib**: C++ HTTP 服务器库（位于 `external/include/httplib.h`）
 - **nlohmann/json**: JSON 处理库（位于 `external/include/nlohmann/json.hpp`）
+- **spdlog**: 快速的 C++ 日志库（位于 `external/spdlog-1.17.0/`）
 - **SQLite3**: 嵌入式数据库（位于 `external/sqlite-autoconf-3510200/`）
 
 ## 编译
 
 ### 环境要求
 
-- C++20 兼容的编译器 (GCC 10+, Clang 10+, MSVC 19.28+)
+- C++23 兼容的编译器 (GCC 11+, Clang 13+, MSVC 19.30+)
 - CMake 3.20+
 - pthread
 - Google Test (用于单元测试)
@@ -65,7 +67,7 @@ cmake --build . -j$(nproc)
 ### 性能对比
 
 - Debug 模式: 启用缓存 ~13.5μs (75k QPS)
-- Release 模式: 启用缓存 ~1.56μs (647k QPS) - **性能提升约 8.6 倍**
+- Release 模式: 启用缓存 ~1.56μs (647k QPS) - **性能提升约 8.6 倍**（使用 -O3 优化）
 
 ## 数据库准备
 
@@ -411,6 +413,7 @@ ip_local/
 │   │   ├── httplib.h          # HTTP 服务器库
 │   │   └── nlohmann/          # JSON 库
 │   ├── libmaxminddb-1.12.2/   # MaxMind 数据库库
+│   ├── spdlog-1.17.0/         # spdlog 日志库
 │   └── sqlite-autoconf-3510200/ # SQLite3 源代码
 ├── db/                         # 数据库文件目录（传统路径）
 │   ├── GeoLite2-City.mmdb     # 城市数据库
@@ -443,7 +446,7 @@ ip_local/
 
 - 使用 LRU 缓存减少数据库查询（默认 10,000 条记录）
 - 线程池处理并发请求（默认 4 个线程）
-- Release 模式使用 `-O2` 优化
+- Release 模式使用 `-O3` 优化
 - SQLite3 使用 WAL 模式提高读性能
 - 使用预编译语句提高查询效率
 
@@ -461,6 +464,7 @@ ip_local/
 - libmaxminddb: Apache License 2.0
 - httplib: MIT License
 - nlohmann/json: MIT License
+- spdlog: MIT License
 - SQLite3: Public Domain
 
 ## 相关链接
@@ -469,4 +473,5 @@ ip_local/
 - IEEE OUI Registry: https://standards-oui.ieee.org/
 - cpp-httplib: https://github.com/yhirose/cpp-httplib
 - nlohmann/json: https://github.com/nlohmann/json
+- spdlog: https://github.com/gabime/spdlog
 - XDG Base Directory Specification: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html

@@ -2,15 +2,16 @@
 
 ## 项目概述
 
-这是一个基于 C++20 开发的高性能 IP 地理位置和 AS（自治系统）信息查询服务端。项目采用现代 C++ 设计模式和行业最佳实践，提供 RESTful API 接口，支持单个 IP 查询和批量查询。
+这是一个基于 C++23 开发的高性能 IP 地理位置和 AS（自治系统）信息查询服务端。项目采用现代 C++ 设计模式和行业最佳实践，提供 RESTful API 接口，支持单个 IP 查询和批量查询。
 
 **新增功能**: 现在支持 MAC 地址 OUI（组织唯一标识符）查询功能！
 
 ### 核心技术栈
 
-- **编程语言**: C++20
+- **编程语言**: C++23
 - **构建系统**: CMake 3.20+
 - **HTTP 服务器**: cpp-httplib
+- **日志库**: spdlog 1.17.0
 - **数据库**: 
   - MaxMind GeoLite2 (City + ASN)
   - SQLite3 (OUI 数据库)
@@ -47,7 +48,7 @@
 - **database.h/cpp**: 数据库抽象层，支持 City、ASN 和 OUI 数据库
 - **mac_database.h/cpp**: OUI 数据库实现（SQLite3）
 - **http_server.h/cpp**: HTTP 服务器，路由处理，速率限制，API 认证
-- **logger.h/cpp**: 线程安全的日志系统，支持文件日志轮转
+- **logger.h/cpp**: 基于 spdlog 的线程安全日志系统，支持文件日志轮转
 - **types.h/cpp**: 数据类型定义
 - **cache.h**: LRU 缓存实现
 - **rate_limiter.h/cpp**: 速率限制器
@@ -61,7 +62,7 @@
 - ✅ **IP 地理位置查询**: 国家、城市、经纬度、时区等信息
 - ✅ **AS 信息查询**: 自治系统编号和组织名称
 - ✅ **MAC 地址 OUI 查询**: 制造商、注册机构等信息（新增）
-- ✅ **日志文件轮转**: 支持按大小、按时间、混合轮转
+- ✅ **日志文件轮转**: 支持按大小、按时间、混合轮转（基于 spdlog）
 - ✅ **速率限制**: 防止 API 滥用
 - ✅ **API 认证**: 基于 API 密钥的身份验证
 - ✅ **性能指标**: 实时监控查询性能
@@ -74,7 +75,7 @@
 
 ### 环境要求
 
-- C++20 兼容的编译器 (GCC 10+, Clang 10+, MSVC 19.28+)
+- C++23 兼容的编译器 (GCC 11+, Clang 13+, MSVC 19.30+)
 - CMake 3.20+
 - pthread
 - Google Test (用于单元测试)
@@ -91,7 +92,7 @@ cd build
 cmake ..
 cmake --build . -j$(nproc)
 
-# Release 模式（-O2 优化，推荐生产环境）
+# Release 模式（-O3 优化，推荐生产环境）
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . -j$(nproc)
 
@@ -101,7 +102,7 @@ cmake --build . -j$(nproc)
 
 **性能对比**:
 - Debug 模式: 启用缓存 ~13.5μs (75k QPS)
-- Release 模式: 启用缓存 ~1.56μs (647k QPS) - **性能提升约 8.6 倍**
+- Release 模式: 启用缓存 ~1.56μs (647k QPS) - **性能提升约 8.6 倍**（使用 -O3 优化）
 
 ### 运行测试
 
@@ -329,6 +330,7 @@ Content-Type: application/json
 | `--log-max-size <MB>` | 日志文件最大大小 | 10 |
 | `--log-rotation-interval <minutes>` | 时间轮转间隔 | 1440 |
 | `--log-max-backups <count>` | 最大备份文件数 | 5 |
+| `--log-enable-stdout <true\|false>` | 启用标准输出日志 | true |
 | `--no-xdg` | 禁用 XDG 目录标准 | false |
 | `--help, -h` | 显示帮助信息 | - |
 
@@ -369,6 +371,7 @@ log_rotation = size
 log_max_file_size = 10
 log_rotation_interval_minutes = 1440
 log_max_backup_files = 5
+log_enable_stdout = true
 ```
 
 ### XDG 目录标准
@@ -412,7 +415,7 @@ log_max_backup_files = 5
 
 ### 日志规范
 
-使用日志宏记录关键操作：
+使用日志宏记录关键操作（基于 spdlog）：
 
 ```cpp
 LOG_DEBUG("Debug message");    // 调试信息
@@ -422,6 +425,12 @@ LOG_ERROR("Error message");    // 错误信息
 ```
 
 日志格式：`[YYYY-MM-DD HH:MM:SS.mmm] [LEVEL] message`
+
+**spdlog 特性**:
+- 高性能异步日志
+- 支持多种日志轮转策略（按大小、按时间、混合）
+- 彩色控制台输出
+- 线程安全
 
 ### 错误处理
 
@@ -462,7 +471,7 @@ ip_local/
 │   ├── database.h/cpp         # 数据库抽象层（IP 和 MAC）
 │   ├── mac_database.h/cpp     # OUI 数据库实现
 │   ├── http_server.h/cpp      # HTTP 服务器
-│   ├── logger.h/cpp           # 日志系统（支持轮转）
+│   ├── logger.h/cpp           # 日志系统（基于 spdlog）
 │   ├── types.h/cpp            # 数据类型定义
 │   ├── cache.h                # LRU 缓存
 │   ├── rate_limiter.h/cpp     # 速率限制器
@@ -488,6 +497,7 @@ ip_local/
 │   │   ├── httplib.h          # HTTP 服务器库
 │   │   └── nlohmann/          # JSON 库
 │   ├── libmaxminddb-1.12.2/   # MaxMind 数据库库
+│   ├── spdlog-1.17.0/         # spdlog 日志库
 │   └── sqlite-autoconf-3510200/ # SQLite3 源代码
 ├── db/                         # 数据库文件目录（传统路径）
 │   ├── GeoLite2-City.mmdb     # 城市数据库
@@ -529,9 +539,9 @@ server_.Get("/new-endpoint", [this](const httplib::Request& req, httplib::Respon
 
 ### 添加新的日志级别
 
-1. 在 `src/logger.h` 的 `LogLevel` 枚举中添加新级别
-2. 在 `src/logger.cpp` 的 `log()` 方法中添加级别处理
-3. 添加对应的日志宏
+spdlog 已提供完整的日志级别支持（trace, debug, info, warn, err, critical, off）。
+
+如需自定义级别，在 `src/logger.h` 的 `LogLevel` 枚举中添加新级别，并映射到 spdlog 级别。
 
 ### 运行测试
 
@@ -578,6 +588,7 @@ curl -X POST http://localhost:8080/lookup \
 7. **日志轮转**: 启用文件日志时自动轮转，避免日志文件过大
 8. **优雅关闭**: 支持 SIGINT/SIGTERM 信号，优雅关闭服务
 9. **MAC 地址格式**: 支持多种格式（冒号、连字符、无分隔符），大小写不敏感
+10. **spdlog 配置**: 日志系统基于 spdlog，支持异步日志和多种轮转策略
 
 ## 性能优化
 
@@ -596,8 +607,15 @@ curl -X POST http://localhost:8080/lookup \
 
 ### 编译优化
 
-- Release 模式使用 `-O2` 优化
+- Release 模式使用 `-O3` 优化
 - 性能提升约 8.6 倍（相比 Debug 模式）
+- 自动剥离符号（Release 模式）
+
+### 日志性能
+
+- 使用 spdlog 异步日志减少 I/O 阻塞
+- 支持多sink同时输出（文件 + 控制台）
+- 高性能日志格式化
 
 ### SQLite3 优化
 
@@ -619,6 +637,7 @@ curl -X POST http://localhost:8080/lookup \
 - libmaxminddb: Apache License 2.0
 - httplib: MIT License
 - nlohmann/json: MIT License
+- spdlog: MIT License
 - SQLite3: Public Domain
 
 ## 相关链接
@@ -627,6 +646,7 @@ curl -X POST http://localhost:8080/lookup \
 - IEEE OUI Registry: https://standards-oui.ieee.org/
 - cpp-httplib: https://github.com/yhirose/cpp-httplib
 - nlohmann/json: https://github.com/nlohmann/json
+- spdlog: https://github.com/gabime/spdlog
 - XDG Base Directory Specification: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
 
 ## 提交规范
