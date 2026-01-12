@@ -440,20 +440,22 @@ bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
     };
 
     LOG_INFO("Starting HTTP server on " + host_ + ":" + std::to_string(port_));
-    std::cout << "\n========================================" << std::endl;
-    std::cout << "  IP Geolocation & AS Lookup Service" << std::endl;
-    std::cout << "========================================" << std::endl;
-    std::cout << "Server: http://" << host_ << ":" << port_ << std::endl;
-    std::cout << "Thread Pool: " << thread_pool_size_ << " threads" << std::endl;
-    std::cout << "\nAPI Endpoints:" << std::endl;
-    std::cout << "  GET  /                       - Service info" << std::endl;
-    std::cout << "  GET  /health                 - Health check" << std::endl;
-    std::cout << "  GET  /lookup?ip=<address>    - IP lookup" << std::endl;
-    std::cout << "  GET  /lookup?mac=<address>   - MAC lookup" << std::endl;
-    std::cout << "  POST /lookup                 - Batch lookup" << std::endl;
-    std::cout << "                                Body: {\"ips\": [...]} or {\"macs\": [...]}" << std::endl;
-    std::cout << "\nPress Ctrl+C to stop the server" << std::endl;
-    std::cout << "========================================\n" << std::endl;
+    LOG_INFO("========================================");
+    LOG_INFO("  IP Geolocation & AS Lookup Service");
+    LOG_INFO("========================================");
+    LOG_INFO("Server: http://" + host_ + ":" + std::to_string(port_));
+    LOG_INFO("Thread Pool: " + std::to_string(thread_pool_size_) + " threads");
+    LOG_INFO("");
+    LOG_INFO("API Endpoints:");
+    LOG_INFO("  GET  /                       - Service info");
+    LOG_INFO("  GET  /health                 - Health check");
+    LOG_INFO("  GET  /lookup?ip=<address>    - IP lookup");
+    LOG_INFO("  GET  /lookup?mac=<address>   - MAC lookup");
+    LOG_INFO("  POST /lookup                 - Batch lookup");
+    LOG_INFO("                                Body: {\"ips\": [...]} or {\"macs\": [...]}");
+    LOG_INFO("");
+    LOG_INFO("Press Ctrl+C to stop the server");
+    LOG_INFO("========================================");
 
     // Start cleanup thread for rate limiter
     if (enable_rate_limiter_ && rate_limiter_) {

@@ -132,9 +132,10 @@ int main(int argc, char* argv[]) {
         }
 
     } catch (const std::exception& e) {
-        std::cerr << "Fatal error: " << e.what() << std::endl;
-        std::cerr << "\nPlease ensure you have valid MaxMind database files." << std::endl;
-        std::cerr << "Download from: https://dev.maxmind.com/geoip/geolite2-free-geolocation-data" << std::endl;
+        LOG_ERROR("Fatal error: " + std::string(e.what()));
+        LOG_ERROR("");
+        LOG_ERROR("Please ensure you have valid MaxMind database files.");
+        LOG_ERROR("Download from: https://dev.maxmind.com/geoip/geolite2-free-geolocation-data");
         return 1;
     }
 

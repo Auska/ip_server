@@ -4,6 +4,7 @@
 #include <iostream>
 #include <sstream>
 #include <fstream>
+#include <print>
 
 namespace ip_server {
 
@@ -376,84 +377,91 @@ bool ConfigParser::save_to_file(const ServerConfig& config, const std::filesyste
 }
 
 void ConfigParser::print_help(const char* program_name) {
-    std::cout << "Usage: " << program_name << " [options]\n\n"
-              << "IP Geolocation & AS Lookup Service\n\n"
-              << "Options:\n"
-              << "  --config <path>      Path to configuration file\n"
-              << "  --city-db <path>     Path to City MaxMind database\n"
-              << "                      (default: ~/.local/share/ip-server/databases/GeoLite2-City.mmdb)\n"
-              << "  --asn-db <path>      Path to ASN MaxMind database\n"
-              << "                      (default: ~/.local/share/ip-server/databases/GeoLite2-ASN.mmdb)\n"
-              << "  --host <address>     Server host address\n"
-              << "                      (default: 0.0.0.0)\n"
-              << "  --port <port>        Server port\n"
-              << "                      (default: 8080)\n"
-              << "  --threads <count>    Thread pool size\n"
-              << "                      (default: 4)\n"
-              << "  --enable-rate-limiter <true|false>\n"
-              << "                      Enable rate limiting\n"
-              << "                      (default: true)\n"
-              << "  --max-requests-per-minute <count>\n"
-              << "                      Maximum requests per IP per minute\n"
-              << "                      (default: 100)\n"
-              << "  --max-batch-size <count>\n"
-              << "                      Maximum batch size for batch lookup\n"
-              << "                      (default: 100)\n"
-              << "  --enable-api-auth <true|false>\n"
-              << "                      Enable API authentication\n"
-              << "                      (default: false)\n"
-              << "  --api-keys-file <path>\n"
-              << "                      Path to file containing API keys (one per line)\n"
-              << "  --default-api-key <key>\n"
-              << "                      Default API key for testing\n"
-              << "  --enable-file-logging <true|false>\n"
-              << "                      Enable file logging\n"
-              << "                      (default: false)\n"
-              << "  --log-enable-stdout <true|false>\n"
-              << "                      Enable stdout logging\n"
-              << "                      (default: true)\n"
-              << "  --log-file <path>    Path to log file\n"
-              << "                      (default: ~/.local/state/ip-server/logs/ip_server.log)\n"
-              << "  --log-rotation <type>\n"
-              << "                      Log rotation type: none, size, time, both\n"
-              << "                      (default: size)\n"
-              << "  --log-max-size <MB>  Maximum log file size in MB before rotation\n"
-              << "                      (default: 10)\n"
-              << "  --log-rotation-interval <minutes>\n"
-              << "                      Time interval in minutes for time-based rotation\n"
-              << "                      (default: 1440, 24 hours)\n"
-              << "  --log-max-backups <count>\n"
-              << "                      Maximum number of backup log files to keep\n"
-              << "                      (default: 5)\n"
-              << "  --no-xdg             Disable XDG directory standard\n"
-              << "  --help, -h           Show this help message\n\n"
-              << "XDG Directories:\n"
-              << "  Config:  $XDG_CONFIG_HOME/ip-server/ (default: ~/.config/ip-server/)\n"
-              << "  Data:    $XDG_DATA_HOME/ip-server/ (default: ~/.local/share/ip-server/)\n"
-              << "  Cache:   $XDG_CACHE_HOME/ip-server/ (default: ~/.cache/ip-server/)\n"
-              << "  Logs:    $XDG_STATE_HOME/ip-server/logs/ (default: ~/.local/state/ip-server/logs/)\n\n"
-              << "Environment Variables:\n"
-              << "  XDG_CONFIG_HOME  Configuration directory\n"
-              << "  XDG_DATA_HOME    Data directory\n"
-              << "  XDG_CACHE_HOME   Cache directory\n"
-              << "  XDG_STATE_HOME   State directory (logs)\n\n"
-              << "Examples:\n"
-              << "  " << program_name << "\n"
-              << "  " << program_name << " --port 9000\n"
-              << "  " << program_name << " --config /path/to/config.toml\n"
-              << "  " << program_name << " --city-db /path/to/GeoLite2-City.mmdb --asn-db /path/to/GeoLite2-ASN.mmdb\n"
-              << "  " << program_name << " --oui-db /path/to/master_oui.db\n"
-              << "  " << program_name << " --host 127.0.0.1 --port 8080\n\n"
-              << "API Endpoints:\n"
-              << "  GET  /                       - Service information\n"
-              << "  GET  /health                 - Health check\n"
-              << "  GET  /lookup?ip=<address>     - Single IP lookup\n"
-              << "  POST /lookup                 - Batch lookup\n"
-              << "                                Body: {\"ips\": [\"1.1.1.1\", \"8.8.8.8\"]}\n"
-              << "  GET  /mac/lookup?mac=<address> - Single MAC lookup\n"
-              << "  POST /mac/lookup             - Batch MAC lookup\n"
-              << "                                Body: {\"macs\": [\"00:1A:2B:3C:4D:5E\", \"F4:EA:B5:12:34:56\"]}\n\n"
-              << "For more information, visit: https://dev.maxmind.com/geoip/geolite2-free-geolocation-data\n";
+    std::print("Usage: {} [options]\n", program_name);
+    std::print("\n");
+    std::print("IP Geolocation & AS Lookup Service\n");
+    std::print("\n");
+    std::print("Options:\n");
+    std::print("  --config <path>      Path to configuration file\n");
+    std::print("  --city-db <path>     Path to City MaxMind database\n");
+    std::print("                      (default: ~/.local/share/ip-server/databases/GeoLite2-City.mmdb)\n");
+    std::print("  --asn-db <path>      Path to ASN MaxMind database\n");
+    std::print("                      (default: ~/.local/share/ip-server/databases/GeoLite2-ASN.mmdb)\n");
+    std::print("  --host <address>     Server host address\n");
+    std::print("                      (default: 0.0.0.0)\n");
+    std::print("  --port <port>        Server port\n");
+    std::print("                      (default: 8080)\n");
+    std::print("  --threads <count>    Thread pool size\n");
+    std::print("                      (default: 4)\n");
+    std::print("  --enable-rate-limiter <true|false>\n");
+    std::print("                      Enable rate limiting\n");
+    std::print("                      (default: true)\n");
+    std::print("  --max-requests-per-minute <count>\n");
+    std::print("                      Maximum requests per IP per minute\n");
+    std::print("                      (default: 100)\n");
+    std::print("  --max-batch-size <count>\n");
+    std::print("                      Maximum batch size for batch lookup\n");
+    std::print("                      (default: 100)\n");
+    std::print("  --enable-api-auth <true|false>\n");
+    std::print("                      Enable API authentication\n");
+    std::print("                      (default: false)\n");
+    std::print("  --api-keys-file <path>\n");
+    std::print("                      Path to file containing API keys (one per line)\n");
+    std::print("  --default-api-key <key>\n");
+    std::print("                      Default API key for testing\n");
+    std::print("  --enable-file-logging <true|false>\n");
+    std::print("                      Enable file logging\n");
+    std::print("                      (default: false)\n");
+    std::print("  --log-enable-stdout <true|false>\n");
+    std::print("                      Enable stdout logging\n");
+    std::print("                      (default: true)\n");
+    std::print("  --log-file <path>    Path to log file\n");
+    std::print("                      (default: ~/.local/state/ip-server/logs/ip_server.log)\n");
+    std::print("  --log-rotation <type>\n");
+    std::print("                      Log rotation type: none, size, time, both\n");
+    std::print("                      (default: size)\n");
+    std::print("  --log-max-size <MB>  Maximum log file size in MB before rotation\n");
+    std::print("                      (default: 10)\n");
+    std::print("  --log-rotation-interval <minutes>\n");
+    std::print("                      Time interval in minutes for time-based rotation\n");
+    std::print("                      (default: 1440, 24 hours)\n");
+    std::print("  --log-max-backups <count>\n");
+    std::print("                      Maximum number of backup log files to keep\n");
+    std::print("                      (default: 5)\n");
+    std::print("  --no-xdg             Disable XDG directory standard\n");
+    std::print("  --help, -h           Show this help message\n");
+    std::print("\n");
+    std::print("XDG Directories:\n");
+    std::print("  Config:  $XDG_CONFIG_HOME/ip-server/ (default: ~/.config/ip-server/)\n");
+    std::print("  Data:    $XDG_DATA_HOME/ip-server/ (default: ~/.local/share/ip-server/)\n");
+    std::print("  Cache:   $XDG_CACHE_HOME/ip-server/ (default: ~/.cache/ip-server/)\n");
+    std::print("  Logs:    $XDG_STATE_HOME/ip-server/logs/ (default: ~/.local/state/ip-server/logs/)\n");
+    std::print("\n");
+    std::print("Environment Variables:\n");
+    std::print("  XDG_CONFIG_HOME  Configuration directory\n");
+    std::print("  XDG_DATA_HOME    Data directory\n");
+    std::print("  XDG_CACHE_HOME   Cache directory\n");
+    std::print("  XDG_STATE_HOME   State directory (logs)\n");
+    std::print("\n");
+    std::print("Examples:\n");
+    std::print("  {}\n", program_name);
+    std::print("  {} --port 9000\n", program_name);
+    std::print("  {} --config /path/to/config.toml\n", program_name);
+    std::print("  {} --city-db /path/to/GeoLite2-City.mmdb --asn-db /path/to/GeoLite2-ASN.mmdb\n", program_name);
+    std::print("  {} --oui-db /path/to/master_oui.db\n", program_name);
+    std::print("  {} --host 127.0.0.1 --port 8080\n", program_name);
+    std::print("\n");
+    std::print("API Endpoints:\n");
+    std::print("  GET  /                       - Service information\n");
+    std::print("  GET  /health                 - Health check\n");
+    std::print("  GET  /lookup?ip=<address>     - Single IP lookup\n");
+    std::print("  POST /lookup                 - Batch lookup\n");
+    std::print("                                Body: {{\"ips\": [\"1.1.1.1\", \"8.8.8.8\"]}}\n");
+    std::print("  GET  /mac/lookup?mac=<address> - Single MAC lookup\n");
+    std::print("  POST /mac/lookup             - Batch MAC lookup\n");
+    std::print("                                Body: {{\"macs\": [\"00:1A:2B:3C:4D:5E\", \"F4:EA:B5:12:34:56\"]}}\n");
+    std::print("\n");
+    std::print("For more information, visit: https://dev.maxmind.com/geoip/geolite2-free-geolocation-data\n");
 }
 
 int ConfigParser::parse_int_arg(const char* arg, const char* name) {
