@@ -4,12 +4,16 @@
 
 这是一个基于 C++20 开发的高性能 IP 地理位置和 AS（自治系统）信息查询服务端。项目采用现代 C++ 设计模式和行业最佳实践，提供 RESTful API 接口，支持单个 IP 查询和批量查询。
 
+**新增功能**: 现在支持 MAC 地址 OUI（组织唯一标识符）查询功能！
+
 ### 核心技术栈
 
 - **编程语言**: C++20
 - **构建系统**: CMake 3.20+
 - **HTTP 服务器**: cpp-httplib
-- **数据库**: MaxMind GeoLite2 (City + ASN)
+- **数据库**: 
+  - MaxMind GeoLite2 (City + ASN)
+  - SQLite3 (OUI 数据库)
 - **JSON 处理**: nlohmann/json
 - **加密**: OpenSSL（可选，已从构建系统移除）
 
@@ -21,20 +25,27 @@
 ┌─────────────────────────────────────┐
 │   HTTP Layer (IPGeoHTTPServer)      │  RESTful API 接口
 ├─────────────────────────────────────┤
-│   Service Layer (IPGeoService)      │  业务逻辑层
+│   Service Layer                     │  业务逻辑层
+│   ├── IPGeoService                  │  IP 查询服务
+│   └── MACLookupService              │  MAC 查询服务
 ├─────────────────────────────────────┤
 │   Cache Layer (LRU Cache)           │  缓存层
 ├─────────────────────────────────────┤
-│   Data Layer (City/ASN Database)    │  数据访问层
+│   Data Layer                        │  数据访问层
+│   ├── City/ASN Database             │  MaxMind 数据库
+│   └── OUIDatabase                   │  OUI 数据库
 ├─────────────────────────────────────┤
-│   MaxMind DB Library                │  底层数据库
+│   Database Libraries                │  底层数据库
+│   ├── MaxMind DB Library            │
+│   └── SQLite3                       │
 └─────────────────────────────────────┘
 ```
 
 ### 主要模块
 
 - **config.h/cpp**: 配置管理，命令行参数解析，XDG 目录标准支持
-- **database.h/cpp**: 数据库抽象层，支持 City 和 ASN 数据库
+- **database.h/cpp**: 数据库抽象层，支持 City、ASN 和 OUI 数据库
+- **mac_database.h/cpp**: OUI 数据库实现（SQLite3）
 - **http_server.h/cpp**: HTTP 服务器，路由处理，速率限制，API 认证
 - **logger.h/cpp**: 线程安全的日志系统，支持文件日志轮转
 - **types.h/cpp**: 数据类型定义
@@ -45,8 +56,11 @@
 - **xdg.h/cpp**: XDG 目录标准实现
 - **main.cpp**: 应用程序入口
 
-### 新增功能
+### 功能特性
 
+- ✅ **IP 地理位置查询**: 国家、城市、经纬度、时区等信息
+- ✅ **AS 信息查询**: 自治系统编号和组织名称
+- ✅ **MAC 地址 OUI 查询**: 制造商、注册机构等信息（新增）
 - ✅ **日志文件轮转**: 支持按大小、按时间、混合轮转
 - ✅ **速率限制**: 防止 API 滥用
 - ✅ **API 认证**: 基于 API 密钥的身份验证
@@ -119,7 +133,7 @@ cmake --build . -j$(nproc)
 ./build/bin/ip_server --port 9000
 
 # 自定义数据库路径
-./build/bin/ip_server --city-db /path/to/GeoLite2-City.mmdb --asn-db /path/to/GeoLite2-ASN.mmdb
+./build/bin/ip_server --city-db /path/to/GeoLite2-City.mmdb --asn-db /path/to/GeoLite2-ASN.mmdb --oui-db /path/to/master_oui.db
 
 # 自定义监听地址
 ./build/bin/ip_server --host 127.0.0.1 --port 8080
@@ -144,26 +158,31 @@ cmake --build . -j$(nproc)
 - `GeoLite2-City.mmdb` - 城市地理位置信息
 - `GeoLite2-ASN.mmdb` - AS（自治系统）信息
 
+**OUI 数据库**:
+- `master_oui.db` - IEEE OUI 注册表（包含制造商信息）
+
 **默认数据库路径** (使用 XDG 标准):
 - City DB: `~/.local/share/ip-server/databases/GeoLite2-City.mmdb`
 - ASN DB: `~/.local/share/ip-server/databases/GeoLite2-ASN.mmdb`
+- OUI DB: `~/.local/share/ip-server/databases/master_oui.db`
 
 **传统路径** (使用 `--no-xdg`):
 - `db/GeoLite2-City.mmdb`
 - `db/GeoLite2-ASN.mmdb`
+- `db/master_oui.db`
 
 ## API 接口
 
 ### 基础端点
 
 - `GET /` - 服务信息和可用端点列表
-- `GET /health` - 健康检查
-- `GET /metrics` - 性能指标（JSON 格式）
+- `GET /health` - 健康检查（包含性能指标和数据库状态）
 
-### IP 查询
+### 查询接口（支持 IP 和 MAC）
 
-#### 单个 IP 查询
+#### 单个查询
 
+**IP 查询:**
 ```bash
 # 查询指定 IP 地址
 GET /lookup?ip=8.8.8.8
@@ -172,7 +191,19 @@ GET /lookup?ip=8.8.8.8
 GET /lookup
 ```
 
-响应示例：
+**MAC 查询:**
+```bash
+# 查询指定 MAC 地址
+GET /lookup?mac=00:1A:2B:3C:4D:5E
+```
+
+支持的 MAC 地址格式：
+- `00:1A:2B:3C:4D:5E` (冒号分隔)
+- `00-1A-2B-3C-4D-5E` (连字符分隔)
+- `001A2B3C4D5E` (无分隔符)
+- 大小写不敏感
+
+**IP 查询响应示例:**
 ```json
 {
   "ip": "8.8.8.8",
@@ -189,8 +220,25 @@ GET /lookup
 }
 ```
 
+**MAC 查询响应示例:**
+```json
+{
+  "mac": "00:1A:2B:3C:4D:5E",
+  "oui": "00:1A:2B",
+  "found": true,
+  "manufacturer": "Example Manufacturer Inc.",
+  "registry": "MA-L",
+  "short_name": "EXAMPLE",
+  "device_type": "Network Interface",
+  "registered_date": "2010-01-15",
+  "address": "123 Example Street, City, Country",
+  "sources": "IEEE Registration Authority"
+}
+```
+
 #### 批量查询
 
+**批量 IP 查询:**
 ```bash
 POST /lookup
 Content-Type: application/json
@@ -200,7 +248,19 @@ Content-Type: application/json
 }
 ```
 
-响应示例：
+**批量 MAC 查询:**
+```bash
+POST /lookup
+Content-Type: application/json
+
+{
+  "macs": ["00:1A:2B:3C:4D:5E", "F4:EA:B5:12:34:56"]
+}
+```
+
+**注意**: 不能在同一个请求中同时提供 `ips` 和 `macs`。
+
+**批量 IP 查询响应示例:**
 ```json
 [
   {
@@ -224,24 +284,24 @@ Content-Type: application/json
 ]
 ```
 
-### 性能指标端点
-
-```bash
-GET /metrics
-```
-
-响应示例：
+**批量 MAC 查询响应示例:**
 ```json
-{
-  "uptime_seconds": 3600,
-  "total_requests": 10000,
-  "cache_hits": 8500,
-  "cache_misses": 1500,
-  "cache_hit_rate": 0.85,
-  "avg_response_time_ms": 1.56,
-  "city_db_status": "open",
-  "asn_db_status": "open"
-}
+[
+  {
+    "mac": "00:1A:2B:3C:4D:5E",
+    "oui": "00:1A:2B",
+    "found": true,
+    "manufacturer": "Example Manufacturer Inc.",
+    "registry": "MA-L"
+  },
+  {
+    "mac": "F4:EA:B5:12:34:56",
+    "oui": "F4:EA:B5",
+    "found": true,
+    "manufacturer": "Another Company Ltd.",
+    "registry": "MA-L"
+  }
+]
 ```
 
 ## 配置选项
@@ -253,6 +313,7 @@ GET /metrics
 | `--config <path>` | 配置文件路径 | - |
 | `--city-db <path>` | City 数据库路径 | XDG 路径 |
 | `--asn-db <path>` | ASN 数据库路径 | XDG 路径 |
+| `--oui-db <path>` | OUI 数据库路径 | XDG 路径 |
 | `--host <address>` | 监听地址 | 0.0.0.0 |
 | `--port <port>` | 监听端口 | 8080 |
 | `--threads <count>` | 线程池大小 | 4 |
@@ -284,6 +345,7 @@ threads = 4
 # 数据库路径
 city_db = /path/to/GeoLite2-City.mmdb
 asn_db = /path/to/GeoLite2-ASN.mmdb
+oui_db = /path/to/master_oui.db
 
 # 缓存配置
 cache_size = 10000
@@ -322,7 +384,7 @@ log_max_backup_files = 5
 ### 代码风格
 
 - **命名空间**: 所有代码位于 `ip_server` 命名空间
-- **类命名**: PascalCase (如 `IPGeoService`)
+- **类命名**: PascalCase (如 `IPGeoService`, `OUIDatabase`)
 - **函数命名**: camelCase (如 `lookup`, `set_lookup_handler`)
 - **成员变量**: 尾随下划线 (如 `city_db_`, `host_`)
 - **常量**: UPPER_CASE (如 `LOG_ERROR`)
@@ -331,7 +393,8 @@ log_max_backup_files = 5
 
 1. **单一职责原则 (SRP)**
    - 每个类只负责一个功能
-   - `MaxMindDatabase` 处理数据库操作
+   - `OUIDatabase` 处理 OUI 数据库操作
+   - `MACLookupService` 处理 MAC 查询业务逻辑
    - `IPGeoHTTPServer` 处理 HTTP 请求
    - `ConfigParser` 处理配置解析
 
@@ -396,7 +459,8 @@ ip_local/
 ├── src/                        # 源代码目录
 │   ├── main.cpp               # 应用程序入口
 │   ├── config.h/cpp           # 配置管理
-│   ├── database.h/cpp         # 数据库抽象层
+│   ├── database.h/cpp         # 数据库抽象层（IP 和 MAC）
+│   ├── mac_database.h/cpp     # OUI 数据库实现
 │   ├── http_server.h/cpp      # HTTP 服务器
 │   ├── logger.h/cpp           # 日志系统（支持轮转）
 │   ├── types.h/cpp            # 数据类型定义
@@ -409,6 +473,7 @@ ip_local/
 │   ├── test_main.cpp          # 测试主程序
 │   ├── test_config.cpp        # 配置测试
 │   ├── test_database.cpp      # 数据库测试
+│   ├── test_mac_database.cpp  # MAC 数据库测试
 │   ├── test_http_server.cpp   # HTTP 服务器测试
 │   ├── test_logger.cpp        # 日志系统测试
 │   ├── test_rate_limiter.cpp  # 速率限制测试
@@ -422,10 +487,13 @@ ip_local/
 │   ├── include/
 │   │   ├── httplib.h          # HTTP 服务器库
 │   │   └── nlohmann/          # JSON 库
-│   └── libmaxminddb-1.12.2/   # MaxMind 数据库库
+│   ├── libmaxminddb-1.12.2/   # MaxMind 数据库库
+│   └── sqlite-autoconf-3510200/ # SQLite3 源代码
 ├── db/                         # 数据库文件目录（传统路径）
 │   ├── GeoLite2-City.mmdb     # 城市数据库
-│   └── GeoLite2-ASN.mmdb      # ASN 数据库
+│   ├── GeoLite2-ASN.mmdb      # ASN 数据库
+│   ├── GeoLite2-Country.mmdb  # 国家数据库（可选）
+│   └── master_oui.db          # OUI 数据库
 └── build/                      # 构建输出目录
     ├── bin/
     │   └── ip_server          # 可执行文件
@@ -450,6 +518,7 @@ server_.Get("/new-endpoint", [this](const httplib::Request& req, httplib::Respon
 ### 修改数据库查询逻辑
 
 在 `src/database.cpp` 中修改 `CityDatabase::lookup()` 或 `ASNDatabase::lookup()` 方法。
+在 `src/mac_database.cpp` 中修改 `OUIDatabase::lookup()` 方法。
 
 ### 添加新的配置选项
 
@@ -479,25 +548,36 @@ curl http://localhost:8080/health
 # 单个 IP 查询
 curl "http://localhost:8080/lookup?ip=8.8.8.8"
 
-# 批量查询
+# 查询源 IP（不带参数）
+curl "http://localhost:8080/lookup"
+
+# 批量 IP 查询
 curl -X POST http://localhost:8080/lookup \
   -H "Content-Type: application/json" \
   -d '{"ips": ["8.8.8.8", "1.1.1.1"]}'
 
-# 查看性能指标
-curl http://localhost:8080/metrics
+# 单个 MAC 查询
+curl "http://localhost:8080/lookup?mac=00:1A:2B:3C:4D:5E"
+
+# 批量 MAC 查询
+curl -X POST http://localhost:8080/lookup \
+  -H "Content-Type: application/json" \
+  -d '{"macs": ["00:1A:2B:3C:4D:5E", "F4:EA:B5:12:34:56"]}'
 ```
 
 ## 注意事项
 
-1. **数据库文件**: 必须提供有效的 MaxMind 数据库文件才能正常运行
+1. **数据库文件**: 必须提供有效的数据库文件才能正常运行
+   - MaxMind 数据库（City 和 ASN）
+   - OUI 数据库（master_oui.db）
 2. **端口占用**: 默认端口 8080，确保端口未被占用
-3. **线程安全**: 日志系统使用互斥锁保证线程安全
+3. **线程安全**: 日志系统和数据库查询使用互斥锁保证线程安全
 4. **资源管理**: 数据库使用 RAII 模式，自动管理资源
 5. **CORS 支持**: 服务器已配置 CORS 头，支持跨域请求
 6. **速率限制**: 默认启用，防止 API 滥用
 7. **日志轮转**: 启用文件日志时自动轮转，避免日志文件过大
 8. **优雅关闭**: 支持 SIGINT/SIGTERM 信号，优雅关闭服务
+9. **MAC 地址格式**: 支持多种格式（冒号、连字符、无分隔符），大小写不敏感
 
 ## 性能优化
 
@@ -506,6 +586,7 @@ curl http://localhost:8080/metrics
 - 使用 LRU 缓存减少数据库查询
 - 默认缓存大小: 10,000 条记录
 - 缓存命中率目标: >80%
+- IP 查询和 MAC 查询都支持缓存
 
 ### 并发处理
 
@@ -517,6 +598,12 @@ curl http://localhost:8080/metrics
 
 - Release 模式使用 `-O2` 优化
 - 性能提升约 8.6 倍（相比 Debug 模式）
+
+### SQLite3 优化
+
+- OUI 数据库使用 WAL 模式提高读性能
+- 只读模式打开数据库
+- 使用预编译语句提高查询效率
 
 ## 文档
 
@@ -532,10 +619,12 @@ curl http://localhost:8080/metrics
 - libmaxminddb: Apache License 2.0
 - httplib: MIT License
 - nlohmann/json: MIT License
+- SQLite3: Public Domain
 
 ## 相关链接
 
 - MaxMind GeoLite2: https://dev.maxmind.com/geoip/geolite2-free-geolocation-data
+- IEEE OUI Registry: https://standards-oui.ieee.org/
 - cpp-httplib: https://github.com/yhirose/cpp-httplib
 - nlohmann/json: https://github.com/nlohmann/json
 - XDG Base Directory Specification: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
@@ -563,11 +652,13 @@ curl http://localhost:8080/metrics
 
 示例：
 ```
-feat: add log file rotation with comprehensive test coverage
+feat: add MAC address OUI lookup functionality
 
-- Add log file rotation support (size-based, time-based, and combined)
-- Add configuration options for logging
-- Implement automatic log rotation with backup file management
-- Add 36 comprehensive unit tests for logging functionality
-- All 133 tests passing
+- Add OUIDatabase class for SQLite3-based OUI lookups
+- Add MACLookupService with LRU cache support
+- Integrate MAC lookup into unified /lookup endpoint
+- Support multiple MAC address formats (colon, hyphen, no separator)
+- Add comprehensive unit tests for MAC lookup functionality
+- Update metrics to track OUI database status
+- All tests passing
 ```

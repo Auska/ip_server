@@ -139,7 +139,8 @@ void IPGeoHTTPServer::setup_routes() {
         nlohmann::json info;
         info["service"] = "IP Geolocation & AS Lookup Service";
         info["version"] = "2.0.0";
-        info["endpoints"] = nlohmann::json::array({"/", "/lookup", "/mac/lookup", "/health"});
+        info["endpoints"] = nlohmann::json::array({"/", "/lookup", "/health"});
+        info["description"] = "Use /lookup with 'ip=' or 'mac=' parameter for single queries, or 'ips'/'macs' array for batch queries";
         res.set_content(info.dump(), "application/json");
     });
 
@@ -183,7 +184,7 @@ void IPGeoHTTPServer::setup_routes() {
         res.set_content(health.dump(), "application/json");
     });
 
-    // Single IP lookup endpoint
+    // Single lookup endpoint (supports both IP and MAC queries)
     server_.Get("/lookup", [this](const httplib::Request& req, httplib::Response& res) {
         // Check authentication
         if (!authenticate_request(req, res)) {
@@ -192,6 +193,7 @@ void IPGeoHTTPServer::setup_routes() {
 
         auto client_ip = req.remote_addr;
         if (client_ip.empty()) {
+            res.status = 400;
             send_error_response(res, 400, "Bad Request", "Unable to determine source IP address");
             LOG_WARNING("Lookup request: unable to determine source IP");
             return;
@@ -208,32 +210,66 @@ void IPGeoHTTPServer::setup_routes() {
             return;
         }
 
+        auto mac_param = req.get_param_value("mac");
         auto ip_param = req.get_param_value("ip");
 
-        // If no IP parameter provided, use the source IP address
-        if (ip_param.empty()) {
+        // If both parameters are missing, use the source IP address
+        if (mac_param.empty() && ip_param.empty()) {
             ip_param = client_ip;
             LOG_DEBUG("Lookup request using source IP: " + ip_param);
         }
 
+        // If both parameters are provided, return an error
+        if (!mac_param.empty() && !ip_param.empty()) {
+            send_error_response(res, 400, "Bad Request", "Cannot specify both 'ip' and 'mac' parameters simultaneously");
+            LOG_WARNING("Lookup request: both ip and mac parameters provided");
+            return;
+        }
+
         try {
-            LOG_DEBUG("Lookup request for IP: " + ip_param);
-            auto result = lookup_handler_(ip_param);
+            // Determine query type based on parameter
+            if (!mac_param.empty()) {
+                // MAC address lookup
+                if (!mac_lookup_handler_) {
+                    send_error_response(res, 500, "Internal Server Error", "MAC lookup handler not configured");
+                    LOG_WARNING("MAC lookup requested but handler not set");
+                    return;
+                }
 
-            // Record metrics with accurate cache hit status
-            metrics_->record_request(result.cache_hit, result.latency_ms);
+                LOG_DEBUG("MAC lookup request for: " + mac_param);
+                auto result = mac_lookup_handler_(mac_param);
 
-            res.set_content(result.data.dump(), "application/json");
+                // Record metrics
+                metrics_->record_request(result.cache_hit, result.latency_ms);
+
+                res.set_content(result.data.dump(), "application/json");
+            } else {
+                // IP address lookup
+                if (!lookup_handler_) {
+                    send_error_response(res, 500, "Internal Server Error", "IP lookup handler not configured");
+                    LOG_WARNING("IP lookup requested but handler not set");
+                    return;
+                }
+
+                LOG_DEBUG("IP lookup request for: " + ip_param);
+                auto result = lookup_handler_(ip_param);
+
+                // Record metrics
+                metrics_->record_request(result.cache_hit, result.latency_ms);
+
+                res.set_content(result.data.dump(), "application/json");
+            }
         } catch (const std::exception& e) {
             res.status = 500;
             nlohmann::json error;
             error["error"] = e.what();
             res.set_content(error.dump(), "application/json");
-            LOG_ERROR(std::string("Error processing lookup for ") + ip_param + ": " + e.what());
+            std::string query_param = mac_param.empty() ? ip_param : mac_param;
+            LOG_ERROR(std::string("Error processing lookup for ") + query_param + ": " + e.what());
         }
     });
 
-    // Batch lookup endpoint
+    // Batch lookup endpoint (supports both IP and MAC queries)
     server_.Post("/lookup", [this](const httplib::Request& req, httplib::Response& res) {
         // Check authentication
         if (!authenticate_request(req, res)) {
@@ -262,43 +298,100 @@ void IPGeoHTTPServer::setup_routes() {
         try {
             auto body = nlohmann::json::parse(req.body);
 
-            if (!body.contains("ips") || !body["ips"].is_array()) {
-                send_error_response(res, 400, "Bad Request", "Missing or invalid 'ips' array in request body");
-                LOG_WARNING("Batch lookup request missing 'ips' array");
+            // Determine query type based on request body
+            bool has_ips = body.contains("ips") && body["ips"].is_array();
+            bool has_macs = body.contains("macs") && body["macs"].is_array();
+
+            if (!has_ips && !has_macs) {
+                send_error_response(res, 400, "Bad Request", "Missing or invalid 'ips' or 'macs' array in request body");
+                LOG_WARNING("Batch lookup request missing 'ips' or 'macs' array");
                 return;
             }
 
-            // Check batch size limit
-            size_t batch_size = body["ips"].size();
-            if (batch_size > static_cast<size_t>(max_batch_size_)) {
-                nlohmann::json error;
-                error["error"] = "Batch size exceeds maximum limit";
-                error["max_batch_size"] = max_batch_size_;
-                error["requested_size"] = batch_size;
-                send_json_response(res, error, 400);
-                LOG_WARNING("Batch lookup request exceeds size limit: " + std::to_string(batch_size) +
-                           " > " + std::to_string(max_batch_size_));
+            if (has_ips && has_macs) {
+                send_error_response(res, 400, "Bad Request", "Cannot specify both 'ips' and 'macs' in the same request");
+                LOG_WARNING("Batch lookup request: both ips and macs provided");
                 return;
             }
 
-            // Extract IP strings
-            std::vector<std::string> ip_list;
-            ip_list.reserve(batch_size);
-            for (const auto& ip : body["ips"]) {
-                if (ip.is_string()) {
-                    ip_list.push_back(ip.get<std::string>());
+            std::vector<std::string> query_list;
+            std::string query_type;
+
+            if (has_ips) {
+                // IP batch lookup
+                query_type = "IP";
+                if (!lookup_handler_) {
+                    send_error_response(res, 500, "Internal Server Error", "IP lookup handler not configured");
+                    LOG_WARNING("IP batch lookup requested but handler not set");
+                    return;
+                }
+
+                // Check batch size limit
+                size_t batch_size = body["ips"].size();
+                if (batch_size > static_cast<size_t>(max_batch_size_)) {
+                    nlohmann::json error;
+                    error["error"] = "Batch size exceeds maximum limit";
+                    error["max_batch_size"] = max_batch_size_;
+                    error["requested_size"] = batch_size;
+                    send_json_response(res, error, 400);
+                    LOG_WARNING("Batch lookup request exceeds size limit: " + std::to_string(batch_size) +
+                               " > " + std::to_string(max_batch_size_));
+                    return;
+                }
+
+                // Extract IP strings
+                query_list.reserve(batch_size);
+                for (const auto& ip : body["ips"]) {
+                    if (ip.is_string()) {
+                        query_list.push_back(ip.get<std::string>());
+                    }
+                }
+            } else {
+                // MAC batch lookup
+                query_type = "MAC";
+                if (!mac_lookup_handler_) {
+                    send_error_response(res, 500, "Internal Server Error", "MAC lookup handler not configured");
+                    LOG_WARNING("MAC batch lookup requested but handler not set");
+                    return;
+                }
+
+                // Check batch size limit
+                size_t batch_size = body["macs"].size();
+                if (batch_size > static_cast<size_t>(max_batch_size_)) {
+                    nlohmann::json error;
+                    error["error"] = "Batch size exceeds maximum limit";
+                    error["max_batch_size"] = max_batch_size_;
+                    error["requested_size"] = batch_size;
+                    send_json_response(res, error, 400);
+                    LOG_WARNING("Batch lookup request exceeds size limit: " + std::to_string(batch_size) +
+                               " > " + std::to_string(max_batch_size_));
+                    return;
+                }
+
+                // Extract MAC strings
+                query_list.reserve(batch_size);
+                for (const auto& mac : body["macs"]) {
+                    if (mac.is_string()) {
+                        query_list.push_back(mac.get<std::string>());
+                    }
                 }
             }
 
             // Parallel lookup using std::async
             std::vector<std::future<LookupResult>> futures;
-            futures.reserve(ip_list.size());
+            futures.reserve(query_list.size());
 
-            for (const auto& ip_str : ip_list) {
-                LOG_DEBUG("Batch lookup for IP: " + ip_str);
-                futures.push_back(std::async(std::launch::async, [this, ip_str]() {
-                    return lookup_handler_(ip_str);
-                }));
+            for (const auto& query_str : query_list) {
+                LOG_DEBUG("Batch lookup for " + query_type + ": " + query_str);
+                if (query_type == "IP") {
+                    futures.push_back(std::async(std::launch::async, [this, query_str]() {
+                        return lookup_handler_(query_str);
+                    }));
+                } else {
+                    futures.push_back(std::async(std::launch::async, [this, query_str]() {
+                        return mac_lookup_handler_(query_str);
+                    }));
+                }
             }
 
             // Collect results
@@ -309,7 +402,7 @@ void IPGeoHTTPServer::setup_routes() {
                 results.push_back(result.data);
             }
 
-            LOG_INFO("Batch lookup completed for " + std::to_string(results.size()) + " IPs");
+            LOG_INFO("Batch lookup completed for " + std::to_string(results.size()) + " " + query_type + "s");
             res.set_content(results.dump(), "application/json");
 
         } catch (const nlohmann::json::exception& e) {
@@ -321,143 +414,9 @@ void IPGeoHTTPServer::setup_routes() {
         }
     });
 
-    // Single MAC lookup endpoint
-    server_.Get("/mac/lookup", [this](const httplib::Request& req, httplib::Response& res) {
-        // Check authentication
-        if (!authenticate_request(req, res)) {
-            return;
-        }
-
-        auto client_ip = req.remote_addr;
-        if (client_ip.empty()) {
-            send_error_response(res, 400, "Bad Request", "Unable to determine source IP address");
-            LOG_WARNING("MAC lookup request: unable to determine source IP");
-            return;
-        }
-
-        // Check rate limit
-        if (enable_rate_limiter_ && !rate_limiter_->is_allowed(client_ip)) {
-            nlohmann::json error;
-            error["error"] = "Rate limit exceeded";
-            error["remaining"] = rate_limiter_->get_remaining(client_ip);
-            send_json_response(res, error, 429);
-            res.set_header("Retry-After", "60");
-            LOG_WARNING("Rate limit exceeded for IP: " + client_ip);
-            return;
-        }
-
-        auto mac_param = req.get_param_value("mac");
-
-        if (mac_param.empty()) {
-            send_error_response(res, 400, "Bad Request", "Missing 'mac' parameter");
-            LOG_WARNING("MAC lookup request missing 'mac' parameter");
-            return;
-        }
-
-        try {
-            LOG_DEBUG("MAC lookup request for: " + mac_param);
-            auto result = mac_lookup_handler_(mac_param);
-
-            // Record metrics with accurate cache hit status
-            metrics_->record_request(result.cache_hit, result.latency_ms);
-
-            res.set_content(result.data.dump(), "application/json");
-        } catch (const std::exception& e) {
-            res.status = 500;
-            nlohmann::json error;
-            error["error"] = e.what();
-            res.set_content(error.dump(), "application/json");
-            LOG_ERROR(std::string("Error processing MAC lookup for ") + mac_param + ": " + e.what());
-        }
-    });
-
-    // Batch MAC lookup endpoint
-    server_.Post("/mac/lookup", [this](const httplib::Request& req, httplib::Response& res) {
-        // Check authentication
-        if (!authenticate_request(req, res)) {
-            return;
-        }
-
-        auto client_ip = req.remote_addr;
-        if (client_ip.empty()) {
-            res.status = 400;
-            send_error_response(res, 400, "Bad Request", "Unable to determine source IP address");
-            LOG_WARNING("Batch MAC lookup request: unable to determine source IP");
-            return;
-        }
-
-        // Check rate limit
-        if (enable_rate_limiter_ && !rate_limiter_->is_allowed(client_ip)) {
-            nlohmann::json error;
-            error["error"] = "Rate limit exceeded";
-            error["remaining"] = rate_limiter_->get_remaining(client_ip);
-            send_json_response(res, error, 429);
-            res.set_header("Retry-After", "60");
-            LOG_WARNING("Rate limit exceeded for IP: " + client_ip);
-            return;
-        }
-
-        try {
-            auto body = nlohmann::json::parse(req.body);
-
-            if (!body.contains("macs") || !body["macs"].is_array()) {
-                send_error_response(res, 400, "Bad Request", "Missing or invalid 'macs' array in request body");
-                LOG_WARNING("Batch MAC lookup request missing 'macs' array");
-                return;
-            }
-
-            // Check batch size limit
-            size_t batch_size = body["macs"].size();
-            if (batch_size > static_cast<size_t>(max_batch_size_)) {
-                nlohmann::json error;
-                error["error"] = "Batch size exceeds maximum limit";
-                error["max_batch_size"] = max_batch_size_;
-                error["requested_size"] = batch_size;
-                send_json_response(res, error, 400);
-                LOG_WARNING("Batch MAC lookup request exceeds size limit: " + std::to_string(batch_size) +
-                           " > " + std::to_string(max_batch_size_));
-                return;
-            }
-
-            // Extract MAC strings
-            std::vector<std::string> mac_list;
-            mac_list.reserve(batch_size);
-            for (const auto& mac : body["macs"]) {
-                if (mac.is_string()) {
-                    mac_list.push_back(mac.get<std::string>());
-                }
-            }
-
-            // Parallel lookup using std::async
-            std::vector<std::future<LookupResult>> futures;
-            futures.reserve(mac_list.size());
-
-            for (const auto& mac_str : mac_list) {
-                LOG_DEBUG("Batch MAC lookup for: " + mac_str);
-                futures.push_back(std::async(std::launch::async, [this, mac_str]() {
-                    return mac_lookup_handler_(mac_str);
-                }));
-            }
-
-            // Collect results
-            nlohmann::json results = nlohmann::json::array();
-            for (auto& future : futures) {
-                auto result = future.get();
-                metrics_->record_request(result.cache_hit, result.latency_ms);
-                results.push_back(result.data);
-            }
-
-            LOG_INFO("Batch MAC lookup completed for " + std::to_string(results.size()) + " MACs");
-            res.set_content(results.dump(), "application/json");
-
-        } catch (const nlohmann::json::exception& e) {
-            send_error_response(res, 400, "Bad Request", "Invalid JSON: " + std::string(e.what()));
-            LOG_WARNING("Invalid JSON in batch MAC lookup request: " + std::string(e.what()));
-        } catch (const std::exception& e) {
-            send_error_response(res, 500, "Internal Server Error", e.what());
-            LOG_ERROR(std::string("Error processing batch MAC lookup: ") + e.what());
-        }
-    });
+    // Note: MAC lookup endpoints have been consolidated into /lookup
+    // Use GET /lookup?mac=... for single MAC lookup
+    // Use POST /lookup with {"macs": [...]} for batch MAC lookup
 
     LOG_INFO("HTTP routes configured");
 }
@@ -489,10 +448,10 @@ bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
     std::cout << "\nAPI Endpoints:" << std::endl;
     std::cout << "  GET  /                       - Service info" << std::endl;
     std::cout << "  GET  /health                 - Health check" << std::endl;
-    std::cout << "  GET  /lookup[?ip=<address>]   - IP lookup (uses source IP if no param)" << std::endl;
+    std::cout << "  GET  /lookup?ip=<address>    - IP lookup" << std::endl;
+    std::cout << "  GET  /lookup?mac=<address>   - MAC lookup" << std::endl;
     std::cout << "  POST /lookup                 - Batch lookup" << std::endl;
-    std::cout << "  GET  /mac/lookup?mac=<addr>   - MAC lookup" << std::endl;
-    std::cout << "  POST /mac/lookup             - Batch MAC lookup" << std::endl;
+    std::cout << "                                Body: {\"ips\": [...]} or {\"macs\": [...]}" << std::endl;
     std::cout << "\nPress Ctrl+C to stop the server" << std::endl;
     std::cout << "========================================\n" << std::endl;
 
