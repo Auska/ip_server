@@ -14,14 +14,16 @@ endif()
 
 # Optimization level
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
+    set(CMAKE_BUILD_TYPE Debug)
 endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     if(MSVC)
-        add_compile_options(/O2 /DNDEBUG)
+        add_compile_options(/O2 /DNDEBUG /GL)
+        add_link_options(/LTCG)
     else()
-        add_compile_options(-O3 -DNDEBUG)
+        add_compile_options(-O3 -DNDEBUG -flto)
+        add_link_options(-flto)
     endif()
 endif()
 
@@ -40,11 +42,42 @@ target_include_directories(sqlite3 PUBLIC
     ${CMAKE_SOURCE_DIR}/external/sqlite-autoconf-3510200
 )
 
+# Enable LTO for SQLite3 in Release mode
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    if(NOT MSVC)
+        target_compile_options(sqlite3 PRIVATE -flto)
+    endif()
+endif()
+
 # Build maxminddb library second
+# Set optimization flags for maxminddb in Release mode
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    if(MSVC)
+        set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /O2 /GL")
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2 /GL")
+    else()
+        set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -DNDEBUG -flto")
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG -flto")
+    endif()
+endif()
 add_subdirectory(external/libmaxminddb-1.12.2)
+
+# Apply LTO to maxminddb library
+if(CMAKE_BUILD_TYPE STREQUAL "Release" AND TARGET maxminddb)
+    if(NOT MSVC)
+        target_compile_options(maxminddb PRIVATE -flto)
+    endif()
+endif()
 
 # Build spdlog library third
 add_subdirectory(external/spdlog-1.17.0)
+
+# Apply LTO to spdlog library
+if(CMAKE_BUILD_TYPE STREQUAL "Release" AND TARGET spdlog)
+    if(NOT MSVC)
+        target_compile_options(spdlog PRIVATE -flto)
+    endif()
+endif()
 
 # Source files
 set(SOURCES
@@ -64,6 +97,13 @@ set(SOURCES
 
 # Create executable (depends on sqlite3 and maxminddb)
 add_executable(ip_server ${SOURCES})
+
+# Enable LTO for ip_server in Release mode
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    if(NOT MSVC)
+        target_compile_options(ip_server PRIVATE -flto)
+    endif()
+endif()
 
 # Link libraries
 target_link_libraries(ip_server
