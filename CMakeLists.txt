@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(ip_local_server VERSION 2.0.0 LANGUAGES CXX)
+project(ip_local_server VERSION 2.0.0 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -29,6 +29,7 @@ endif()
 include_directories(
     ${CMAKE_SOURCE_DIR}/external/include
     ${CMAKE_SOURCE_DIR}/external/libmaxminddb-1.12.2/include
+    ${CMAKE_SOURCE_DIR}/external/sqlite-autoconf-3510200
 )
 
 # Source files
@@ -51,12 +52,11 @@ set(SOURCES
 add_subdirectory(external/libmaxminddb-1.12.2)
 
 # Create executable
-add_executable(ip_server ${SOURCES})
+add_executable(ip_server ${SOURCES} ${CMAKE_SOURCE_DIR}/external/sqlite-autoconf-3510200/sqlite3.c)
 
 # Link libraries
 target_link_libraries(ip_server
     maxminddb
-    sqlite3
     pthread
 )
 
