@@ -19,9 +19,9 @@ endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     if(MSVC)
-        add_compile_options(/O2)
+        add_compile_options(/O2 /DNDEBUG)
     else()
-        add_compile_options(-O2)
+        add_compile_options(-O3 -DNDEBUG)
     endif()
 endif()
 
@@ -68,6 +68,13 @@ target_link_libraries(ip_server
     maxminddb
     pthread
 )
+
+# Strip symbols in Release mode
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    if(NOT MSVC)
+        target_link_options(ip_server PRIVATE -s)
+    endif()
+endif()
 
 # Set output directory
 set_target_properties(ip_server PROPERTIES
