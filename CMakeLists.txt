@@ -43,6 +43,9 @@ target_include_directories(sqlite3 PUBLIC
 # Build maxminddb library second
 add_subdirectory(external/libmaxminddb-1.12.2)
 
+# Build spdlog library third
+add_subdirectory(external/spdlog-1.17.0)
+
 # Source files
 set(SOURCES
     src/main.cpp
@@ -66,6 +69,7 @@ add_executable(ip_server ${SOURCES})
 target_link_libraries(ip_server
     sqlite3
     maxminddb
+    spdlog::spdlog
     pthread
 )
 

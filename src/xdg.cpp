@@ -105,6 +105,19 @@ std::filesystem::path XDGPaths::oui_db_path() const {
     return database_dir() / "master_oui.db";
 }
 
+std::filesystem::path XDGPaths::log_file_path() const {
+    // Use XDG state home for logs (or data home as fallback)
+    std::filesystem::path log_dir;
+    std::string state_path = get_env("XDG_STATE_HOME", "");
+    if (!state_path.empty()) {
+        log_dir = std::filesystem::path(state_path) / APP_NAME / "logs";
+    } else {
+        // Fallback to data home
+        log_dir = data_home() / APP_NAME / "logs";
+    }
+    return log_dir / "ip_server.log";
+}
+
 void XDGPaths::ensure_directories() const {
     std::error_code ec;
 
@@ -126,6 +139,13 @@ void XDGPaths::ensure_directories() const {
     std::filesystem::create_directories(database_dir(), ec);
     if (ec) {
         LOG_WARNING("Failed to create database directory: " + ec.message());
+    }
+
+    // Create log directory
+    std::filesystem::path log_dir = log_file_path().parent_path();
+    std::filesystem::create_directories(log_dir, ec);
+    if (ec) {
+        LOG_WARNING("Failed to create log directory: " + ec.message());
     }
 
     LOG_INFO("XDG directories ensured");

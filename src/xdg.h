@@ -32,6 +32,9 @@ public:
     std::filesystem::path asn_db_path() const;
     std::filesystem::path oui_db_path() const;
 
+    // Get default log file path
+    std::filesystem::path log_file_path() const;
+
     // Ensure directories exist
     void ensure_directories() const;
 

@@ -1,19 +1,20 @@
 #pragma once
 
-#include <iostream>
-#include <fstream>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/rotating_file_sink.h>
+#include <spdlog/sinks/daily_file_sink.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 #include <string>
-#include <mutex>
 #include <filesystem>
 #include <chrono>
 
 namespace ip_server {
 
 enum class LogLevel {
-    DEBUG,
-    INFO,
-    WARNING,
-    ERROR
+    DEBUG = spdlog::level::debug,
+    INFO = spdlog::level::info,
+    WARNING = spdlog::level::warn,
+    ERROR = spdlog::level::err
 };
 
 enum class RotationType {
@@ -37,16 +38,9 @@ class Logger {
 public:
     static Logger& instance();
 
-    void set_level(LogLevel level) { level_ = level; }
-    void set_config(const LogConfig& config) { 
-        std::lock_guard<std::mutex> lock(mutex_);
-        // Close current file if logging is disabled or path changed
-        if (file_stream_.is_open()) {
-            file_stream_.close();
-        }
-        config_ = config; 
-    }
-
+    void set_level(LogLevel level);
+    void set_config(const LogConfig& config);
+    
     void debug(const std::string& message);
     void info(const std::string& message);
     void warning(const std::string& message);
@@ -55,22 +49,20 @@ public:
     void flush();
 
 private:
-    Logger() = default;
+    Logger();
     ~Logger();
+    Logger(const Logger&) = delete;
+    Logger& operator=(const Logger&) = delete;
+
     void log(LogLevel level, const std::string& message);
-    void rotate_if_needed();
-    void rotate_by_size();
-    void rotate_by_time();
-    std::string get_backup_filename(int index);
+    void setup_sinks();
 
     LogLevel level_ = LogLevel::INFO;
     LogConfig config_;
-    std::mutex mutex_;
-    std::ofstream file_stream_;
-    std::chrono::system_clock::time_point last_rotation_time_;
-    size_t current_file_size_ = 0;
+    std::shared_ptr<spdlog::logger> logger_;
 };
 
+// Keep existing macro interface unchanged
 #define LOG_DEBUG(msg) ip_server::Logger::instance().debug(msg)
 #define LOG_INFO(msg) ip_server::Logger::instance().info(msg)
 #define LOG_WARNING(msg) ip_server::Logger::instance().warning(msg)

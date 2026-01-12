@@ -59,6 +59,7 @@ target_link_libraries(ip_server_tests
     ${GTEST_MAIN_LIBRARIES}
     sqlite3
     maxminddb
+    spdlog::spdlog
     pthread
 )
 

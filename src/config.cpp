@@ -23,12 +23,14 @@ void ConfigParser::apply_xdg_defaults(ServerConfig& config) {
         config.asn_db_path = xdg.asn_db_path().string();
         config.oui_db_path = xdg.oui_db_path().string();
         config.config_file = xdg.config_file();
+        config.log_file_path = xdg.log_file_path().string();
 
         LOG_INFO("Using XDG paths:");
         LOG_INFO("  Config: " + config.config_file.string());
         LOG_INFO("  City DB: " + config.city_db_path);
         LOG_INFO("  ASN DB: " + config.asn_db_path);
         LOG_INFO("  OUI DB: " + config.oui_db_path);
+        LOG_INFO("  Log File: " + config.log_file_path);
     }
 }
 
@@ -114,6 +116,13 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
         } else if (arg == "--enable-file-logging" && i + 1 < argc) {
             std::string value = argv[++i];
             config.enable_file_logging = (value == "true" || value == "1");
+            // If enabling file logging and using XDG, use XDG log path
+            if (config.enable_file_logging && config.use_xdg && config.log_file_path == "logs/ip_server.log") {
+                config.log_file_path = XDGPaths::instance().log_file_path().string();
+            }
+        } else if (arg == "--log-enable-stdout" && i + 1 < argc) {
+            std::string value = argv[++i];
+            config.log_enable_stdout = (value == "true" || value == "1");
         } else if (arg == "--log-file" && i + 1 < argc) {
             config.log_file_path = argv[++i];
             config.enable_file_logging = true;
@@ -140,6 +149,7 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
     LOG_INFO("  Port: " + std::to_string(config.port));
     LOG_INFO("  City DB: " + config.city_db_path);
     LOG_INFO("  ASN DB: " + config.asn_db_path);
+    LOG_INFO("  OUI DB: " + config.oui_db_path);
     LOG_INFO("  Threads: " + std::to_string(config.thread_pool_size));
     LOG_INFO("  Use XDG: " + std::string(config.use_xdg ? "yes" : "no"));
     LOG_INFO("  Rate Limiter: " + std::string(config.enable_rate_limiter ? "enabled" : "disabled"));
@@ -166,6 +176,7 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
         }
         LOG_INFO("  Max Backup Files: " + std::to_string(config.log_max_backup_files));
     }
+    LOG_INFO("  Stdout Logging: " + std::string(config.log_enable_stdout ? "enabled" : "disabled"));
 
     // Validate configuration
     validate(config);
@@ -307,6 +318,8 @@ ServerConfig ConfigParser::load_from_file(const std::filesystem::path& config_fi
             config.default_api_key = value;
         } else if (key == "enable_file_logging") {
             config.enable_file_logging = (value == "true" || value == "1");
+        } else if (key == "log_enable_stdout") {
+            config.log_enable_stdout = (value == "true" || value == "1");
         } else if (key == "log_file") {
             config.log_file_path = value;
             config.enable_file_logging = true;
@@ -348,6 +361,7 @@ bool ConfigParser::save_to_file(const ServerConfig& config, const std::filesyste
         file << "default_api_key = " << config.default_api_key << "\n";
     }
     file << "enable_file_logging = " << (config.enable_file_logging ? "true" : "false") << "\n";
+    file << "log_enable_stdout = " << (config.log_enable_stdout ? "true" : "false") << "\n";
     if (config.enable_file_logging) {
         file << "log_file = " << config.log_file_path << "\n";
         file << "log_rotation = " << config.log_rotation_type << "\n";
@@ -395,8 +409,11 @@ void ConfigParser::print_help(const char* program_name) {
               << "  --enable-file-logging <true|false>\n"
               << "                      Enable file logging\n"
               << "                      (default: false)\n"
+              << "  --log-enable-stdout <true|false>\n"
+              << "                      Enable stdout logging\n"
+              << "                      (default: true)\n"
               << "  --log-file <path>    Path to log file\n"
-              << "                      (default: logs/ip_server.log)\n"
+              << "                      (default: ~/.local/state/ip-server/logs/ip_server.log)\n"
               << "  --log-rotation <type>\n"
               << "                      Log rotation type: none, size, time, both\n"
               << "                      (default: size)\n"
@@ -413,11 +430,13 @@ void ConfigParser::print_help(const char* program_name) {
               << "XDG Directories:\n"
               << "  Config:  $XDG_CONFIG_HOME/ip-server/ (default: ~/.config/ip-server/)\n"
               << "  Data:    $XDG_DATA_HOME/ip-server/ (default: ~/.local/share/ip-server/)\n"
-              << "  Cache:   $XDG_CACHE_HOME/ip-server/ (default: ~/.cache/ip-server/)\n\n"
+              << "  Cache:   $XDG_CACHE_HOME/ip-server/ (default: ~/.cache/ip-server/)\n"
+              << "  Logs:    $XDG_STATE_HOME/ip-server/logs/ (default: ~/.local/state/ip-server/logs/)\n\n"
               << "Environment Variables:\n"
               << "  XDG_CONFIG_HOME  Configuration directory\n"
               << "  XDG_DATA_HOME    Data directory\n"
-              << "  XDG_CACHE_HOME   Cache directory\n\n"
+              << "  XDG_CACHE_HOME   Cache directory\n"
+              << "  XDG_STATE_HOME   State directory (logs)\n\n"
               << "Examples:\n"
               << "  " << program_name << "\n"
               << "  " << program_name << " --port 9000\n"
