@@ -354,52 +354,6 @@ TEST_F(LoggerTest, NoRotation) {
     EXPECT_NE(content.find("Message 49"), std::string::npos);
 }
 
-TEST_F(LoggerTest, TimeBasedRotation) {
-    GTEST_SKIP() << "TimeBasedRotation test skipped: daily_file_sink_mt only supports day-level rotation, not minute-level. "
-                    "Testing day-level rotation requires waiting 24 hours which is not suitable for unit tests.";
-    
-    std::string log_path = get_test_log_path("time_rotation.log");
-    
-    LogConfig config;
-    config.enable_file_logging = true;
-    config.log_file_path = log_path;
-    config.rotation_type = RotationType::TIME;
-    config.rotation_interval = std::chrono::minutes(0);  // 0 minutes for testing (will trigger immediately)
-    config.max_backup_files = 3;
-    config.enable_stdout = false;
-    
-    Logger::instance().set_config(config);
-    
-    // Write initial logs
-    Logger::instance().info("Initial message");
-    Logger::instance().flush();
-    
-    // Wait for rotation interval
-    std::this_thread::sleep_for(std::chrono::milliseconds(1100));
-    
-    // Write more logs to trigger rotation
-    Logger::instance().info("Message after rotation interval");
-    Logger::instance().flush();
-    
-    // Check if rotation occurred (backup with timestamp should exist)
-    // The backup filename will have a timestamp like .20250101_120000
-    bool found_backup = false;
-    std::filesystem::path dir = std::filesystem::path(log_path).parent_path();
-    std::string basename = std::filesystem::path(log_path).filename().string();
-    
-    if (std::filesystem::exists(dir)) {
-        for (const auto& entry : std::filesystem::directory_iterator(dir)) {
-            std::string filename = entry.path().filename().string();
-            if (filename.find(basename) == 0 && filename != basename) {
-                found_backup = true;
-                break;
-            }
-        }
-    }
-    
-    EXPECT_TRUE(found_backup);
-}
-
 TEST_F(LoggerTest, CombinedRotation) {
     std::string log_path = get_test_log_path("combined_rotation.log");
     
