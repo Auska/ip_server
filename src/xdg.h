@@ -30,6 +30,7 @@ public:
     // Get default database file paths
     std::filesystem::path city_db_path() const;
     std::filesystem::path asn_db_path() const;
+    std::filesystem::path oui_db_path() const;
 
     // Ensure directories exist
     void ensure_directories() const;

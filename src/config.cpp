@@ -21,12 +21,14 @@ void ConfigParser::apply_xdg_defaults(ServerConfig& config) {
         auto& xdg = XDGPaths::instance();
         config.city_db_path = xdg.city_db_path().string();
         config.asn_db_path = xdg.asn_db_path().string();
+        config.oui_db_path = xdg.oui_db_path().string();
         config.config_file = xdg.config_file();
 
         LOG_INFO("Using XDG paths:");
         LOG_INFO("  Config: " + config.config_file.string());
         LOG_INFO("  City DB: " + config.city_db_path);
         LOG_INFO("  ASN DB: " + config.asn_db_path);
+        LOG_INFO("  OUI DB: " + config.oui_db_path);
     }
 }
 
@@ -78,6 +80,9 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
             config.use_xdg = false;
         } else if (arg == "--asn-db" && i + 1 < argc) {
             config.asn_db_path = argv[++i];
+            config.use_xdg = false;
+        } else if (arg == "--oui-db" && i + 1 < argc) {
+            config.oui_db_path = argv[++i];
             config.use_xdg = false;
         } else if (arg == "--port" && i + 1 < argc) {
             config.port = static_cast<uint16_t>(parse_int_arg(argv[++i], "port number"));
@@ -415,13 +420,17 @@ void ConfigParser::print_help(const char* program_name) {
               << "  " << program_name << " --port 9000\n"
               << "  " << program_name << " --config /path/to/config.toml\n"
               << "  " << program_name << " --city-db /path/to/GeoLite2-City.mmdb --asn-db /path/to/GeoLite2-ASN.mmdb\n"
+              << "  " << program_name << " --oui-db /path/to/master_oui.db\n"
               << "  " << program_name << " --host 127.0.0.1 --port 8080\n\n"
               << "API Endpoints:\n"
               << "  GET  /                       - Service information\n"
               << "  GET  /health                 - Health check\n"
               << "  GET  /lookup?ip=<address>     - Single IP lookup\n"
               << "  POST /lookup                 - Batch lookup\n"
-              << "                                Body: {\"ips\": [\"1.1.1.1\", \"8.8.8.8\"]}\n\n"
+              << "                                Body: {\"ips\": [\"1.1.1.1\", \"8.8.8.8\"]}\n"
+              << "  GET  /mac/lookup?mac=<address> - Single MAC lookup\n"
+              << "  POST /mac/lookup             - Batch MAC lookup\n"
+              << "                                Body: {\"macs\": [\"00:1A:2B:3C:4D:5E\", \"F4:EA:B5:12:34:56\"]}\n\n"
               << "For more information, visit: https://dev.maxmind.com/geoip/geolite2-free-geolocation-data\n";
 }
 

@@ -39,6 +39,7 @@ public:
         // Database status
         bool city_db_open;
         bool asn_db_open;
+        bool oui_db_open;
     };
     
     Stats get_stats() const;
@@ -49,6 +50,7 @@ public:
     // Set database status
     void set_city_db_status(bool open);
     void set_asn_db_status(bool open);
+    void set_oui_db_status(bool open);
 
 private:
     mutable std::mutex mutex_;
@@ -69,6 +71,7 @@ private:
     // Database status
     std::atomic<bool> city_db_open_;
     std::atomic<bool> asn_db_open_;
+    std::atomic<bool> oui_db_open_;
     
     // Calculate percentiles
     double calculate_percentile(double percentile) const;

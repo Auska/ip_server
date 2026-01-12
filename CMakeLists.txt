@@ -36,6 +36,7 @@ set(SOURCES
     src/main.cpp
     src/config.cpp
     src/database.cpp
+    src/mac_database.cpp
     src/http_server.cpp
     src/logger.cpp
     src/types.cpp
@@ -55,6 +56,7 @@ add_executable(ip_server ${SOURCES})
 # Link libraries
 target_link_libraries(ip_server
     maxminddb
+    sqlite3
     pthread
 )
 

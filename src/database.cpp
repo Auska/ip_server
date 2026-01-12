@@ -1,4 +1,5 @@
 #include "database.h"
+#include "mac_database.h"
 #include "types.h"
 #include "logger.h"
 #include <stdexcept>
@@ -278,6 +279,55 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
 
     } catch (const std::exception& e) {
         LOG_ERROR("Error during IP lookup: " + std::string(e.what()));
+        result["error"] = e.what();
+    }
+
+    auto end = std::chrono::high_resolution_clock::now();
+    double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
+    return LookupResult(result, cache_hit, latency_ms);
+}
+
+// MACLookupService implementation
+
+MACLookupService::MACLookupService(const std::string& oui_db_path, size_t cache_size)
+    : cache_(cache_size) {
+
+    if (!oui_db_.open(oui_db_path)) {
+        throw std::runtime_error("Failed to open OUI database: " + oui_db_path);
+    }
+
+    LOG_INFO("MACLookupService initialized with cache size: " + std::to_string(cache_size));
+}
+
+LookupResult MACLookupService::lookup(const std::string& mac_address) const {
+    auto start = std::chrono::high_resolution_clock::now();
+    bool cache_hit = false;
+
+    // Check cache first
+    if (cache_enabled_) {
+        auto cached = cache_.get(mac_address);
+        if (cached.has_value()) {
+            LOG_DEBUG("Cache hit for MAC: " + mac_address);
+            cache_hit = true;
+            auto end = std::chrono::high_resolution_clock::now();
+            double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
+            return LookupResult(cached.value(), true, latency_ms);
+        }
+    }
+
+    nlohmann::json result;
+
+    try {
+        result = oui_db_.lookup(mac_address);
+
+        // Cache the result
+        if (cache_enabled_ && result.value("found", false)) {
+            cache_.put(mac_address, result);
+            LOG_DEBUG("Cached result for MAC: " + mac_address);
+        }
+
+    } catch (const std::exception& e) {
+        LOG_ERROR("Error during MAC lookup: " + std::string(e.what()));
         result["error"] = e.what();
     }
 

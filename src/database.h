@@ -8,6 +8,7 @@
 #include <atomic>
 #include "cache.h"
 #include "types.h"
+#include "mac_database.h"
 
 namespace ip_server {
 
@@ -67,6 +68,31 @@ public:
 private:
     CityDatabase city_db_;
     ASNDatabase asn_db_;
+    mutable IPCache cache_;
+    bool cache_enabled_ = true;
+};
+
+class MACLookupService {
+public:
+    explicit MACLookupService(const std::string& oui_db_path, size_t cache_size = 10000);
+    ~MACLookupService() = default;
+
+    MACLookupService(const MACLookupService&) = delete;
+    MACLookupService& operator=(const MACLookupService&) = delete;
+
+    LookupResult lookup(const std::string& mac_address) const;
+
+    // Cache control
+    void set_cache_enabled(bool enabled) { cache_enabled_ = enabled; }
+    void set_cache_size(size_t size) { IPCache(size).swap(cache_); }
+    void clear_cache() { cache_.clear(); }
+    size_t cache_size() const { return cache_.size(); }
+    
+    // Database status
+    bool is_oui_db_open() const { return oui_db_.is_open(); }
+
+private:
+    OUIDatabase oui_db_;
     mutable IPCache cache_;
     bool cache_enabled_ = true;
 };

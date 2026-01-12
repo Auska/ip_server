@@ -101,6 +101,10 @@ std::filesystem::path XDGPaths::asn_db_path() const {
     return database_dir() / "GeoLite2-ASN.mmdb";
 }
 
+std::filesystem::path XDGPaths::oui_db_path() const {
+    return database_dir() / "master_oui.db";
+}
+
 void XDGPaths::ensure_directories() const {
     std::error_code ec;
 

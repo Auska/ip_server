@@ -29,6 +29,7 @@ set(TEST_SOURCES
     test_main.cpp
     test_config.cpp
     test_database.cpp
+    test_mac_database.cpp
     test_http_server.cpp
     test_rate_limiter.cpp
     test_auth.cpp
@@ -39,6 +40,7 @@ set(TEST_SOURCES
 set(PROJECT_SOURCES
     ${CMAKE_SOURCE_DIR}/src/config.cpp
     ${CMAKE_SOURCE_DIR}/src/database.cpp
+    ${CMAKE_SOURCE_DIR}/src/mac_database.cpp
     ${CMAKE_SOURCE_DIR}/src/http_server.cpp
     ${CMAKE_SOURCE_DIR}/src/types.cpp
     ${CMAKE_SOURCE_DIR}/src/logger.cpp
@@ -57,6 +59,7 @@ target_link_libraries(ip_server_tests
     ${GTEST_MAIN_LIBRARIES}
     pthread
     maxminddb
+    sqlite3
 )
 
 # Enable testing
@@ -83,11 +86,11 @@ if(BUILD_BENCHMARKS)
 
     # Link libraries
     target_link_libraries(ip_server_benchmarks
-        ${BENCHMARK_LIBRARIES}
-        pthread
-        maxminddb
-    )
-
+            ${BENCHMARK_LIBRARIES}
+            pthread
+            maxminddb
+            sqlite3
+        )
     # Set output directory
     set_target_properties(ip_server_benchmarks PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin

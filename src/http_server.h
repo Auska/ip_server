@@ -31,6 +31,7 @@ public:
     IPGeoHTTPServer& operator=(const IPGeoHTTPServer&) = delete;
 
     void set_lookup_handler(LookupHandler handler);
+    void set_mac_lookup_handler(LookupHandler handler);
     
     // Get metrics collector
     Metrics* get_metrics() { return metrics_.get(); }
@@ -57,6 +58,7 @@ private:
     bool enable_api_auth_;
     httplib::Server server_;
     LookupHandler lookup_handler_;
+    LookupHandler mac_lookup_handler_;
     std::unique_ptr<RateLimiter> rate_limiter_;
     std::unique_ptr<APIAuth> api_auth_;
     std::unique_ptr<Metrics> metrics_;

@@ -16,6 +16,7 @@ public:
     Application(const ServerConfig& config)
         : config_(config),
           geo_service_(config.city_db_path, config.asn_db_path, config.cache_size),
+          mac_service_(config.oui_db_path, config.cache_size),
           http_server_(config.host, config.port, config.thread_pool_size,
                       config.enable_rate_limiter, config.max_requests_per_minute,
                       config.max_batch_size, config.enable_api_auth,
@@ -23,6 +24,10 @@ public:
 
         http_server_.set_lookup_handler([this](const std::string& ip) {
             return geo_service_.lookup(ip);
+        });
+
+        http_server_.set_mac_lookup_handler([this](const std::string& mac) {
+            return mac_service_.lookup(mac);
         });
     }
 
@@ -49,6 +54,7 @@ public:
         if (auto metrics = http_server_.get_metrics()) {
             metrics->set_city_db_status(geo_service_.is_city_db_open());
             metrics->set_asn_db_status(geo_service_.is_asn_db_open());
+            metrics->set_oui_db_status(mac_service_.is_oui_db_open());
         }
 
         // Start server and wait for shutdown signal
@@ -67,6 +73,7 @@ public:
 private:
     ServerConfig config_;
     IPGeoService geo_service_;
+    MACLookupService mac_service_;
     IPGeoHTTPServer http_server_;
     static std::atomic<bool> shutdown_requested_;
 };

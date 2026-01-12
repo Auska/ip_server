@@ -12,7 +12,8 @@ Metrics::Metrics()
       cache_misses_(0),
       start_time_(std::chrono::steady_clock::now()),
       city_db_open_(false),
-      asn_db_open_(false) {
+      asn_db_open_(false),
+      oui_db_open_(false) {
     LOG_INFO("Metrics collector initialized");
 }
 
@@ -61,6 +62,7 @@ Metrics::Stats Metrics::get_stats() const {
     // Database status
     stats.city_db_open = city_db_open_.load();
     stats.asn_db_open = asn_db_open_.load();
+    stats.oui_db_open = oui_db_open_.load();
     
     // Latency statistics
     {
@@ -106,6 +108,10 @@ void Metrics::set_city_db_status(bool open) {
 
 void Metrics::set_asn_db_status(bool open) {
     asn_db_open_.store(open);
+}
+
+void Metrics::set_oui_db_status(bool open) {
+    oui_db_open_.store(open);
 }
 
 double Metrics::calculate_percentile(double percentile) const {
