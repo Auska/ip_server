@@ -31,6 +31,9 @@ public:
             case spdlog::level::off:
                 level_name = "OFF";
                 break;
+            case spdlog::level::n_levels:
+                level_name = "UNKNOWN";
+                break;
         }
         dest.append(level_name, level_name + std::strlen(level_name));
     }
