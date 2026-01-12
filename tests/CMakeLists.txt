@@ -22,7 +22,6 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/external/include
     ${CMAKE_SOURCE_DIR}/external/libmaxminddb-1.12.2/include
-    ${CMAKE_SOURCE_DIR}/external/sqlite-autoconf-3510200
 )
 
 # Test source files
@@ -52,14 +51,15 @@ set(PROJECT_SOURCES
 )
 
 # Create test executable
-add_executable(ip_server_tests ${TEST_SOURCES} ${PROJECT_SOURCES} ${CMAKE_SOURCE_DIR}/external/sqlite-autoconf-3510200/sqlite3.c)
+add_executable(ip_server_tests ${TEST_SOURCES} ${PROJECT_SOURCES})
 
 # Link libraries
 target_link_libraries(ip_server_tests
     ${GTEST_LIBRARIES}
     ${GTEST_MAIN_LIBRARIES}
-    pthread
+    sqlite3
     maxminddb
+    pthread
 )
 
 # Enable testing
@@ -82,13 +82,14 @@ if(BUILD_BENCHMARKS)
     )
 
     # Create benchmark executable
-    add_executable(ip_server_benchmarks ${BENCHMARK_SOURCES} ${PROJECT_SOURCES} ${CMAKE_SOURCE_DIR}/external/sqlite-autoconf-3510200/sqlite3.c)
+    add_executable(ip_server_benchmarks ${BENCHMARK_SOURCES} ${PROJECT_SOURCES})
 
     # Link libraries
     target_link_libraries(ip_server_benchmarks
             ${BENCHMARK_LIBRARIES}
-            pthread
+            sqlite3
             maxminddb
+            pthread
         )
     # Set output directory
     set_target_properties(ip_server_benchmarks PROPERTIES

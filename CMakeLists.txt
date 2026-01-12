@@ -32,6 +32,17 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/external/sqlite-autoconf-3510200
 )
 
+# Build SQLite3 library first
+add_library(sqlite3 STATIC
+    ${CMAKE_SOURCE_DIR}/external/sqlite-autoconf-3510200/sqlite3.c
+)
+target_include_directories(sqlite3 PUBLIC
+    ${CMAKE_SOURCE_DIR}/external/sqlite-autoconf-3510200
+)
+
+# Build maxminddb library second
+add_subdirectory(external/libmaxminddb-1.12.2)
+
 # Source files
 set(SOURCES
     src/main.cpp
@@ -48,14 +59,12 @@ set(SOURCES
     src/metrics.cpp
 )
 
-# Build maxminddb library
-add_subdirectory(external/libmaxminddb-1.12.2)
-
-# Create executable
-add_executable(ip_server ${SOURCES} ${CMAKE_SOURCE_DIR}/external/sqlite-autoconf-3510200/sqlite3.c)
+# Create executable (depends on sqlite3 and maxminddb)
+add_executable(ip_server ${SOURCES})
 
 # Link libraries
 target_link_libraries(ip_server
+    sqlite3
     maxminddb
     pthread
 )
