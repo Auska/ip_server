@@ -289,6 +289,8 @@ ServerConfig ConfigParser::load_from_file(const std::filesystem::path& config_fi
             config.city_db_path = value;
         } else if (key == "asn_db") {
             config.asn_db_path = value;
+        } else if (key == "oui_db") {
+            config.oui_db_path = value;
         } else if (key == "threads") {
             config.thread_pool_size = std::stoi(value);
         } else if (key == "enable_rate_limiter") {
@@ -335,6 +337,7 @@ bool ConfigParser::save_to_file(const ServerConfig& config, const std::filesyste
     file << "port = " << config.port << "\n";
     file << "city_db = " << config.city_db_path << "\n";
     file << "asn_db = " << config.asn_db_path << "\n";
+    file << "oui_db = " << config.oui_db_path << "\n";
     file << "threads = " << config.thread_pool_size << "\n";
     file << "enable_rate_limiter = " << (config.enable_rate_limiter ? "true" : "false") << "\n";
     file << "max_requests_per_minute = " << config.max_requests_per_minute << "\n";
