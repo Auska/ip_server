@@ -12,7 +12,7 @@ class DatabaseTest : public ::testing::Test {
 protected:
     void SetUp() override {
         // Get the project root directory
-        // Tests can be run from project root or build/tests/
+        // Tests can be run from project root, build/, or build/tests/
         std::filesystem::path current_path = std::filesystem::current_path();
         std::filesystem::path project_root;
 
@@ -20,9 +20,33 @@ protected:
         if (current_path.filename() == "tests" && current_path.parent_path().filename() == "build") {
             // Go up two levels to get to project root
             project_root = current_path.parent_path().parent_path();
-        } else {
-            // Assume we're already at project root
+        } 
+        // Check if we're in build/
+        else if (current_path.filename() == "build") {
+            // Go up one level to get to project root
+            project_root = current_path.parent_path();
+        } 
+        // Check if db directory exists in current path (project root)
+        else if (std::filesystem::exists(current_path / "db" / "GeoLite2-City.mmdb")) {
+            // Already at project root
             project_root = current_path;
+        }
+        // Try to find project root by looking for CMakeLists.txt
+        else {
+            std::filesystem::path search_path = current_path;
+            while (search_path.has_parent_path()) {
+                if (std::filesystem::exists(search_path / "CMakeLists.txt") && 
+                    std::filesystem::exists(search_path / "db" / "GeoLite2-City.mmdb")) {
+                    project_root = search_path;
+                    break;
+                }
+                search_path = search_path.parent_path();
+            }
+            
+            // If not found, default to current path
+            if (project_root.empty()) {
+                project_root = current_path;
+            }
         }
 
         city_db_path = project_root / "db" / "GeoLite2-City.mmdb";
@@ -30,7 +54,9 @@ protected:
 
         // Skip tests if database files don't exist
         if (!std::filesystem::exists(city_db_path) || !std::filesystem::exists(asn_db_path)) {
-            GTEST_SKIP() << "Database files not found. Skipping database tests.";
+            GTEST_SKIP() << "Database files not found. Expected at: " 
+                        << city_db_path.string() << " and " << asn_db_path.string()
+                        << ". Skipping database tests.";
         }
     }
 
