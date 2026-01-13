@@ -86,6 +86,9 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release" AND TARGET spdlog AND NOT MSVC)
 endif()
 
 # Build cxxopts library
+# Disable cxxopts tests and examples to only build the library
+set(CXXOPTS_BUILD_TESTS OFF CACHE BOOL "Build cxxopts tests" FORCE)
+set(CXXOPTS_BUILD_EXAMPLES OFF CACHE BOOL "Build cxxopts examples" FORCE)
 add_subdirectory(external/cxxopts-3.3.1)
 
 # Source files
