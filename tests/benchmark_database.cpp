@@ -247,4 +247,4 @@ BENCHMARK_F(DatabaseBenchmark, IPGeoService_ConcurrentLookups)(benchmark::State&
 }
 
 // Run the benchmarks
-BENCHMARK_MAIN();
+// BENCHMARK_MAIN();  // Moved to benchmark_performance.cpp to avoid multiple main()

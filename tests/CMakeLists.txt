@@ -74,12 +74,15 @@ if(BUILD_BENCHMARKS)
     # Find Google Benchmark using pkg-config
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(BENCHMARK REQUIRED benchmark)
+    pkg_check_modules(FMT REQUIRED fmt)
 
     include_directories(${BENCHMARK_INCLUDE_DIRS})
+    include_directories(${FMT_INCLUDE_DIRS})
 
     # Benchmark source files
     set(BENCHMARK_SOURCES
         benchmark_database.cpp
+        benchmark_performance.cpp
     )
 
     # Create benchmark executable
@@ -88,8 +91,10 @@ if(BUILD_BENCHMARKS)
     # Link libraries
     target_link_libraries(ip_server_benchmarks
             ${BENCHMARK_LIBRARIES}
+            ${FMT_LIBRARIES}
             sqlite3
             maxminddb
+            spdlog::spdlog
             pthread
         )
     # Set output directory
