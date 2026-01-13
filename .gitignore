@@ -13,6 +13,9 @@ cmake_install.cmake
 Makefile
 !CMakeLists.txt
 
+# XMake
+.xmake
+
 # Compiled executables
 bin/
 *.out
