@@ -331,7 +331,6 @@ Content-Type: application/json
 | `--log-rotation-interval <minutes>` | 时间轮转间隔 | 1440 |
 | `--log-max-backups <count>` | 最大备份文件数 | 5 |
 | `--log-enable-stdout <true\|false>` | 启用标准输出日志 | true |
-| `--no-xdg` | 禁用 XDG 目录标准 | false |
 | `--help, -h` | 显示帮助信息 | - |
 
 ### 配置文件

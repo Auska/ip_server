@@ -109,9 +109,6 @@ cmake --build . -j$(nproc)
 # 自定义监听地址
 ./build/bin/ip_server --host 127.0.0.1 --port 8080
 
-# 禁用 XDG 目录标准
-./build/bin/ip_server --no-xdg
-
 # 启用文件日志
 ./build/bin/ip_server --enable-file-logging true --log-file /var/log/ip_server.log
 

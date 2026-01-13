@@ -21,25 +21,25 @@ TEST_F(ConfigTest, DefaultConfigValues) {
 }
 
 TEST_F(ConfigTest, ParseNoArguments) {
-    const char* argv[] = {"ip_server", "--no-xdg"};
+    const char* argv[] = {"ip_server"};
     int argc = 2;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
     EXPECT_EQ(config.host, "0.0.0.0");
     EXPECT_EQ(config.port, 8080);
-    EXPECT_FALSE(config.use_xdg);
+    
 }
 
 TEST_F(ConfigTest, ParseHostArgument) {
-    const char* argv[] = {"ip_server", "--host", "127.0.0.1", "--no-xdg"};
+    const char* argv[] = {"ip_server", "--host", "127.0.0.1"};
     int argc = 4;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
     EXPECT_EQ(config.host, "127.0.0.1");
     EXPECT_EQ(config.port, 8080);
-    EXPECT_FALSE(config.use_xdg);
+    
 }
 
 TEST_F(ConfigTest, ParsePortArgument) {
@@ -59,7 +59,7 @@ TEST_F(ConfigTest, ParseCityDbArgument) {
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
     EXPECT_EQ(config.city_db_path, "/path/to/city.mmdb");
-    EXPECT_FALSE(config.use_xdg);
+    
 }
 
 TEST_F(ConfigTest, ParseAsnDbArgument) {
@@ -69,7 +69,7 @@ TEST_F(ConfigTest, ParseAsnDbArgument) {
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
     EXPECT_EQ(config.asn_db_path, "/path/to/asn.mmdb");
-    EXPECT_FALSE(config.use_xdg);
+    
 }
 
 TEST_F(ConfigTest, ParseThreadsArgument) {
@@ -99,7 +99,7 @@ TEST_F(ConfigTest, ParseMultipleArguments) {
     EXPECT_EQ(config.city_db_path, "/custom/city.mmdb");
     EXPECT_EQ(config.asn_db_path, "/custom/asn.mmdb");
     EXPECT_EQ(config.thread_pool_size, 16);
-    EXPECT_FALSE(config.use_xdg);
+    
 }
 
 TEST_F(ConfigTest, InvalidPortNumber) {
@@ -123,7 +123,7 @@ TEST_F(ConfigTest, InvalidThreadCount) {
 }
 
 TEST_F(ConfigTest, ParseEnableRateLimiter) {
-    const char* argv[] = {"ip_server", "--enable-rate-limiter", "false", "--no-xdg"};
+    const char* argv[] = {"ip_server", "--enable-rate-limiter", "false"};
     int argc = 4;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -132,7 +132,7 @@ TEST_F(ConfigTest, ParseEnableRateLimiter) {
 }
 
 TEST_F(ConfigTest, ParseMaxRequestsPerMinute) {
-    const char* argv[] = {"ip_server", "--max-requests-per-minute", "200", "--no-xdg"};
+    const char* argv[] = {"ip_server", "--max-requests-per-minute", "200"};
     int argc = 4;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -141,7 +141,7 @@ TEST_F(ConfigTest, ParseMaxRequestsPerMinute) {
 }
 
 TEST_F(ConfigTest, ParseMaxBatchSize) {
-    const char* argv[] = {"ip_server", "--max-batch-size", "50", "--no-xdg"};
+    const char* argv[] = {"ip_server", "--max-batch-size", "50"};
     int argc = 4;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -167,7 +167,7 @@ TEST_F(ConfigTest, ParseAllNewParameters) {
 }
 
 TEST_F(ConfigTest, DefaultNewParameters) {
-    const char* argv[] = {"ip_server", "--no-xdg"};
+    const char* argv[] = {"ip_server"};
     int argc = 2;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -198,7 +198,7 @@ TEST_F(ConfigTest, InvalidMaxBatchSize) {
 }
 
 TEST_F(ConfigTest, RateLimiterDisabledWithZeroRequests) {
-    const char* argv[] = {"ip_server", "--enable-rate-limiter", "false", "--no-xdg"};
+    const char* argv[] = {"ip_server", "--enable-rate-limiter", "false"};
     int argc = 4;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -207,7 +207,7 @@ TEST_F(ConfigTest, RateLimiterDisabledWithZeroRequests) {
 }
 
 TEST_F(ConfigTest, ValidatePortRange) {
-    const char* argv[] = {"ip_server", "--port", "0", "--no-xdg"};
+    const char* argv[] = {"ip_server", "--port", "0"};
     int argc = 3;
 
     EXPECT_THROW(
@@ -217,7 +217,7 @@ TEST_F(ConfigTest, ValidatePortRange) {
 }
 
 TEST_F(ConfigTest, ValidPortRange) {
-    const char* argv[] = {"ip_server", "--port", "65535", "--no-xdg"};
+    const char* argv[] = {"ip_server", "--port", "65535"};
     int argc = 3;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -225,7 +225,7 @@ TEST_F(ConfigTest, ValidPortRange) {
 }
 
 TEST_F(ConfigTest, ValidateThreadPoolSizeTooSmall) {
-    const char* argv[] = {"ip_server", "--threads", "0", "--no-xdg"};
+    const char* argv[] = {"ip_server", "--threads", "0"};
     int argc = 3;
 
     EXPECT_THROW(
@@ -235,7 +235,7 @@ TEST_F(ConfigTest, ValidateThreadPoolSizeTooSmall) {
 }
 
 TEST_F(ConfigTest, ValidateThreadPoolSizeTooLarge) {
-    const char* argv[] = {"ip_server", "--threads", "100", "--no-xdg"};
+    const char* argv[] = {"ip_server", "--threads", "100"};
     int argc = 3;
 
     EXPECT_THROW(
@@ -245,7 +245,7 @@ TEST_F(ConfigTest, ValidateThreadPoolSizeTooLarge) {
 }
 
 TEST_F(ConfigTest, ValidThreadPoolSize) {
-    const char* argv[] = {"ip_server", "--threads", "64", "--no-xdg"};
+    const char* argv[] = {"ip_server", "--threads", "64"};
     int argc = 3;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -253,7 +253,7 @@ TEST_F(ConfigTest, ValidThreadPoolSize) {
 }
 
 TEST_F(ConfigTest, ValidateMaxRequestsPerMinuteTooSmall) {
-    const char* argv[] = {"ip_server", "--enable-rate-limiter", "true", "--max-requests-per-minute", "0", "--no-xdg"};
+    const char* argv[] = {"ip_server", "--enable-rate-limiter", "true", "--max-requests-per-minute", "0"};
     int argc = 6;
 
     EXPECT_THROW(
@@ -263,7 +263,7 @@ TEST_F(ConfigTest, ValidateMaxRequestsPerMinuteTooSmall) {
 }
 
 TEST_F(ConfigTest, ValidateMaxRequestsPerMinuteTooLarge) {
-    const char* argv[] = {"ip_server", "--enable-rate-limiter", "true", "--max-requests-per-minute", "20000", "--no-xdg"};
+    const char* argv[] = {"ip_server", "--enable-rate-limiter", "true", "--max-requests-per-minute", "20000"};
     int argc = 6;
 
     EXPECT_THROW(
@@ -273,7 +273,7 @@ TEST_F(ConfigTest, ValidateMaxRequestsPerMinuteTooLarge) {
 }
 
 TEST_F(ConfigTest, ValidateMaxBatchSizeTooSmall) {
-    const char* argv[] = {"ip_server", "--max-batch-size", "0", "--no-xdg"};
+    const char* argv[] = {"ip_server", "--max-batch-size", "0"};
     int argc = 3;
 
     EXPECT_THROW(
@@ -283,7 +283,7 @@ TEST_F(ConfigTest, ValidateMaxBatchSizeTooSmall) {
 }
 
 TEST_F(ConfigTest, ValidateMaxBatchSizeTooLarge) {
-    const char* argv[] = {"ip_server", "--max-batch-size", "2000", "--no-xdg"};
+    const char* argv[] = {"ip_server", "--max-batch-size", "2000"};
     int argc = 3;
 
     EXPECT_THROW(
@@ -293,7 +293,7 @@ TEST_F(ConfigTest, ValidateMaxBatchSizeTooLarge) {
 }
 
 TEST_F(ConfigTest, ParseEnableApiAuth) {
-    const char* argv[] = {"ip_server", "--enable-api-auth", "true", "--no-xdg"};
+    const char* argv[] = {"ip_server", "--enable-api-auth", "true"};
     int argc = 4;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -302,7 +302,7 @@ TEST_F(ConfigTest, ParseEnableApiAuth) {
 }
 
 TEST_F(ConfigTest, ParseApiKeysFile) {
-    const char* argv[] = {"ip_server", "--api-keys-file", "/path/to/keys.txt", "--no-xdg"};
+    const char* argv[] = {"ip_server", "--api-keys-file", "/path/to/keys.txt"};
     int argc = 4;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -311,7 +311,7 @@ TEST_F(ConfigTest, ParseApiKeysFile) {
 }
 
 TEST_F(ConfigTest, ParseDefaultApiKey) {
-    const char* argv[] = {"ip_server", "--default-api-key", "my_secret_key", "--no-xdg"};
+    const char* argv[] = {"ip_server", "--default-api-key", "my_secret_key"};
     int argc = 4;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -320,7 +320,7 @@ TEST_F(ConfigTest, ParseDefaultApiKey) {
 }
 
 TEST_F(ConfigTest, DefaultApiAuthDisabled) {
-    const char* argv[] = {"ip_server", "--no-xdg"};
+    const char* argv[] = {"ip_server"};
     int argc = 2;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
