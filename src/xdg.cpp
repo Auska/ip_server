@@ -86,7 +86,7 @@ std::filesystem::path XDGPaths::app_state_dir() const {
 }
 
 std::filesystem::path XDGPaths::config_file() const {
-    return app_config_dir() / "config.toml";
+    return app_config_dir() / "config.json";
 }
 
 std::filesystem::path XDGPaths::database_dir() const {

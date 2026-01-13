@@ -16,6 +16,7 @@
   - MaxMind GeoLite2 (City + ASN)
   - SQLite3 (OUI 数据库)
 - **JSON 处理**: nlohmann/json
+- **命令行解析**: cxxopts 3.3.1
 - **加密**: OpenSSL（可选，已从构建系统移除）
 
 ### 架构设计
@@ -44,7 +45,7 @@
 
 ### 主要模块
 
-- **config.h/cpp**: 配置管理，命令行参数解析，XDG 目录标准支持
+- **config.h/cpp**: 配置管理，命令行参数解析，XDG 目录标准支持（强制执行）
 - **database.h/cpp**: 数据库抽象层，支持 City、ASN 和 OUI 数据库
 - **mac_database.h/cpp**: OUI 数据库实现（SQLite3）
 - **http_server.h/cpp**: HTTP 服务器，路由处理，速率限制，API 认证
@@ -54,7 +55,7 @@
 - **rate_limiter.h/cpp**: 速率限制器
 - **auth.h/cpp**: API 认证模块
 - **metrics.h/cpp**: 性能指标收集
-- **xdg.h/cpp**: XDG 目录标准实现
+- **xdg.h/cpp**: XDG 目录标准实现（强制执行）
 - **main.cpp**: 应用程序入口
 
 ### 功能特性
@@ -67,9 +68,10 @@
 - ✅ **API 认证**: 基于 API 密钥的身份验证
 - ✅ **性能指标**: 实时监控查询性能
 - ✅ **优雅关闭**: 支持 SIGINT/SIGTERM 信号处理
-- ✅ **XDG 目录标准**: 遵循 Linux 桌面环境规范
+- ✅ **XDG 目录标准**: **强制执行**，遵循 Linux 桌面环境规范
 - ✅ **批量查询限制**: 防止过大的批量请求
 - ✅ **源 IP 查询**: 支持查询客户端源 IP 地址
+- ✅ **JSON 配置文件**: 支持 JSON 格式和传统格式配置文件
 
 ## 构建和运行
 
@@ -92,7 +94,7 @@ cd build
 cmake ..
 cmake --build . -j$(nproc)
 
-# Release 模式（-O3 优化，推荐生产环境）
+# Release 模式（-O3 优化 + LTO，推荐生产环境）
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . -j$(nproc)
 
@@ -102,12 +104,12 @@ cmake --build . -j$(nproc)
 
 **性能对比**:
 - Debug 模式: 启用缓存 ~13.5μs (75k QPS)
-- Release 模式: 启用缓存 ~1.56μs (647k QPS) - **性能提升约 8.6 倍**（使用 -O3 优化）
+- Release 模式: 启用缓存 ~1.56μs (647k QPS) - **性能提升约 8.6 倍**（使用 -O3 优化 + LTO）
 
 ### 运行测试
 
 ```bash
-# 运行所有单元测试
+# 运行所有单元测试（182 个测试）
 ./build/tests/ip_server_tests
 
 # 运行特定测试套件
@@ -127,7 +129,7 @@ cmake --build . -j$(nproc)
 ### 运行服务
 
 ```bash
-# 使用默认配置运行（使用 XDG 目录标准）
+# 使用默认配置运行（强制使用 XDG 目录标准）
 ./build/bin/ip_server
 
 # 自定义端口
@@ -139,8 +141,8 @@ cmake --build . -j$(nproc)
 # 自定义监听地址
 ./build/bin/ip_server --host 127.0.0.1 --port 8080
 
-# 禁用 XDG 目录标准
-./build/bin/ip_server --no-xdg
+# 使用配置文件
+./build/bin/ip_server --config ~/.config/ip-server/config.toml
 
 # 启用文件日志
 ./build/bin/ip_server --enable-file-logging true --log-file /var/log/ip_server.log
@@ -162,15 +164,12 @@ cmake --build . -j$(nproc)
 **OUI 数据库**:
 - `master_oui.db` - IEEE OUI 注册表（包含制造商信息）
 
-**默认数据库路径** (使用 XDG 标准):
+**默认数据库路径** (强制使用 XDG 标准):
 - City DB: `~/.local/share/ip-server/databases/GeoLite2-City.mmdb`
 - ASN DB: `~/.local/share/ip-server/databases/GeoLite2-ASN.mmdb`
 - OUI DB: `~/.local/share/ip-server/databases/master_oui.db`
 
-**传统路径** (使用 `--no-xdg`):
-- `db/GeoLite2-City.mmdb`
-- `db/GeoLite2-ASN.mmdb`
-- `db/master_oui.db`
+**注意**: `--no-xdg` 选项已被移除，XDG 目录标准现在是强制执行的。
 
 ## API 接口
 
@@ -318,6 +317,7 @@ Content-Type: application/json
 | `--host <address>` | 监听地址 | 0.0.0.0 |
 | `--port <port>` | 监听端口 | 8080 |
 | `--threads <count>` | 线程池大小 | 4 |
+| `--cache-size <count>` | 缓存大小 | 10000 |
 | `--enable-rate-limiter <true\|false>` | 启用速率限制 | true |
 | `--max-requests-per-minute <count>` | 每分钟最大请求数 | 100 |
 | `--max-batch-size <count>` | 批量查询最大数量 | 100 |
@@ -325,7 +325,7 @@ Content-Type: application/json
 | `--api-keys-file <path>` | API 密钥文件路径 | - |
 | `--default-api-key <key>` | 默认 API 密钥 | - |
 | `--enable-file-logging <true\|false>` | 启用文件日志 | false |
-| `--log-file <path>` | 日志文件路径 | logs/ip_server.log |
+| `--log-file <path>` | 日志文件路径 | XDG 路径 |
 | `--log-rotation <type>` | 日志轮转类型 | size |
 | `--log-max-size <MB>` | 日志文件最大大小 | 10 |
 | `--log-rotation-interval <minutes>` | 时间轮转间隔 | 1440 |
@@ -335,7 +335,37 @@ Content-Type: application/json
 
 ### 配置文件
 
-支持基于文本的配置文件（每行一个配置）：
+支持两种配置文件格式：
+
+#### JSON 格式（推荐）
+
+```json
+{
+  "host": "0.0.0.0",
+  "port": 8080,
+  "threads": 4,
+  "city_db": "/path/to/GeoLite2-City.mmdb",
+  "asn_db": "/path/to/GeoLite2-ASN.mmdb",
+  "oui_db": "/path/to/master_oui.db",
+  "cache_size": 10000,
+  "enable_rate_limiter": true,
+  "max_requests_per_minute": 100,
+  "max_batch_size": 100,
+  "enable_api_auth": false,
+  "api_keys_file": "/etc/ip_server/keys.txt",
+  "default_api_key": "",
+  "enable_file_logging": true,
+  "log_file": "/var/log/ip_server/ip_server.log",
+  "log_enable_stdout": true,
+  "log_rotation": "size",
+  "log_max_file_size": 10,
+  "log_rotation_interval_minutes": 1440,
+  "log_max_backup_files": 5,
+  "log_level": "info"
+}
+```
+
+#### 传统格式（键值对）
 
 ```ini
 # 服务器配置
@@ -375,11 +405,18 @@ log_enable_stdout = true
 
 ### XDG 目录标准
 
-当启用 XDG 标准时，配置和数据文件存储在标准位置：
+项目强制执行 XDG 目录标准，配置和数据文件存储在标准位置：
 
 - **配置文件**: `$XDG_CONFIG_HOME/ip-server/config.toml` (默认: `~/.config/ip-server/config.toml`)
 - **数据库**: `$XDG_DATA_HOME/ip-server/databases/` (默认: `~/.local/share/ip-server/databases/`)
 - **缓存**: `$XDG_CACHE_HOME/ip-server/` (默认: `~/.cache/ip-server/`)
+- **日志**: `$XDG_STATE_HOME/ip-server/logs/` (默认: `~/.local/state/ip-server/logs/`)
+
+**环境变量**:
+- `XDG_CONFIG_HOME`: 配置目录
+- `XDG_DATA_HOME`: 数据目录
+- `XDG_CACHE_HOME`: 缓存目录
+- `XDG_STATE_HOME`: 状态目录（日志）
 
 ## 开发规范
 
@@ -452,6 +489,7 @@ LOG_ERROR("Error message");    // 错误信息
 - 测试文件命名: `test_<module>.cpp`
 - 使用 Google Test 框架
 - 测试覆盖率目标: >80%
+- 当前状态: **182 个测试全部通过**
 
 ## 项目结构
 
@@ -466,7 +504,7 @@ ip_local/
 │   └── DEPLOYMENT.md           # 部署指南
 ├── src/                        # 源代码目录
 │   ├── main.cpp               # 应用程序入口
-│   ├── config.h/cpp           # 配置管理
+│   ├── config.h/cpp           # 配置管理（XDG 强制执行）
 │   ├── database.h/cpp         # 数据库抽象层（IP 和 MAC）
 │   ├── mac_database.h/cpp     # OUI 数据库实现
 │   ├── http_server.h/cpp      # HTTP 服务器
@@ -476,8 +514,9 @@ ip_local/
 │   ├── rate_limiter.h/cpp     # 速率限制器
 │   ├── auth.h/cpp             # API 认证
 │   ├── metrics.h/cpp          # 性能指标
-│   └── xdg.h/cpp              # XDG 目录标准
+│   └── xdg.h/cpp              # XDG 目录标准（强制执行）
 ├── tests/                      # 测试目录
+│   ├── CMakeLists.txt          # 测试构建配置
 │   ├── test_main.cpp          # 测试主程序
 │   ├── test_config.cpp        # 配置测试
 │   ├── test_database.cpp      # 数据库测试
@@ -495,10 +534,11 @@ ip_local/
 │   ├── include/
 │   │   ├── httplib.h          # HTTP 服务器库
 │   │   └── nlohmann/          # JSON 库
+│   ├── cxxopts-3.3.1/         # 命令行参数解析库
 │   ├── libmaxminddb-1.12.2/   # MaxMind 数据库库
 │   ├── spdlog-1.17.0/         # spdlog 日志库
 │   └── sqlite-autoconf-3510200/ # SQLite3 源代码
-├── db/                         # 数据库文件目录（传统路径）
+├── db/                         # 数据库文件目录（已弃用，使用 XDG）
 │   ├── GeoLite2-City.mmdb     # 城市数据库
 │   ├── GeoLite2-ASN.mmdb      # ASN 数据库
 │   ├── GeoLite2-Country.mmdb  # 国家数据库（可选）
@@ -588,6 +628,8 @@ curl -X POST http://localhost:8080/lookup \
 8. **优雅关闭**: 支持 SIGINT/SIGTERM 信号，优雅关闭服务
 9. **MAC 地址格式**: 支持多种格式（冒号、连字符、无分隔符），大小写不敏感
 10. **spdlog 配置**: 日志系统基于 spdlog，支持异步日志和多种轮转策略
+11. **XDG 强制执行**: 项目强制使用 XDG 目录标准，`--no-xdg` 选项已移除
+12. **配置文件格式**: 支持 JSON 和传统键值对两种格式
 
 ## 性能优化
 
@@ -606,7 +648,7 @@ curl -X POST http://localhost:8080/lookup \
 
 ### 编译优化
 
-- Release 模式使用 `-O3` 优化
+- Release 模式使用 `-O3` 优化 + LTO (Link Time Optimization)
 - 性能提升约 8.6 倍（相比 Debug 模式）
 - 自动剥离符号（Release 模式）
 
@@ -637,6 +679,7 @@ curl -X POST http://localhost:8080/lookup \
 - httplib: MIT License
 - nlohmann/json: MIT License
 - spdlog: MIT License
+- cxxopts: MIT License
 - SQLite3: Public Domain
 
 ## 相关链接
@@ -646,6 +689,7 @@ curl -X POST http://localhost:8080/lookup \
 - cpp-httplib: https://github.com/yhirose/cpp-httplib
 - nlohmann/json: https://github.com/nlohmann/json
 - spdlog: https://github.com/gabime/spdlog
+- cxxopts: https://github.com/jarro2783/cxxopts
 - XDG Base Directory Specification: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
 
 ## 提交规范
@@ -681,3 +725,17 @@ feat: add MAC address OUI lookup functionality
 - Update metrics to track OUI database status
 - All tests passing
 ```
+
+## 测试状态
+
+当前测试套件状态（182 个测试）：
+- ✅ ConfigTest: 31 tests - 全部通过
+- ✅ DatabaseTest: 22 tests - 全部通过
+- ✅ MACDatabaseTest: 18 tests - 全部通过
+- ✅ HTTPServerTest: 26 tests - 全部通过
+- ✅ LoggerTest: 35 tests - 全部通过
+- ✅ RateLimiterTest: 15 tests - 全部通过
+- ✅ AuthTest: 18 tests - 全部通过
+- ✅ TypesTest: 17 tests - 全部通过
+
+**总计**: 182/182 tests passed ✅

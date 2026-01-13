@@ -87,11 +87,35 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
 
         // Load from config file if it exists
         if (!config.config_file.empty() && std::filesystem::exists(config.config_file)) {
-            try {
-                config = load_from_file(config.config_file);
-                LOG_INFO("Loaded configuration from: " + config.config_file.string());
-            } catch (const std::exception& e) {
-                LOG_WARNING("Failed to load config file: " + std::string(e.what()));
+            // Check if config file is empty
+            std::ifstream check_file(config.config_file);
+            bool is_empty = check_file.peek() == std::ifstream::traits_type::eof();
+            check_file.close();
+
+            if (is_empty) {
+                LOG_INFO("Config file is empty, creating default configuration: " + config.config_file.string());
+                ServerConfig default_cfg = default_config();
+                // Apply XDG defaults to default config
+                auto& xdg = XDGPaths::instance();
+                default_cfg.city_db_path = xdg.city_db_path().string();
+                default_cfg.asn_db_path = xdg.asn_db_path().string();
+                default_cfg.oui_db_path = xdg.oui_db_path().string();
+                default_cfg.log_file_path = xdg.log_file_path().string();
+                default_cfg.config_file = config.config_file;
+
+                if (save_to_file(default_cfg, config.config_file)) {
+                    config = default_cfg;
+                    LOG_INFO("Created default configuration file: " + config.config_file.string());
+                } else {
+                    LOG_WARNING("Failed to create default config file, using built-in defaults");
+                }
+            } else {
+                try {
+                    config = load_from_file(config.config_file);
+                    LOG_INFO("Loaded configuration from: " + config.config_file.string());
+                } catch (const std::exception& e) {
+                    LOG_WARNING("Failed to load config file: " + std::string(e.what()));
+                }
             }
         }
 
@@ -290,163 +314,80 @@ void ConfigParser::validate(const ServerConfig& config) {
 ServerConfig ConfigParser::load_from_file(const std::filesystem::path& config_file) {
     ServerConfig config = default_config();
 
-    // Try to parse as JSON first
-    try {
-        std::ifstream file(config_file);
-        if (!file.is_open()) {
-            throw std::runtime_error("Cannot open config file: " + config_file.string());
-        }
-
-        nlohmann::json j;
-        file >> j;
-
-        // Parse JSON fields
-        if (j.contains("host")) {
-            config.host = j["host"].get<std::string>();
-        }
-        if (j.contains("port")) {
-            config.port = j["port"].get<uint16_t>();
-        }
-        if (j.contains("city_db")) {
-            config.city_db_path = j["city_db"].get<std::string>();
-        }
-        if (j.contains("asn_db")) {
-            config.asn_db_path = j["asn_db"].get<std::string>();
-        }
-        if (j.contains("oui_db")) {
-            config.oui_db_path = j["oui_db"].get<std::string>();
-        }
-        if (j.contains("threads")) {
-            config.thread_pool_size = j["threads"].get<int>();
-        }
-        if (j.contains("cache_size")) {
-            config.cache_size = j["cache_size"].get<size_t>();
-        }
-        if (j.contains("enable_rate_limiter")) {
-            config.enable_rate_limiter = j["enable_rate_limiter"].get<bool>();
-        }
-        if (j.contains("max_requests_per_minute")) {
-            config.max_requests_per_minute = j["max_requests_per_minute"].get<int>();
-        }
-        if (j.contains("max_batch_size")) {
-            config.max_batch_size = j["max_batch_size"].get<int>();
-        }
-        if (j.contains("enable_api_auth")) {
-            config.enable_api_auth = j["enable_api_auth"].get<bool>();
-        }
-        if (j.contains("api_keys_file")) {
-            config.api_keys_file = j["api_keys_file"].get<std::string>();
-        }
-        if (j.contains("default_api_key")) {
-            config.default_api_key = j["default_api_key"].get<std::string>();
-        }
-        if (j.contains("enable_file_logging")) {
-            config.enable_file_logging = j["enable_file_logging"].get<bool>();
-        }
-        if (j.contains("log_file")) {
-            config.log_file_path = j["log_file"].get<std::string>();
-        }
-        if (j.contains("log_enable_stdout")) {
-            config.log_enable_stdout = j["log_enable_stdout"].get<bool>();
-        }
-        if (j.contains("log_rotation")) {
-            config.log_rotation_type = j["log_rotation"].get<std::string>();
-        }
-        if (j.contains("log_max_file_size")) {
-            config.log_max_file_size = j["log_max_file_size"].get<size_t>() * 1024 * 1024;
-        }
-        if (j.contains("log_rotation_interval_minutes")) {
-            config.log_rotation_interval_minutes = j["log_rotation_interval_minutes"].get<int>();
-        }
-        if (j.contains("log_max_backup_files")) {
-            config.log_max_backup_files = j["log_max_backup_files"].get<int>();
-        }
-        if (j.contains("log_level")) {
-            config.log_level = j["log_level"].get<std::string>();
-        }
-
-        LOG_INFO("Loaded JSON configuration from: " + config_file.string());
-        return config;
-
-    } catch (const nlohmann::json::exception& e) {
-        // If JSON parsing fails, try the old format
-        LOG_WARNING("JSON parsing failed, trying legacy format: " + std::string(e.what()));
-    }
-
-    // Fallback to legacy key=value format
     std::ifstream file(config_file);
     if (!file.is_open()) {
         throw std::runtime_error("Cannot open config file: " + config_file.string());
     }
 
-    std::string line;
-    while (std::getline(file, line)) {
-        // Skip comments and empty lines
-        if (line.empty() || line[0] == '#') {
-            continue;
-        }
+    nlohmann::json j;
+    file >> j;
 
-        // Parse key = value
-        size_t pos = line.find('=');
-        if (pos == std::string::npos) {
-            continue;
-        }
-
-        std::string key = line.substr(0, pos);
-        std::string value = line.substr(pos + 1);
-
-        // Trim whitespace
-        key.erase(0, key.find_first_not_of(" \t"));
-        key.erase(key.find_last_not_of(" \t") + 1);
-        value.erase(0, value.find_first_not_of(" \t"));
-        value.erase(value.find_last_not_of(" \t") + 1);
-
-        // Apply values
-        if (key == "host") {
-            config.host = value;
-        } else if (key == "port") {
-            config.port = static_cast<uint16_t>(std::stoi(value));
-        } else if (key == "city_db") {
-            config.city_db_path = value;
-        } else if (key == "asn_db") {
-            config.asn_db_path = value;
-        } else if (key == "oui_db") {
-            config.oui_db_path = value;
-        } else if (key == "threads") {
-            config.thread_pool_size = std::stoi(value);
-        } else if (key == "enable_rate_limiter") {
-            config.enable_rate_limiter = parse_bool_string(value);
-        } else if (key == "max_requests_per_minute") {
-            config.max_requests_per_minute = std::stoi(value);
-        } else if (key == "max_batch_size") {
-            config.max_batch_size = std::stoi(value);
-        } else if (key == "enable_api_auth") {
-            config.enable_api_auth = parse_bool_string(value);
-        } else if (key == "api_keys_file") {
-            config.api_keys_file = value;
-        } else if (key == "default_api_key") {
-            config.default_api_key = value;
-        } else if (key == "enable_file_logging") {
-            config.enable_file_logging = parse_bool_string(value);
-        } else if (key == "log_enable_stdout") {
-            config.log_enable_stdout = parse_bool_string(value);
-        } else if (key == "log_file") {
-            config.log_file_path = value;
-            config.enable_file_logging = true;
-        } else if (key == "log_rotation") {
-            config.log_rotation_type = value;
-        } else if (key == "log_max_file_size") {
-            config.log_max_file_size = std::stoull(value) * 1024 * 1024;
-        } else if (key == "log_rotation_interval_minutes") {
-            config.log_rotation_interval_minutes = std::stoi(value);
-        } else if (key == "log_max_backup_files") {
-            config.log_max_backup_files = std::stoi(value);
-        } else if (key == "log_level") {
-            config.log_level = value;
-        }
+    // Parse JSON fields
+    if (j.contains("host")) {
+        config.host = j["host"].get<std::string>();
+    }
+    if (j.contains("port")) {
+        config.port = j["port"].get<uint16_t>();
+    }
+    if (j.contains("city_db")) {
+        config.city_db_path = j["city_db"].get<std::string>();
+    }
+    if (j.contains("asn_db")) {
+        config.asn_db_path = j["asn_db"].get<std::string>();
+    }
+    if (j.contains("oui_db")) {
+        config.oui_db_path = j["oui_db"].get<std::string>();
+    }
+    if (j.contains("threads")) {
+        config.thread_pool_size = j["threads"].get<int>();
+    }
+    if (j.contains("cache_size")) {
+        config.cache_size = j["cache_size"].get<size_t>();
+    }
+    if (j.contains("enable_rate_limiter")) {
+        config.enable_rate_limiter = j["enable_rate_limiter"].get<bool>();
+    }
+    if (j.contains("max_requests_per_minute")) {
+        config.max_requests_per_minute = j["max_requests_per_minute"].get<int>();
+    }
+    if (j.contains("max_batch_size")) {
+        config.max_batch_size = j["max_batch_size"].get<int>();
+    }
+    if (j.contains("enable_api_auth")) {
+        config.enable_api_auth = j["enable_api_auth"].get<bool>();
+    }
+    if (j.contains("api_keys_file")) {
+        config.api_keys_file = j["api_keys_file"].get<std::string>();
+    }
+    if (j.contains("default_api_key")) {
+        config.default_api_key = j["default_api_key"].get<std::string>();
+    }
+    if (j.contains("enable_file_logging")) {
+        config.enable_file_logging = j["enable_file_logging"].get<bool>();
+    }
+    if (j.contains("log_file")) {
+        config.log_file_path = j["log_file"].get<std::string>();
+    }
+    if (j.contains("log_enable_stdout")) {
+        config.log_enable_stdout = j["log_enable_stdout"].get<bool>();
+    }
+    if (j.contains("log_rotation")) {
+        config.log_rotation_type = j["log_rotation"].get<std::string>();
+    }
+    if (j.contains("log_max_file_size")) {
+        config.log_max_file_size = j["log_max_file_size"].get<size_t>() * 1024 * 1024;
+    }
+    if (j.contains("log_rotation_interval_minutes")) {
+        config.log_rotation_interval_minutes = j["log_rotation_interval_minutes"].get<int>();
+    }
+    if (j.contains("log_max_backup_files")) {
+        config.log_max_backup_files = j["log_max_backup_files"].get<int>();
+    }
+    if (j.contains("log_level")) {
+        config.log_level = j["log_level"].get<std::string>();
     }
 
-    LOG_INFO("Loaded legacy configuration from: " + config_file.string());
+    LOG_INFO("Loaded JSON configuration from: " + config_file.string());
     return config;
 }
 
@@ -567,7 +508,7 @@ void ConfigParser::print_help(const char* program_name) {
     std::print("Examples:\n");
     std::print("  {}\n", program_name);
     std::print("  {} --port 9000\n", program_name);
-    std::print("  {} --config /path/to/config.toml\n", program_name);
+    std::print("  {} --config /path/to/config.json\n", program_name);
     std::print("  {} --city-db /path/to/GeoLite2-City.mmdb --asn-db /path/to/GeoLite2-ASN.mmdb\n", program_name);
     std::print("  {} --oui-db /path/to/master_oui.db\n", program_name);
     std::print("  {} --host 127.0.0.1 --port 8080\n", program_name);
