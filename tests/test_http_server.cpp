@@ -85,7 +85,9 @@ protected:
         if (server) {
             shutdown_requested.store(true);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            server->stop();
+            // Note: server->stop() is NOT called here because the start() method
+            // already handles stopping the server internally when shutdown_requested
+            // is set. Calling stop() again would cause assertion failures.
         }
         if (server_thread.joinable()) {
             server_thread.join();

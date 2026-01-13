@@ -515,6 +515,10 @@ void IPGeoHTTPServer::stop() {
     server_.stop();
 }
 
+bool IPGeoHTTPServer::is_running() const {
+    return server_.is_running();
+}
+
 void IPGeoHTTPServer::cleanup_thread_func(std::atomic<bool>& shutdown_requested) {
     LOG_INFO("Rate limiter cleanup thread running");
 
