@@ -1,1 +1,23 @@
-{"host": "0.0.0.0", "port": 8080, "threads": 4, "cache_size": 10000, "enable_rate_limiter": true, "max_requests_per_minute": 100, "max_batch_size": 100, "enable_api_auth": false, "api_keys_file": "", "default_api_key": "", "enable_file_logging": false, "log_file": "logs/ip_server.log", "log_enable_stdout": true, "log_rotation": "size", "log_max_file_size": 10, "log_rotation_interval_minutes": 1440, "log_max_backup_files": 5, "log_level": "info", "city_db": "~/.local/share/ip-server/databases/GeoLite2-City.mmdb", "asn_db": "~/.local/share/ip-server/databases/GeoLite2-ASN.mmdb", "oui_db": "~/.local/share/ip-server/databases/master_oui.db"}
+{
+    "api_keys_file": "",
+    "asn_db": "~/.local/share/ip-server/databases/GeoLite2-ASN.mmdb",
+    "cache_size": 10000,
+    "city_db": "~/.local/share/ip-server/databases/GeoLite2-City.mmdb",
+    "default_api_key": "",
+    "enable_api_auth": false,
+    "enable_file_logging": false,
+    "enable_rate_limiter": true,
+    "host": "0.0.0.0",
+    "log_enable_stdout": true,
+    "log_file": "logs/ip_server.log",
+    "log_level": "info",
+    "log_max_backup_files": 5,
+    "log_max_file_size": 10,
+    "log_rotation": "size",
+    "log_rotation_interval_minutes": 1440,
+    "max_batch_size": 100,
+    "max_requests_per_minute": 100,
+    "oui_db": "~/.local/share/ip-server/databases/master_oui.db",
+    "port": 8080,
+    "threads": 4
+}
