@@ -44,9 +44,6 @@ public:
     static ServerConfig load_from_file(const std::filesystem::path& config_file);
     static bool save_to_file(const ServerConfig& config, const std::filesystem::path& config_file);
     static void validate(const ServerConfig& config);
-
-private:
-    static void apply_xdg_defaults(ServerConfig& config);
 };
 
 } // namespace ip_server

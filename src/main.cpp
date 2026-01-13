@@ -114,14 +114,12 @@ int main(int argc, char* argv[]) {
         Logger::instance().set_config(log_config);
 
         // Ensure XDG directories exist
-        if (config.use_xdg) {
-            XDGPaths::instance().ensure_directories();
+        XDGPaths::instance().ensure_directories();
 
-            // Create default config file if it doesn't exist
-            if (!config.config_file.empty() && !std::filesystem::exists(config.config_file)) {
-                LOG_INFO("Creating default config file: " + config.config_file.string());
-                ConfigParser::save_to_file(config, config.config_file);
-            }
+        // Create default config file if it doesn't exist
+        if (!config.config_file.empty() && !std::filesystem::exists(config.config_file)) {
+            LOG_INFO("Creating default config file: " + config.config_file.string());
+            ConfigParser::save_to_file(config, config.config_file);
         }
 
         // Create and run application

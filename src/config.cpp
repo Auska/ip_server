@@ -24,24 +24,6 @@ ServerConfig ConfigParser::default_config() {
     return config;
 }
 
-void ConfigParser::apply_xdg_defaults(ServerConfig& config) {
-    if (config.use_xdg) {
-        auto& xdg = XDGPaths::instance();
-        config.city_db_path = xdg.city_db_path().string();
-        config.asn_db_path = xdg.asn_db_path().string();
-        config.oui_db_path = xdg.oui_db_path().string();
-        config.config_file = xdg.config_file();
-        config.log_file_path = xdg.log_file_path().string();
-
-        LOG_INFO("Using XDG paths:");
-        LOG_INFO("  Config: " + config.config_file.string());
-        LOG_INFO("  City DB: " + config.city_db_path);
-        LOG_INFO("  ASN DB: " + config.asn_db_path);
-        LOG_INFO("  OUI DB: " + config.oui_db_path);
-        LOG_INFO("  Log File: " + config.log_file_path);
-    }
-}
-
 ServerConfig ConfigParser::parse(int argc, char* argv[]) {
     ServerConfig config = default_config();
 
@@ -52,7 +34,6 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
         options.add_options()
             ("help,h", "Show this help message")
             ("config", "Path to configuration file", cxxopts::value<std::string>())
-            ("no-xdg", "Disable XDG directory standard", cxxopts::value<bool>()->default_value("true")->implicit_value("false"))
             ("city-db", "Path to City MaxMind database", cxxopts::value<std::string>())
             ("asn-db", "Path to ASN MaxMind database", cxxopts::value<std::string>())
             ("oui-db", "Path to OUI database", cxxopts::value<std::string>())
@@ -83,15 +64,20 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
             std::exit(0);
         }
 
-        // Check for --no-xdg flag first
-        if (result.count("no-xdg")) {
-            config.use_xdg = result["no-xdg"].as<bool>();
-        }
+        // Apply XDG defaults
+        auto& xdg = XDGPaths::instance();
+        config.city_db_path = xdg.city_db_path().string();
+        config.asn_db_path = xdg.asn_db_path().string();
+        config.oui_db_path = xdg.oui_db_path().string();
+        config.config_file = xdg.config_file();
+        config.log_file_path = xdg.log_file_path().string();
 
-        // Apply XDG defaults only if enabled
-        if (config.use_xdg) {
-            apply_xdg_defaults(config);
-        }
+        LOG_INFO("Using XDG paths:");
+        LOG_INFO("  Config: " + config.config_file.string());
+        LOG_INFO("  City DB: " + config.city_db_path);
+        LOG_INFO("  ASN DB: " + config.asn_db_path);
+        LOG_INFO("  OUI DB: " + config.oui_db_path);
+        LOG_INFO("  Log File: " + config.log_file_path);
 
         // Check if config file is specified
         if (result.count("config")) {
@@ -128,7 +114,6 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
         }
         if (result.count("asn-db")) {
             config.asn_db_path = result["asn-db"].as<std::string>();
-            config.use_xdg = false;
         }
         if (result.count("oui-db")) {
             config.oui_db_path = result["oui-db"].as<std::string>();
@@ -193,7 +178,6 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
     LOG_INFO("  ASN DB: " + config.asn_db_path);
     LOG_INFO("  OUI DB: " + config.oui_db_path);
     LOG_INFO("  Threads: " + std::to_string(config.thread_pool_size));
-    LOG_INFO("  Use XDG: " + std::string(config.use_xdg ? "yes" : "no"));
     LOG_INFO("  Rate Limiter: " + std::string(config.enable_rate_limiter ? "enabled" : "disabled"));
     if (config.enable_rate_limiter) {
         LOG_INFO("  Max Requests/Min: " + std::to_string(config.max_requests_per_minute));
