@@ -2,11 +2,18 @@
 #include "xdg.h"
 #include "logger.h"
 #include <iostream>
-#include <sstream>
 #include <fstream>
 #include <print>
 
 namespace ip_server {
+
+namespace {
+
+bool parse_bool_string(const std::string& value) {
+    return value == "true" || value == "1";
+}
+
+}
 
 ServerConfig ConfigParser::default_config() {
     ServerConfig config;
@@ -128,8 +135,7 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
             config.use_xdg = false;
         }
         if (result.count("enable-rate-limiter")) {
-            std::string value = result["enable-rate-limiter"].as<std::string>();
-            config.enable_rate_limiter = (value == "true" || value == "1");
+            config.enable_rate_limiter = parse_bool_string(result["enable-rate-limiter"].as<std::string>());
         }
         if (result.count("max-requests-per-minute")) {
             config.max_requests_per_minute = result["max-requests-per-minute"].as<int>();
@@ -138,8 +144,7 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
             config.max_batch_size = result["max-batch-size"].as<int>();
         }
         if (result.count("enable-api-auth")) {
-            std::string value = result["enable-api-auth"].as<std::string>();
-            config.enable_api_auth = (value == "true" || value == "1");
+            config.enable_api_auth = parse_bool_string(result["enable-api-auth"].as<std::string>());
         }
         if (result.count("api-keys-file")) {
             config.api_keys_file = result["api-keys-file"].as<std::string>();
@@ -148,9 +153,7 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
             config.default_api_key = result["default-api-key"].as<std::string>();
         }
         if (result.count("enable-file-logging")) {
-            std::string value = result["enable-file-logging"].as<std::string>();
-            config.enable_file_logging = (value == "true" || value == "1");
-            // If enabling file logging and using XDG, use XDG log path
+            config.enable_file_logging = parse_bool_string(result["enable-file-logging"].as<std::string>());
             if (config.enable_file_logging && config.use_xdg && config.log_file_path == "logs/ip_server.log") {
                 config.log_file_path = XDGPaths::instance().log_file_path().string();
             }
@@ -160,8 +163,7 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
             config.enable_file_logging = true;
         }
         if (result.count("log-enable-stdout")) {
-            std::string value = result["log-enable-stdout"].as<std::string>();
-            config.log_enable_stdout = (value == "true" || value == "1");
+            config.log_enable_stdout = parse_bool_string(result["log-enable-stdout"].as<std::string>());
         }
         if (result.count("log-rotation")) {
             config.log_rotation_type = result["log-rotation"].as<std::string>();
@@ -260,12 +262,13 @@ void ConfigParser::validate(const ServerConfig& config) {
     }
 
     // Validate database paths
-    if (!config.city_db_path.empty() && !std::filesystem::exists(config.city_db_path)) {
-        LOG_WARNING("City database file does not exist: " + config.city_db_path);
-    }
-
-    if (!config.asn_db_path.empty() && !std::filesystem::exists(config.asn_db_path)) {
-        LOG_WARNING("ASN database file does not exist: " + config.asn_db_path);
+    for (const auto& [name, path] : {
+        std::make_pair("City", config.city_db_path),
+        std::make_pair("ASN", config.asn_db_path)
+    }) {
+        if (!path.empty() && !std::filesystem::exists(path)) {
+            LOG_WARNING(name + std::string(" database file does not exist: ") + path);
+        }
     }
 
     // Validate logging configuration
@@ -428,21 +431,21 @@ ServerConfig ConfigParser::load_from_file(const std::filesystem::path& config_fi
         } else if (key == "threads") {
             config.thread_pool_size = std::stoi(value);
         } else if (key == "enable_rate_limiter") {
-            config.enable_rate_limiter = (value == "true" || value == "1");
+            config.enable_rate_limiter = parse_bool_string(value);
         } else if (key == "max_requests_per_minute") {
             config.max_requests_per_minute = std::stoi(value);
         } else if (key == "max_batch_size") {
             config.max_batch_size = std::stoi(value);
         } else if (key == "enable_api_auth") {
-            config.enable_api_auth = (value == "true" || value == "1");
+            config.enable_api_auth = parse_bool_string(value);
         } else if (key == "api_keys_file") {
             config.api_keys_file = value;
         } else if (key == "default_api_key") {
             config.default_api_key = value;
         } else if (key == "enable_file_logging") {
-            config.enable_file_logging = (value == "true" || value == "1");
+            config.enable_file_logging = parse_bool_string(value);
         } else if (key == "log_enable_stdout") {
-            config.log_enable_stdout = (value == "true" || value == "1");
+            config.log_enable_stdout = parse_bool_string(value);
         } else if (key == "log_file") {
             config.log_file_path = value;
             config.enable_file_logging = true;
@@ -500,7 +503,6 @@ bool ConfigParser::save_to_file(const ServerConfig& config, const std::filesyste
         }
 
         file << j.dump(2) << std::endl;
-        file.close();
 
         LOG_INFO("Configuration saved to: " + config_file.string());
         return true;
