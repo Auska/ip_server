@@ -38,111 +38,150 @@ void ConfigParser::apply_xdg_defaults(ServerConfig& config) {
 ServerConfig ConfigParser::parse(int argc, char* argv[]) {
     ServerConfig config = default_config();
 
-    // First, check for --no-xdg flag
-    for (int i = 1; i < argc; i++) {
-        std::string arg = argv[i];
-        if (arg == "--no-xdg") {
-            config.use_xdg = false;
-            break;
+    try {
+        cxxopts::Options options("ip_server", "IP Geolocation & AS Lookup Service");
+
+        // Positional options
+        options.add_options()
+            ("help,h", "Show this help message")
+            ("config", "Path to configuration file", cxxopts::value<std::string>())
+            ("no-xdg", "Disable XDG directory standard", cxxopts::value<bool>()->default_value("true")->implicit_value("false"))
+            ("city-db", "Path to City MaxMind database", cxxopts::value<std::string>())
+            ("asn-db", "Path to ASN MaxMind database", cxxopts::value<std::string>())
+            ("oui-db", "Path to OUI database", cxxopts::value<std::string>())
+            ("host", "Server host address", cxxopts::value<std::string>()->default_value("0.0.0.0"))
+            ("port", "Server port", cxxopts::value<uint16_t>()->default_value("8080"))
+            ("threads", "Thread pool size", cxxopts::value<int>()->default_value("4"))
+            ("cache-size", "Cache size", cxxopts::value<size_t>()->default_value("10000"))
+            ("enable-rate-limiter", "Enable rate limiting", cxxopts::value<std::string>()->default_value("true"))
+            ("max-requests-per-minute", "Maximum requests per IP per minute", cxxopts::value<int>()->default_value("100"))
+            ("max-batch-size", "Maximum batch size for batch lookup", cxxopts::value<int>()->default_value("100"))
+            ("enable-api-auth", "Enable API authentication", cxxopts::value<std::string>()->default_value("false"))
+            ("api-keys-file", "Path to file containing API keys", cxxopts::value<std::string>())
+            ("default-api-key", "Default API key for testing", cxxopts::value<std::string>())
+            ("enable-file-logging", "Enable file logging", cxxopts::value<std::string>()->default_value("false"))
+            ("log-file", "Path to log file", cxxopts::value<std::string>()->default_value("logs/ip_server.log"))
+            ("log-enable-stdout", "Enable stdout logging", cxxopts::value<std::string>()->default_value("true"))
+            ("log-rotation", "Log rotation type: none, size, time, both", cxxopts::value<std::string>()->default_value("size"))
+            ("log-max-size", "Maximum log file size in MB", cxxopts::value<size_t>()->default_value("10"))
+            ("log-rotation-interval", "Time interval in minutes for time-based rotation", cxxopts::value<int>()->default_value("1440"))
+            ("log-max-backups", "Maximum number of backup log files", cxxopts::value<int>()->default_value("5"))
+            ("log-level", "Log level: trace, debug, info, warn, error, critical, off", cxxopts::value<std::string>()->default_value("info"));
+
+        auto result = options.parse(argc, argv);
+
+        // Check for help
+        if (result.count("help")) {
+            std::cout << options.help() << std::endl;
+            std::exit(0);
         }
-    }
 
-    // Apply XDG defaults only if enabled
-    if (config.use_xdg) {
-        apply_xdg_defaults(config);
-    }
-
-    // Check if config file is specified
-    for (int i = 1; i < argc; i++) {
-        std::string arg = argv[i];
-        if (arg == "--config" && i + 1 < argc) {
-            config.config_file = argv[++i];
-            config.use_xdg = false;
-            break;
+        // Check for --no-xdg flag first
+        if (result.count("no-xdg")) {
+            config.use_xdg = result["no-xdg"].as<bool>();
         }
-    }
 
-    // Load from config file if it exists
-    if (!config.config_file.empty() && std::filesystem::exists(config.config_file)) {
-        try {
-            config = load_from_file(config.config_file);
-            LOG_INFO("Loaded configuration from: " + config.config_file.string());
-        } catch (const std::exception& e) {
-            LOG_WARNING("Failed to load config file: " + std::string(e.what()));
+        // Apply XDG defaults only if enabled
+        if (config.use_xdg) {
+            apply_xdg_defaults(config);
         }
-    }
 
-    // Parse command line arguments (override config file)
-    for (int i = 1; i < argc; i++) {
-        std::string arg = argv[i];
+        // Check if config file is specified
+        if (result.count("config")) {
+            config.config_file = result["config"].as<std::string>();
+            config.use_xdg = false;
+        }
 
-        if (arg == "--config" && i + 1 < argc) {
-            i++; // Already handled
-        } else if (arg == "--city-db" && i + 1 < argc) {
-            config.city_db_path = argv[++i];
-            config.use_xdg = false;
-        } else if (arg == "--asn-db" && i + 1 < argc) {
-            config.asn_db_path = argv[++i];
-            config.use_xdg = false;
-        } else if (arg == "--oui-db" && i + 1 < argc) {
-            config.oui_db_path = argv[++i];
-            config.use_xdg = false;
-        } else if (arg == "--port" && i + 1 < argc) {
-            config.port = static_cast<uint16_t>(parse_int_arg(argv[++i], "port number"));
-        } else if (arg == "--host" && i + 1 < argc) {
-            config.host = argv[++i];
-        } else if (arg == "--threads" && i + 1 < argc) {
-            config.thread_pool_size = parse_int_arg(argv[++i], "thread count");
-        } else if (arg == "--no-xdg") {
-            config.use_xdg = false;
-        } else if (arg == "--enable-rate-limiter" && i + 1 < argc) {
-            std::string value = argv[++i];
-            config.enable_rate_limiter = (value == "true" || value == "1");
-        } else if (arg == "--max-requests-per-minute" && i + 1 < argc) {
-            config.max_requests_per_minute = parse_int_arg(argv[++i], "max requests per minute");
-        } else if (arg == "--max-batch-size" && i + 1 < argc) {
+        // Load from config file if it exists
+        if (!config.config_file.empty() && std::filesystem::exists(config.config_file)) {
             try {
-                config.max_batch_size = std::stoi(argv[++i]);
+                config = load_from_file(config.config_file);
+                LOG_INFO("Loaded configuration from: " + config.config_file.string());
             } catch (const std::exception& e) {
-                LOG_ERROR("Invalid max batch size: " + std::string(argv[i]));
-                throw std::runtime_error("Invalid max batch size");
+                LOG_WARNING("Failed to load config file: " + std::string(e.what()));
             }
-        } else if (arg == "--enable-api-auth" && i + 1 < argc) {
-            std::string value = argv[++i];
+        }
+
+        // Parse command line arguments (override config file)
+        if (result.count("host")) {
+            config.host = result["host"].as<std::string>();
+        }
+        if (result.count("port")) {
+            config.port = result["port"].as<uint16_t>();
+        }
+        if (result.count("threads")) {
+            config.thread_pool_size = result["threads"].as<int>();
+        }
+        if (result.count("cache-size")) {
+            config.cache_size = result["cache-size"].as<size_t>();
+        }
+        if (result.count("city-db")) {
+            config.city_db_path = result["city-db"].as<std::string>();
+            config.use_xdg = false;
+        }
+        if (result.count("asn-db")) {
+            config.asn_db_path = result["asn-db"].as<std::string>();
+            config.use_xdg = false;
+        }
+        if (result.count("oui-db")) {
+            config.oui_db_path = result["oui-db"].as<std::string>();
+            config.use_xdg = false;
+        }
+        if (result.count("enable-rate-limiter")) {
+            std::string value = result["enable-rate-limiter"].as<std::string>();
+            config.enable_rate_limiter = (value == "true" || value == "1");
+        }
+        if (result.count("max-requests-per-minute")) {
+            config.max_requests_per_minute = result["max-requests-per-minute"].as<int>();
+        }
+        if (result.count("max-batch-size")) {
+            config.max_batch_size = result["max-batch-size"].as<int>();
+        }
+        if (result.count("enable-api-auth")) {
+            std::string value = result["enable-api-auth"].as<std::string>();
             config.enable_api_auth = (value == "true" || value == "1");
-        } else if (arg == "--api-keys-file" && i + 1 < argc) {
-            config.api_keys_file = argv[++i];
-        } else if (arg == "--default-api-key" && i + 1 < argc) {
-            config.default_api_key = argv[++i];
-        } else if (arg == "--enable-file-logging" && i + 1 < argc) {
-            std::string value = argv[++i];
+        }
+        if (result.count("api-keys-file")) {
+            config.api_keys_file = result["api-keys-file"].as<std::string>();
+        }
+        if (result.count("default-api-key")) {
+            config.default_api_key = result["default-api-key"].as<std::string>();
+        }
+        if (result.count("enable-file-logging")) {
+            std::string value = result["enable-file-logging"].as<std::string>();
             config.enable_file_logging = (value == "true" || value == "1");
             // If enabling file logging and using XDG, use XDG log path
             if (config.enable_file_logging && config.use_xdg && config.log_file_path == "logs/ip_server.log") {
                 config.log_file_path = XDGPaths::instance().log_file_path().string();
             }
-        } else if (arg == "--log-enable-stdout" && i + 1 < argc) {
-            std::string value = argv[++i];
-            config.log_enable_stdout = (value == "true" || value == "1");
-        } else if (arg == "--log-file" && i + 1 < argc) {
-            config.log_file_path = argv[++i];
-            config.enable_file_logging = true;
-        } else if (arg == "--log-rotation" && i + 1 < argc) {
-            config.log_rotation_type = argv[++i];
-        } else if (arg == "--log-max-size" && i + 1 < argc) {
-            config.log_max_file_size = parse_size_arg(argv[++i], "log max file size") * 1024 * 1024;
-        } else if (arg == "--log-rotation-interval" && i + 1 < argc) {
-            config.log_rotation_interval_minutes = parse_int_arg(argv[++i], "log rotation interval");
-        } else if (arg == "--log-max-backups" && i + 1 < argc) {
-            config.log_max_backup_files = parse_int_arg(argv[++i], "log max backup files");
-        } else if (arg == "--help" || arg == "-h") {
-            print_help(argv[0]);
-            std::exit(0);
-        } else {
-            std::ostringstream oss;
-            oss << "Unknown option: " << arg;
-            LOG_WARNING(oss.str());
         }
+        if (result.count("log-file")) {
+            config.log_file_path = result["log-file"].as<std::string>();
+            config.enable_file_logging = true;
+        }
+        if (result.count("log-enable-stdout")) {
+            std::string value = result["log-enable-stdout"].as<std::string>();
+            config.log_enable_stdout = (value == "true" || value == "1");
+        }
+        if (result.count("log-rotation")) {
+            config.log_rotation_type = result["log-rotation"].as<std::string>();
+        }
+        if (result.count("log-max-size")) {
+            config.log_max_file_size = result["log-max-size"].as<size_t>() * 1024 * 1024;
+        }
+        if (result.count("log-rotation-interval")) {
+            config.log_rotation_interval_minutes = result["log-rotation-interval"].as<int>();
+        }
+        if (result.count("log-max-backups")) {
+            config.log_max_backup_files = result["log-max-backups"].as<int>();
+        }
+        if (result.count("log-level")) {
+            config.log_level = result["log-level"].as<std::string>();
+        }
+
+    } catch (const cxxopts::exceptions::exception& e) {
+        std::cerr << "Error parsing options: " << e.what() << std::endl;
+        throw std::runtime_error(std::string("Failed to parse command line options: ") + e.what());
     }
 
     LOG_INFO("Configuration loaded:");
@@ -178,6 +217,7 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
         LOG_INFO("  Max Backup Files: " + std::to_string(config.log_max_backup_files));
     }
     LOG_INFO("  Stdout Logging: " + std::string(config.log_enable_stdout ? "enabled" : "disabled"));
+    LOG_INFO("  Log Level: " + config.log_level);
 
     // Validate configuration
     validate(config);
@@ -263,8 +303,90 @@ void ConfigParser::validate(const ServerConfig& config) {
 ServerConfig ConfigParser::load_from_file(const std::filesystem::path& config_file) {
     ServerConfig config = default_config();
 
-    // Simple line-based config parser
-    // Format: key = value
+    // Try to parse as JSON first
+    try {
+        std::ifstream file(config_file);
+        if (!file.is_open()) {
+            throw std::runtime_error("Cannot open config file: " + config_file.string());
+        }
+
+        nlohmann::json j;
+        file >> j;
+
+        // Parse JSON fields
+        if (j.contains("host")) {
+            config.host = j["host"].get<std::string>();
+        }
+        if (j.contains("port")) {
+            config.port = j["port"].get<uint16_t>();
+        }
+        if (j.contains("city_db")) {
+            config.city_db_path = j["city_db"].get<std::string>();
+        }
+        if (j.contains("asn_db")) {
+            config.asn_db_path = j["asn_db"].get<std::string>();
+        }
+        if (j.contains("oui_db")) {
+            config.oui_db_path = j["oui_db"].get<std::string>();
+        }
+        if (j.contains("threads")) {
+            config.thread_pool_size = j["threads"].get<int>();
+        }
+        if (j.contains("cache_size")) {
+            config.cache_size = j["cache_size"].get<size_t>();
+        }
+        if (j.contains("enable_rate_limiter")) {
+            config.enable_rate_limiter = j["enable_rate_limiter"].get<bool>();
+        }
+        if (j.contains("max_requests_per_minute")) {
+            config.max_requests_per_minute = j["max_requests_per_minute"].get<int>();
+        }
+        if (j.contains("max_batch_size")) {
+            config.max_batch_size = j["max_batch_size"].get<int>();
+        }
+        if (j.contains("enable_api_auth")) {
+            config.enable_api_auth = j["enable_api_auth"].get<bool>();
+        }
+        if (j.contains("api_keys_file")) {
+            config.api_keys_file = j["api_keys_file"].get<std::string>();
+        }
+        if (j.contains("default_api_key")) {
+            config.default_api_key = j["default_api_key"].get<std::string>();
+        }
+        if (j.contains("enable_file_logging")) {
+            config.enable_file_logging = j["enable_file_logging"].get<bool>();
+        }
+        if (j.contains("log_file")) {
+            config.log_file_path = j["log_file"].get<std::string>();
+        }
+        if (j.contains("log_enable_stdout")) {
+            config.log_enable_stdout = j["log_enable_stdout"].get<bool>();
+        }
+        if (j.contains("log_rotation")) {
+            config.log_rotation_type = j["log_rotation"].get<std::string>();
+        }
+        if (j.contains("log_max_file_size")) {
+            config.log_max_file_size = j["log_max_file_size"].get<size_t>() * 1024 * 1024;
+        }
+        if (j.contains("log_rotation_interval_minutes")) {
+            config.log_rotation_interval_minutes = j["log_rotation_interval_minutes"].get<int>();
+        }
+        if (j.contains("log_max_backup_files")) {
+            config.log_max_backup_files = j["log_max_backup_files"].get<int>();
+        }
+        if (j.contains("log_level")) {
+            config.log_level = j["log_level"].get<std::string>();
+        }
+
+        LOG_INFO("Loaded JSON configuration from: " + config_file.string());
+        return config;
+
+    } catch (const nlohmann::json::exception& e) {
+        // If JSON parsing fails, try the old format
+        LOG_WARNING("JSON parsing failed, trying legacy format: " + std::string(e.what()));
+    }
+
+    // Fallback to legacy key=value format
     std::ifstream file(config_file);
     if (!file.is_open()) {
         throw std::runtime_error("Cannot open config file: " + config_file.string());
@@ -332,48 +454,61 @@ ServerConfig ConfigParser::load_from_file(const std::filesystem::path& config_fi
             config.log_rotation_interval_minutes = std::stoi(value);
         } else if (key == "log_max_backup_files") {
             config.log_max_backup_files = std::stoi(value);
+        } else if (key == "log_level") {
+            config.log_level = value;
         }
     }
 
+    LOG_INFO("Loaded legacy configuration from: " + config_file.string());
     return config;
 }
 
 bool ConfigParser::save_to_file(const ServerConfig& config, const std::filesystem::path& config_file) {
-    std::ofstream file(config_file);
-    if (!file.is_open()) {
-        LOG_ERROR("Cannot open config file for writing: " + config_file.string());
+    try {
+        nlohmann::json j;
+
+        // Build JSON object
+        j["host"] = config.host;
+        j["port"] = config.port;
+        j["city_db"] = config.city_db_path;
+        j["asn_db"] = config.asn_db_path;
+        j["oui_db"] = config.oui_db_path;
+        j["threads"] = config.thread_pool_size;
+        j["cache_size"] = config.cache_size;
+        j["enable_rate_limiter"] = config.enable_rate_limiter;
+        j["max_requests_per_minute"] = config.max_requests_per_minute;
+        j["max_batch_size"] = config.max_batch_size;
+        j["enable_api_auth"] = config.enable_api_auth;
+        j["api_keys_file"] = config.api_keys_file;
+        if (!config.default_api_key.empty()) {
+            j["default_api_key"] = config.default_api_key;
+        }
+        j["enable_file_logging"] = config.enable_file_logging;
+        j["log_file"] = config.log_file_path;
+        j["log_enable_stdout"] = config.log_enable_stdout;
+        j["log_rotation"] = config.log_rotation_type;
+        j["log_max_file_size"] = config.log_max_file_size / (1024 * 1024);  // Convert to MB
+        j["log_rotation_interval_minutes"] = config.log_rotation_interval_minutes;
+        j["log_max_backup_files"] = config.log_max_backup_files;
+        j["log_level"] = config.log_level;
+
+        // Write to file with pretty formatting
+        std::ofstream file(config_file);
+        if (!file.is_open()) {
+            LOG_ERROR("Cannot open config file for writing: " + config_file.string());
+            return false;
+        }
+
+        file << j.dump(2) << std::endl;
+        file.close();
+
+        LOG_INFO("Configuration saved to: " + config_file.string());
+        return true;
+
+    } catch (const std::exception& e) {
+        LOG_ERROR("Failed to save configuration: " + std::string(e.what()));
         return false;
     }
-
-    file << "# IP Geolocation & AS Lookup Service Configuration\n";
-    file << "# Generated automatically\n\n";
-    file << "host = " << config.host << "\n";
-    file << "port = " << config.port << "\n";
-    file << "city_db = " << config.city_db_path << "\n";
-    file << "asn_db = " << config.asn_db_path << "\n";
-    file << "oui_db = " << config.oui_db_path << "\n";
-    file << "threads = " << config.thread_pool_size << "\n";
-    file << "enable_rate_limiter = " << (config.enable_rate_limiter ? "true" : "false") << "\n";
-    file << "max_requests_per_minute = " << config.max_requests_per_minute << "\n";
-    file << "max_batch_size = " << config.max_batch_size << "\n";
-    file << "enable_api_auth = " << (config.enable_api_auth ? "true" : "false") << "\n";
-    file << "api_keys_file = " << config.api_keys_file << "\n";
-    if (!config.default_api_key.empty()) {
-        file << "default_api_key = " << config.default_api_key << "\n";
-    }
-    file << "enable_file_logging = " << (config.enable_file_logging ? "true" : "false") << "\n";
-    file << "log_enable_stdout = " << (config.log_enable_stdout ? "true" : "false") << "\n";
-    if (config.enable_file_logging) {
-        file << "log_file = " << config.log_file_path << "\n";
-        file << "log_rotation = " << config.log_rotation_type << "\n";
-        file << "log_max_file_size = " << (config.log_max_file_size / (1024 * 1024)) << "\n";
-        file << "log_rotation_interval_minutes = " << config.log_rotation_interval_minutes << "\n";
-        file << "log_max_backup_files = " << config.log_max_backup_files << "\n";
-    }
-
-    file.close();
-    LOG_INFO("Configuration saved to: " + config_file.string());
-    return true;
 }
 
 void ConfigParser::print_help(const char* program_name) {
@@ -462,24 +597,6 @@ void ConfigParser::print_help(const char* program_name) {
     std::print("                                Body: {{\"macs\": [\"00:1A:2B:3C:4D:5E\", \"F4:EA:B5:12:34:56\"]}}\n");
     std::print("\n");
     std::print("For more information, visit: https://dev.maxmind.com/geoip/geolite2-free-geolocation-data\n");
-}
-
-int ConfigParser::parse_int_arg(const char* arg, const char* name) {
-    try {
-        return std::stoi(arg);
-    } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Invalid ") + name + ": " + arg);
-        throw std::runtime_error(std::string("Invalid ") + name);
-    }
-}
-
-size_t ConfigParser::parse_size_arg(const char* arg, const char* name) {
-    try {
-        return std::stoull(arg);
-    } catch (const std::exception& e) {
-        LOG_ERROR(std::string("Invalid ") + name + ": " + arg);
-        throw std::runtime_error(std::string("Invalid ") + name);
-    }
 }
 
 } // namespace ip_server

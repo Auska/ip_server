@@ -3,6 +3,8 @@
 #include <string>
 #include <cstdint>
 #include <filesystem>
+#include <cxxopts.hpp>
+#include <nlohmann/json.hpp>
 
 namespace ip_server {
 
@@ -31,6 +33,7 @@ struct ServerConfig {
     int log_rotation_interval_minutes = 1440;  // 24 hours
     int log_max_backup_files = 5;
     bool log_enable_stdout = true;
+    std::string log_level = "info";  // "trace", "debug", "info", "warn", "error", "critical", "off"
 };
 
 class ConfigParser {
@@ -44,8 +47,6 @@ public:
 
 private:
     static void apply_xdg_defaults(ServerConfig& config);
-    static int parse_int_arg(const char* arg, const char* name);
-    static size_t parse_size_arg(const char* arg, const char* name);
 };
 
 } // namespace ip_server

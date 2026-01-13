@@ -39,6 +39,7 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/external/include
     ${CMAKE_SOURCE_DIR}/external/libmaxminddb-1.12.2/include
     ${CMAKE_SOURCE_DIR}/external/sqlite-autoconf-3510200
+    ${CMAKE_SOURCE_DIR}/external/cxxopts-3.3.1/include
 )
 
 # Build SQLite3 library first
@@ -84,6 +85,9 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release" AND TARGET spdlog AND NOT MSVC)
     target_compile_options(spdlog PRIVATE -O3 -DNDEBUG -flto)
 endif()
 
+# Build cxxopts library
+add_subdirectory(external/cxxopts-3.3.1)
+
 # Source files
 set(SOURCES
     src/main.cpp
@@ -116,6 +120,7 @@ target_link_libraries(ip_server
     sqlite3
     maxminddb
     spdlog::spdlog
+    cxxopts::cxxopts
     pthread
 )
 
