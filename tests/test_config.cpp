@@ -154,10 +154,9 @@ TEST_F(ConfigTest, ParseAllNewParameters) {
         "ip_server",
         "--enable-rate-limiter", "true",
         "--max-requests-per-minute", "150",
-        "--max-batch-size", "75",
-        "--no-xdg"
+        "--max-batch-size", "75"
     };
-    int argc = 8;
+    int argc = 7;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 

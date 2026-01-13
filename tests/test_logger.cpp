@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "logger.h"
 #include "config.h"
+#include "xdg.h"
 #include <filesystem>
 #include <fstream>
 #include <chrono>
@@ -583,7 +584,7 @@ TEST_F(LoggerTest, ConfigParsingEnableFileLogging) {
         "--enable-file-logging", "true",
         "--log-file", "/tmp/test.log"
     };
-    int argc = 4;
+    int argc = 5;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
@@ -598,7 +599,7 @@ TEST_F(LoggerTest, ConfigParsingLogRotationSize) {
         "--log-rotation", "size",
         "--log-max-size", "20"
     };
-    int argc = 6;
+    int argc = 7;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
@@ -613,7 +614,7 @@ TEST_F(LoggerTest, ConfigParsingLogRotationTime) {
         "--log-rotation", "time",
         "--log-rotation-interval", "60"
     };
-    int argc = 6;
+    int argc = 7;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
@@ -627,7 +628,7 @@ TEST_F(LoggerTest, ConfigParsingLogRotationBoth) {
         "--enable-file-logging", "true",
         "--log-rotation", "both"
     };
-    int argc = 4;
+    int argc = 5;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
@@ -640,7 +641,7 @@ TEST_F(LoggerTest, ConfigParsingLogMaxBackups) {
         "--enable-file-logging", "true",
         "--log-max-backups", "10"
     };
-    int argc = 4;
+    int argc = 5;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
@@ -653,7 +654,7 @@ TEST_F(LoggerTest, ConfigParsingInvalidLogRotationType) {
         "--enable-file-logging", "true",
         "--log-rotation", "invalid"
     };
-    int argc = 4;
+    int argc = 5;
 
     EXPECT_THROW(
         ConfigParser::parse(argc, const_cast<char**>(argv)),
@@ -667,7 +668,7 @@ TEST_F(LoggerTest, ConfigParsingInvalidLogMaxSize) {
         "--enable-file-logging", "true",
         "--log-max-size", "invalid"
     };
-    int argc = 4;
+    int argc = 5;
 
     EXPECT_THROW(
         ConfigParser::parse(argc, const_cast<char**>(argv)),
@@ -681,7 +682,7 @@ TEST_F(LoggerTest, ConfigParsingInvalidLogRotationInterval) {
         "--enable-file-logging", "true",
         "--log-rotation-interval", "invalid"
     };
-    int argc = 4;
+    int argc = 5;
 
     EXPECT_THROW(
         ConfigParser::parse(argc, const_cast<char**>(argv)),
@@ -695,7 +696,7 @@ TEST_F(LoggerTest, ConfigParsingInvalidLogMaxBackups) {
         "--enable-file-logging", "true",
         "--log-max-backups", "invalid"
     };
-    int argc = 4;
+    int argc = 5;
 
     EXPECT_THROW(
         ConfigParser::parse(argc, const_cast<char**>(argv)),
@@ -709,7 +710,7 @@ TEST_F(LoggerTest, ConfigValidationLogMaxSizeTooSmall) {
         "--enable-file-logging", "true",
         "--log-max-size", "0"
     };
-    int argc = 4;
+    int argc = 5;
 
     EXPECT_THROW(
         ConfigParser::parse(argc, const_cast<char**>(argv)),
@@ -723,7 +724,7 @@ TEST_F(LoggerTest, ConfigValidationLogMaxSizeTooLarge) {
         "--enable-file-logging", "true",
         "--log-max-size", "2048"
     };
-    int argc = 4;
+    int argc = 5;
 
     EXPECT_THROW(
         ConfigParser::parse(argc, const_cast<char**>(argv)),
@@ -737,7 +738,7 @@ TEST_F(LoggerTest, ConfigValidationLogRotationIntervalTooSmall) {
         "--enable-file-logging", "true",
         "--log-rotation-interval", "0"
     };
-    int argc = 4;
+    int argc = 5;
 
     EXPECT_THROW(
         ConfigParser::parse(argc, const_cast<char**>(argv)),
@@ -751,7 +752,7 @@ TEST_F(LoggerTest, ConfigValidationLogRotationIntervalTooLarge) {
         "--enable-file-logging", "true",
         "--log-rotation-interval", "20000"
     };
-    int argc = 4;
+    int argc = 5;
 
     EXPECT_THROW(
         ConfigParser::parse(argc, const_cast<char**>(argv)),
@@ -765,7 +766,7 @@ TEST_F(LoggerTest, ConfigValidationLogMaxBackupsTooLarge) {
         "--enable-file-logging", "true",
         "--log-max-backups", "200"
     };
-    int argc = 4;
+    int argc = 5;
 
     EXPECT_THROW(
         ConfigParser::parse(argc, const_cast<char**>(argv)),
@@ -780,7 +781,9 @@ TEST_F(LoggerTest, DefaultLogConfigValues) {
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
     EXPECT_FALSE(config.enable_file_logging);
-    EXPECT_EQ(config.log_file_path, "logs/ip_server.log");
+    // After XDG enforcement, log_file_path is set to XDG path
+    auto& xdg = XDGPaths::instance();
+    EXPECT_EQ(config.log_file_path, xdg.log_file_path().string());
     EXPECT_EQ(config.log_rotation_type, "size");
     EXPECT_EQ(config.log_max_file_size, 10 * 1024 * 1024);
     EXPECT_EQ(config.log_rotation_interval_minutes, 1440);
