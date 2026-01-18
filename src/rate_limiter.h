@@ -1,16 +1,16 @@
 #pragma once
 
-#include <string>
-#include <unordered_map>
-#include <mutex>
+#include <atomic>
 #include <chrono>
 #include <deque>
-#include <atomic>
+#include <mutex>
+#include <string>
+#include <unordered_map>
 
 namespace ip_server {
 
 class RateLimiter {
-public:
+   public:
     RateLimiter(int max_requests, std::chrono::seconds window, size_t max_ip_records = 10000)
         : max_requests_(max_requests),
           window_(window),
@@ -40,7 +40,7 @@ public:
     // Reset statistics
     void reset_stats();
 
-private:
+   private:
     struct IPRecord {
         std::deque<std::chrono::steady_clock::time_point> timestamps;
         std::chrono::steady_clock::time_point last_access;
@@ -63,4 +63,4 @@ private:
     std::atomic<uint64_t> total_rate_limited_;
 };
 
-} // namespace ip_server
+}  // namespace ip_server

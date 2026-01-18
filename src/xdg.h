@@ -1,12 +1,12 @@
 #pragma once
 
-#include <string>
 #include <filesystem>
+#include <string>
 
 namespace ip_server {
 
 class XDGPaths {
-public:
+   public:
     static XDGPaths& instance();
 
     // Get XDG base directories
@@ -38,7 +38,7 @@ public:
     // Ensure directories exist
     void ensure_directories() const;
 
-private:
+   private:
     XDGPaths();
 
     std::string get_env(const char* name, const std::string& default_value) const;
@@ -47,4 +47,4 @@ private:
     static constexpr const char* APP_NAME = "ip-server";
 };
 
-} // namespace ip_server
+}  // namespace ip_server

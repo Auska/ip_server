@@ -1,15 +1,17 @@
 #include <benchmark/benchmark.h>
+
+#include <filesystem>
+#include <string>
+#include <vector>
+
 #include "database.h"
 #include "types.h"
-#include <filesystem>
-#include <vector>
-#include <string>
 
 using namespace ip_server;
 
 // Benchmark fixture
 class DatabaseBenchmark : public benchmark::Fixture {
-protected:
+   protected:
     void SetUp(::benchmark::State& state) override {
         // Get the project root directory
         std::filesystem::path current_path = std::filesystem::current_path();
@@ -25,7 +27,8 @@ protected:
         } else {
             // Try to find CMakeLists.txt to locate project root
             auto path = current_path;
-            while (path.has_parent_path() && std::filesystem::exists(path / "CMakeLists.txt") == false) {
+            while (path.has_parent_path()
+                   && std::filesystem::exists(path / "CMakeLists.txt") == false) {
                 path = path.parent_path();
             }
             if (std::filesystem::exists(path / "db")) {
@@ -34,7 +37,7 @@ protected:
         }
 
         city_db_path = project_root / "db" / "GeoLite2-City.mmdb";
-        asn_db_path = project_root / "db" / "GeoLite2-ASN.mmdb";
+        asn_db_path  = project_root / "db" / "GeoLite2-ASN.mmdb";
 
         // Skip if database files don't exist
         if (!std::filesystem::exists(city_db_path) || !std::filesystem::exists(asn_db_path)) {
@@ -48,20 +51,20 @@ protected:
 
         // Prepare test IPs
         test_ips_ = {
-            "8.8.8.8",           // Google DNS
-            "1.1.1.1",           // Cloudflare DNS
-            "114.114.114.114",   // Chinese DNS
-            "208.67.222.222",    // OpenDNS
-            "9.9.9.9",           // Quad9 DNS
-            "64.6.64.6",         // Verisign DNS
-            "84.200.69.80",      // DNS.WATCH
-            "91.239.100.100",    // UncensoredDNS
-            "185.228.168.9",     // CleanBrowsing
-            "10.0.0.1",          // Private IP
-            "192.168.1.1",       // Private IP
-            "172.16.0.1",        // Private IP
-            "2001:4860:4860::8888", // Google DNS IPv6
-            "2606:4700:4700::1111"  // Cloudflare DNS IPv6
+            "8.8.8.8",               // Google DNS
+            "1.1.1.1",               // Cloudflare DNS
+            "114.114.114.114",       // Chinese DNS
+            "208.67.222.222",        // OpenDNS
+            "9.9.9.9",               // Quad9 DNS
+            "64.6.64.6",             // Verisign DNS
+            "84.200.69.80",          // DNS.WATCH
+            "91.239.100.100",        // UncensoredDNS
+            "185.228.168.9",         // CleanBrowsing
+            "10.0.0.1",              // Private IP
+            "192.168.1.1",           // Private IP
+            "172.16.0.1",            // Private IP
+            "2001:4860:4860::8888",  // Google DNS IPv6
+            "2606:4700:4700::1111"   // Cloudflare DNS IPv6
         };
     }
 
@@ -212,13 +215,9 @@ BENCHMARK_F(DatabaseBenchmark, IPGeoService_Initialization)(benchmark::State& st
 
 // Benchmark lookup performance with IPv6 addresses
 BENCHMARK_F(DatabaseBenchmark, CityDatabase_IPv6Lookup)(benchmark::State& state) {
-    std::vector<std::string> ipv6_addresses = {
-        "2001:4860:4860::8888",
-        "2606:4700:4700::1111",
-        "2001:1608:10:25::9249:d69b",
-        "2620:fe::fe",
-        "2001:4860:4860::8844"
-    };
+    std::vector<std::string> ipv6_addresses = {"2001:4860:4860::8888", "2606:4700:4700::1111",
+                                               "2001:1608:10:25::9249:d69b", "2620:fe::fe",
+                                               "2001:4860:4860::8844"};
 
     size_t index = 0;
     for (auto _ : state) {
@@ -247,4 +246,5 @@ BENCHMARK_F(DatabaseBenchmark, IPGeoService_ConcurrentLookups)(benchmark::State&
 }
 
 // Run the benchmarks
-// BENCHMARK_MAIN();  // Moved to benchmark_performance.cpp to avoid multiple main()
+// BENCHMARK_MAIN();  // Moved to benchmark_performance.cpp to avoid multiple
+// main()

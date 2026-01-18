@@ -1,10 +1,12 @@
 #include "database.h"
+
+#include <chrono>
+#include <cstring>
+#include <stdexcept>
+
+#include "logger.h"
 #include "mac_database.h"
 #include "types.h"
-#include "logger.h"
-#include <stdexcept>
-#include <cstring>
-#include <chrono>
 
 namespace ip_server {
 
@@ -181,7 +183,8 @@ nlohmann::json ASNDatabase::lookup(const std::string& ip_address) const {
     int status;
 
     // AS Organization
-    status = MMDB_get_value(&lookup_result.entry, &entry_data, "autonomous_system_organization", nullptr);
+    status = MMDB_get_value(&lookup_result.entry, &entry_data, "autonomous_system_organization",
+                            nullptr);
     if (status == MMDB_SUCCESS && entry_data.has_data) {
         result["as_organization"] = std::string(entry_data.utf8_string, entry_data.data_size);
     }
@@ -200,7 +203,6 @@ nlohmann::json ASNDatabase::lookup(const std::string& ip_address) const {
 IPGeoService::IPGeoService(const std::string& city_db_path, const std::string& asn_db_path,
                            size_t cache_size)
     : cache_(cache_size) {
-
     if (!city_db_.open(city_db_path)) {
         throw std::runtime_error("Failed to open City database: " + city_db_path);
     }
@@ -213,7 +215,7 @@ IPGeoService::IPGeoService(const std::string& city_db_path, const std::string& a
 }
 
 LookupResult IPGeoService::lookup(const std::string& ip_address) const {
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start     = std::chrono::high_resolution_clock::now();
     bool cache_hit = false;
 
     // Check cache first
@@ -221,33 +223,33 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
         auto cached = cache_.get(ip_address);
         if (cached.has_value()) {
             LOG_DEBUG("Cache hit for IP: " + ip_address);
-            cache_hit = true;
-            auto end = std::chrono::high_resolution_clock::now();
+            cache_hit         = true;
+            auto end          = std::chrono::high_resolution_clock::now();
             double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
             return LookupResult(cached.value(), true, latency_ms);
         }
     }
 
     nlohmann::json result;
-    result["ip"] = ip_address;
+    result["ip"]    = ip_address;
     result["found"] = false;
 
     try {
         auto city_result = city_db_.lookup(ip_address);
-        auto asn_result = asn_db_.lookup(ip_address);
+        auto asn_result  = asn_db_.lookup(ip_address);
 
         if (city_result.contains("error")) {
-            result["error"] = city_result["error"];
-            auto end = std::chrono::high_resolution_clock::now();
+            result["error"]   = city_result["error"];
+            auto end          = std::chrono::high_resolution_clock::now();
             double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
             return LookupResult(result, false, latency_ms);
         }
 
         bool city_found = city_result.value("found", false);
-        bool asn_found = asn_result.value("found", false);
+        bool asn_found  = asn_result.value("found", false);
 
         if (!city_found && !asn_found) {
-            auto end = std::chrono::high_resolution_clock::now();
+            auto end          = std::chrono::high_resolution_clock::now();
             double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
             return LookupResult(result, false, latency_ms);
         }
@@ -257,7 +259,8 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
         // Merge city information
         if (city_found) {
             if (city_result.contains("country")) result["country"] = city_result["country"];
-            if (city_result.contains("country_code")) result["country_code"] = city_result["country_code"];
+            if (city_result.contains("country_code"))
+                result["country_code"] = city_result["country_code"];
             if (city_result.contains("city")) result["city"] = city_result["city"];
             if (city_result.contains("continent")) result["continent"] = city_result["continent"];
             if (city_result.contains("latitude")) result["latitude"] = city_result["latitude"];
@@ -267,7 +270,8 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
 
         // Merge ASN information
         if (asn_found) {
-            if (asn_result.contains("as_organization")) result["as_organization"] = asn_result["as_organization"];
+            if (asn_result.contains("as_organization"))
+                result["as_organization"] = asn_result["as_organization"];
             if (asn_result.contains("as_number")) result["as_number"] = asn_result["as_number"];
         }
 
@@ -282,7 +286,7 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
         result["error"] = e.what();
     }
 
-    auto end = std::chrono::high_resolution_clock::now();
+    auto end          = std::chrono::high_resolution_clock::now();
     double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
     return LookupResult(result, cache_hit, latency_ms);
 }
@@ -291,7 +295,6 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
 
 MACLookupService::MACLookupService(const std::string& oui_db_path, size_t cache_size)
     : cache_(cache_size) {
-
     if (!oui_db_.open(oui_db_path)) {
         throw std::runtime_error("Failed to open OUI database: " + oui_db_path);
     }
@@ -300,7 +303,7 @@ MACLookupService::MACLookupService(const std::string& oui_db_path, size_t cache_
 }
 
 LookupResult MACLookupService::lookup(const std::string& mac_address) const {
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start     = std::chrono::high_resolution_clock::now();
     bool cache_hit = false;
 
     // Check cache first
@@ -308,8 +311,8 @@ LookupResult MACLookupService::lookup(const std::string& mac_address) const {
         auto cached = cache_.get(mac_address);
         if (cached.has_value()) {
             LOG_DEBUG("Cache hit for MAC: " + mac_address);
-            cache_hit = true;
-            auto end = std::chrono::high_resolution_clock::now();
+            cache_hit         = true;
+            auto end          = std::chrono::high_resolution_clock::now();
             double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
             return LookupResult(cached.value(), true, latency_ms);
         }
@@ -331,9 +334,9 @@ LookupResult MACLookupService::lookup(const std::string& mac_address) const {
         result["error"] = e.what();
     }
 
-    auto end = std::chrono::high_resolution_clock::now();
+    auto end          = std::chrono::high_resolution_clock::now();
     double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
     return LookupResult(result, cache_hit, latency_ms);
 }
 
-} // namespace ip_server
+}  // namespace ip_server

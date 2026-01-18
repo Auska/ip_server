@@ -1,13 +1,14 @@
 #include "rate_limiter.h"
-#include "logger.h"
+
 #include <algorithm>
+
+#include "logger.h"
 
 namespace ip_server {
 
 void RateLimiter::cleanup_old_timestamps(IPRecord& record) const {
     auto now = std::chrono::steady_clock::now();
-    while (!record.timestamps.empty() &&
-           now - record.timestamps.front() > window_) {
+    while (!record.timestamps.empty() && now - record.timestamps.front() > window_) {
         record.timestamps.pop_front();
     }
 }
@@ -17,7 +18,7 @@ bool RateLimiter::is_allowed(const std::string& ip_address) {
 
     total_requests_++;
 
-    auto now = std::chrono::steady_clock::now();
+    auto now     = std::chrono::steady_clock::now();
     auto& record = ip_records_[ip_address];
 
     // Update last access time
@@ -59,7 +60,7 @@ int RateLimiter::get_remaining(const std::string& ip_address) const {
         return max_requests_;
     }
 
-    auto now = std::chrono::steady_clock::now();
+    auto now     = std::chrono::steady_clock::now();
     size_t count = 0;
 
     // Count timestamps within the window
@@ -81,7 +82,7 @@ void RateLimiter::cleanup() {
     }
 
     // Remove empty records
-    auto it = ip_records_.begin();
+    auto it              = ip_records_.begin();
     size_t removed_count = 0;
     while (it != ip_records_.end()) {
         if (it->second.timestamps.empty()) {
@@ -118,11 +119,11 @@ RateLimiter::MemoryStats RateLimiter::get_memory_stats() const {
     std::lock_guard<std::mutex> lock(mutex_);
 
     MemoryStats stats;
-    stats.ip_record_count = ip_records_.size();
-    stats.total_timestamps = 0;
+    stats.ip_record_count        = ip_records_.size();
+    stats.total_timestamps       = 0;
     stats.estimated_memory_bytes = 0;
-    stats.total_requests = total_requests_.load();
-    stats.total_rate_limited = total_rate_limited_.load();
+    stats.total_requests         = total_requests_.load();
+    stats.total_rate_limited     = total_rate_limited_.load();
 
     for (const auto& [ip, record] : ip_records_) {
         stats.total_timestamps += record.timestamps.size();
@@ -136,10 +137,10 @@ RateLimiter::MemoryStats RateLimiter::get_memory_stats() const {
 void RateLimiter::reset_stats() {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    total_requests_ = 0;
+    total_requests_     = 0;
     total_rate_limited_ = 0;
 
     LOG_INFO("Rate limiter statistics reset");
 }
 
-} // namespace ip_server
+}  // namespace ip_server

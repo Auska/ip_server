@@ -1,17 +1,17 @@
 #pragma once
 
+#include <chrono>
+#include <list>
+#include <mutex>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <unordered_map>
-#include <list>
-#include <mutex>
-#include <chrono>
 
 namespace ip_server {
 
 // Thread-safe LRU cache for IP lookup results
 class IPCache {
-public:
+   public:
     explicit IPCache(size_t max_size = 1000, std::chrono::seconds ttl = std::chrono::seconds(3600))
         : max_size_(max_size), ttl_(ttl) {}
 
@@ -46,7 +46,7 @@ public:
         auto it = cache_map_.find(ip);
         if (it != cache_map_.end()) {
             // Update existing entry
-            it->second.result = result;
+            it->second.result    = result;
             it->second.timestamp = std::chrono::system_clock::now();
             cache_list_.splice(cache_list_.begin(), cache_list_, it->second.list_it);
             return;
@@ -90,7 +90,7 @@ public:
 
     size_t max_size() const { return max_size_; }
 
-private:
+   private:
     struct CacheEntry {
         nlohmann::json result;
         std::chrono::system_clock::time_point timestamp;
@@ -104,4 +104,4 @@ private:
     std::chrono::seconds ttl_;
 };
 
-} // namespace ip_server
+}  // namespace ip_server

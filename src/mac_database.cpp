@@ -1,9 +1,11 @@
 #include "mac_database.h"
-#include "logger.h"
-#include <stdexcept>
+
 #include <algorithm>
 #include <cctype>
 #include <regex>
+#include <stdexcept>
+
+#include "logger.h"
 
 namespace ip_server {
 
@@ -36,8 +38,7 @@ bool OUIDatabase::open(const std::string& db_path) {
     }
 
     int status = sqlite3_open_v2(db_path.c_str(), &db_,
-                                  SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX,
-                                  nullptr);
+                                 SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nullptr);
 
     if (status != SQLITE_OK) {
         LOG_ERROR("Failed to open OUI database '" + db_path + "': " + sqlite3_errmsg(db_));
@@ -50,7 +51,7 @@ bool OUIDatabase::open(const std::string& db_path) {
 
     // Enable WAL mode for better read performance
     char* error_msg = nullptr;
-    status = sqlite3_exec(db_, "PRAGMA journal_mode=WAL;", nullptr, nullptr, &error_msg);
+    status          = sqlite3_exec(db_, "PRAGMA journal_mode=WAL;", nullptr, nullptr, &error_msg);
     if (status != SQLITE_OK) {
         LOG_WARNING("Failed to enable WAL mode: " + std::string(error_msg ? error_msg : "unknown"));
         sqlite3_free(error_msg);
@@ -118,12 +119,13 @@ nlohmann::json OUIDatabase::lookup(const std::string& mac_address) const {
     std::lock_guard<std::mutex> lock(query_mutex_);
 
     // Prepare SQL query
-    const char* sql = "SELECT oui, manufacturer, registry, short_name, "
-                      "device_type, registered_date, address, sources "
-                      "FROM oui_registry WHERE oui = ?";
+    const char* sql =
+        "SELECT oui, manufacturer, registry, short_name, "
+        "device_type, registered_date, address, sources "
+        "FROM oui_registry WHERE oui = ?";
 
     sqlite3_stmt* stmt = nullptr;
-    int status = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+    int status         = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
 
     if (status != SQLITE_OK) {
         result["error"] = std::string("Failed to prepare statement: ") + sqlite3_errmsg(db_);
@@ -142,8 +144,8 @@ nlohmann::json OUIDatabase::lookup(const std::string& mac_address) const {
     status = sqlite3_step(stmt);
 
     if (status == SQLITE_ROW) {
-        result["mac"] = mac_address;
-        result["oui"] = oui;
+        result["mac"]   = mac_address;
+        result["oui"]   = oui;
         result["found"] = true;
 
         // Extract columns
@@ -171,8 +173,8 @@ nlohmann::json OUIDatabase::lookup(const std::string& mac_address) const {
         if (col) result["sources"] = col;
 
     } else if (status == SQLITE_DONE) {
-        result["mac"] = mac_address;
-        result["oui"] = oui;
+        result["mac"]   = mac_address;
+        result["oui"]   = oui;
         result["found"] = false;
     } else {
         result["error"] = std::string("Query failed: ") + sqlite3_errmsg(db_);
@@ -182,4 +184,4 @@ nlohmann::json OUIDatabase::lookup(const std::string& mac_address) const {
     return result;
 }
 
-} // namespace ip_server
+}  // namespace ip_server

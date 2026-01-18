@@ -1,15 +1,17 @@
 #include <gtest/gtest.h>
-#include "database.h"
-#include "types.h"
+
+#include <chrono>
 #include <filesystem>
 #include <future>
-#include <chrono>
 #include <thread>
+
+#include "database.h"
+#include "types.h"
 
 using namespace ip_server;
 
 class DatabaseTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         // Get the project root directory
         // Tests can be run from project root, build/, or build/tests/
@@ -17,15 +19,16 @@ protected:
         std::filesystem::path project_root;
 
         // Check if we're in build/tests/
-        if (current_path.filename() == "tests" && current_path.parent_path().filename() == "build") {
+        if (current_path.filename() == "tests"
+            && current_path.parent_path().filename() == "build") {
             // Go up two levels to get to project root
             project_root = current_path.parent_path().parent_path();
-        } 
+        }
         // Check if we're in build/
         else if (current_path.filename() == "build") {
             // Go up one level to get to project root
             project_root = current_path.parent_path();
-        } 
+        }
         // Check if db directory exists in current path (project root)
         else if (std::filesystem::exists(current_path / "db" / "GeoLite2-City.mmdb")) {
             // Already at project root
@@ -35,14 +38,14 @@ protected:
         else {
             std::filesystem::path search_path = current_path;
             while (search_path.has_parent_path()) {
-                if (std::filesystem::exists(search_path / "CMakeLists.txt") && 
-                    std::filesystem::exists(search_path / "db" / "GeoLite2-City.mmdb")) {
+                if (std::filesystem::exists(search_path / "CMakeLists.txt")
+                    && std::filesystem::exists(search_path / "db" / "GeoLite2-City.mmdb")) {
                     project_root = search_path;
                     break;
                 }
                 search_path = search_path.parent_path();
             }
-            
+
             // If not found, default to current path
             if (project_root.empty()) {
                 project_root = current_path;
@@ -50,13 +53,12 @@ protected:
         }
 
         city_db_path = project_root / "db" / "GeoLite2-City.mmdb";
-        asn_db_path = project_root / "db" / "GeoLite2-ASN.mmdb";
+        asn_db_path  = project_root / "db" / "GeoLite2-ASN.mmdb";
 
         // Skip tests if database files don't exist
         if (!std::filesystem::exists(city_db_path) || !std::filesystem::exists(asn_db_path)) {
-            GTEST_SKIP() << "Database files not found. Expected at: " 
-                        << city_db_path.string() << " and " << asn_db_path.string()
-                        << ". Skipping database tests.";
+            GTEST_SKIP() << "Database files not found. Expected at: " << city_db_path.string()
+                         << " and " << asn_db_path.string() << ". Skipping database tests.";
         }
     }
 
@@ -153,9 +155,7 @@ TEST_F(DatabaseTest, ASNDatabaseLookupValidIP) {
 }
 
 TEST_F(DatabaseTest, IPGeoServiceInitialization) {
-    EXPECT_NO_THROW({
-        IPGeoService service(city_db_path.string(), asn_db_path.string());
-    });
+    EXPECT_NO_THROW({ IPGeoService service(city_db_path.string(), asn_db_path.string()); });
 }
 
 TEST_F(DatabaseTest, IPGeoServiceLookup) {
@@ -172,9 +172,9 @@ TEST_F(DatabaseTest, IPGeoServiceLookupMultipleIPs) {
     IPGeoService service(city_db_path.string(), asn_db_path.string());
 
     std::vector<std::string> test_ips = {
-        "8.8.8.8",      // Google DNS
-        "1.1.1.1",      // Cloudflare DNS
-        "114.114.114.114" // Chinese DNS
+        "8.8.8.8",         // Google DNS
+        "1.1.1.1",         // Cloudflare DNS
+        "114.114.114.114"  // Chinese DNS
     };
 
     for (const auto& ip : test_ips) {
@@ -249,12 +249,7 @@ TEST_F(DatabaseTest, CacheHitTracking) {
 TEST_F(DatabaseTest, CacheMissTracking) {
     IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
 
-    std::vector<std::string> unique_ips = {
-        "8.8.8.8",
-        "1.1.1.1",
-        "9.9.9.9",
-        "208.67.222.222"
-    };
+    std::vector<std::string> unique_ips = {"8.8.8.8", "1.1.1.1", "9.9.9.9", "208.67.222.222"};
 
     for (const auto& ip : unique_ips) {
         auto result = service.lookup(ip);
@@ -312,20 +307,16 @@ TEST_F(DatabaseTest, LatencyMeasurement) {
     // Latency should be positive
     EXPECT_GT(result.latency_ms, 0.0);
 
-    // Latency should be reasonable (less than 1 second for cached, less than 10 seconds for uncached)
+    // Latency should be reasonable (less than 1 second for cached, less than 10
+    // seconds for uncached)
     EXPECT_LT(result.latency_ms, 10000.0);
 }
 
 TEST_F(DatabaseTest, ParallelLookupConsistency) {
     IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
 
-    std::vector<std::string> test_ips = {
-        "8.8.8.8",
-        "1.1.1.1",
-        "9.9.9.9",
-        "208.67.222.222",
-        "208.67.220.220"
-    };
+    std::vector<std::string> test_ips = {"8.8.8.8", "1.1.1.1", "9.9.9.9", "208.67.222.222",
+                                         "208.67.220.220"};
 
     // Perform lookups
     std::vector<LookupResult> results;
@@ -383,8 +374,9 @@ TEST_F(DatabaseTest, BatchLookupPerformance) {
     for (const auto& ip : test_ips) {
         service.lookup(ip);
     }
-    auto first_batch_time = std::chrono::duration<double, std::milli>(
-        std::chrono::high_resolution_clock::now() - start).count();
+    auto first_batch_time =
+        std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start)
+            .count();
 
     // Second batch - all cache hits
     start = std::chrono::high_resolution_clock::now();
@@ -392,8 +384,9 @@ TEST_F(DatabaseTest, BatchLookupPerformance) {
         auto result = service.lookup(ip);
         EXPECT_TRUE(result.cache_hit);
     }
-    auto second_batch_time = std::chrono::duration<double, std::milli>(
-        std::chrono::high_resolution_clock::now() - start).count();
+    auto second_batch_time =
+        std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start)
+            .count();
 
     // Cached batch should be faster (at least 2x faster in most cases)
     // This is a more realistic expectation than 10x
@@ -418,27 +411,22 @@ TEST_F(DatabaseTest, CacheTTLExpiration) {
     auto result2 = service.lookup("8.8.8.8");
     EXPECT_TRUE(result2.cache_hit);
 
-    // Wait for TTL to expire (default TTL is 1 hour, so we can't test this without modifying cache)
-    // This test is conceptual - in production, you might want to add a method to set TTL
+    // Wait for TTL to expire (default TTL is 1 hour, so we can't test this
+    // without modifying cache) This test is conceptual - in production, you might
+    // want to add a method to set TTL
 }
 
 TEST_F(DatabaseTest, ConcurrentLookups) {
     IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
 
-    std::vector<std::string> test_ips = {
-        "8.8.8.8",
-        "1.1.1.1",
-        "9.9.9.9",
-        "208.67.222.222"
-    };
+    std::vector<std::string> test_ips = {"8.8.8.8", "1.1.1.1", "9.9.9.9", "208.67.222.222"};
 
     std::vector<std::future<LookupResult>> futures;
 
     // Launch concurrent lookups
     for (const auto& ip : test_ips) {
-        futures.push_back(std::async(std::launch::async, [&service, ip]() {
-            return service.lookup(ip);
-        }));
+        futures.push_back(
+            std::async(std::launch::async, [&service, ip]() { return service.lookup(ip); }));
     }
 
     // Wait for all results

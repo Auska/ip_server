@@ -1,23 +1,25 @@
 #pragma once
 
 #include <maxminddb.h>
-#include <nlohmann/json.hpp>
-#include <string>
+
+#include <atomic>
 #include <memory>
 #include <mutex>
-#include <atomic>
+#include <nlohmann/json.hpp>
+#include <string>
+
 #include "cache.h"
-#include "types.h"
 #include "mac_database.h"
+#include "types.h"
 
 namespace ip_server {
 
 class MaxMindDatabase {
-public:
+   public:
     MaxMindDatabase() = default;
     virtual ~MaxMindDatabase();
 
-    MaxMindDatabase(const MaxMindDatabase&) = delete;
+    MaxMindDatabase(const MaxMindDatabase&)            = delete;
     MaxMindDatabase& operator=(const MaxMindDatabase&) = delete;
     MaxMindDatabase(MaxMindDatabase&&) noexcept;
     MaxMindDatabase& operator=(MaxMindDatabase&&) noexcept;
@@ -28,29 +30,29 @@ public:
 
     nlohmann::json lookup(const std::string& ip_address) const;
 
-protected:
+   protected:
     MMDB_s mmdb_{};
     std::atomic<bool> is_open_{false};
     mutable std::mutex open_close_mutex_;  // Only for open/close operations
 };
 
 class CityDatabase : public MaxMindDatabase {
-public:
+   public:
     nlohmann::json lookup(const std::string& ip_address) const;
 };
 
 class ASNDatabase : public MaxMindDatabase {
-public:
+   public:
     nlohmann::json lookup(const std::string& ip_address) const;
 };
 
 class IPGeoService {
-public:
+   public:
     explicit IPGeoService(const std::string& city_db_path, const std::string& asn_db_path,
-                         size_t cache_size = 10000);
+                          size_t cache_size = 10000);
     ~IPGeoService() = default;
 
-    IPGeoService(const IPGeoService&) = delete;
+    IPGeoService(const IPGeoService&)            = delete;
     IPGeoService& operator=(const IPGeoService&) = delete;
 
     LookupResult lookup(const std::string& ip_address) const;
@@ -60,12 +62,12 @@ public:
     void set_cache_size(size_t size) { IPCache(size).swap(cache_); }
     void clear_cache() { cache_.clear(); }
     size_t cache_size() const { return cache_.size(); }
-    
+
     // Database status
     bool is_city_db_open() const { return city_db_.is_open(); }
     bool is_asn_db_open() const { return asn_db_.is_open(); }
 
-private:
+   private:
     CityDatabase city_db_;
     ASNDatabase asn_db_;
     mutable IPCache cache_;
@@ -73,11 +75,11 @@ private:
 };
 
 class MACLookupService {
-public:
+   public:
     explicit MACLookupService(const std::string& oui_db_path, size_t cache_size = 10000);
     ~MACLookupService() = default;
 
-    MACLookupService(const MACLookupService&) = delete;
+    MACLookupService(const MACLookupService&)            = delete;
     MACLookupService& operator=(const MACLookupService&) = delete;
 
     LookupResult lookup(const std::string& mac_address) const;
@@ -87,14 +89,14 @@ public:
     void set_cache_size(size_t size) { IPCache(size).swap(cache_); }
     void clear_cache() { cache_.clear(); }
     size_t cache_size() const { return cache_.size(); }
-    
+
     // Database status
     bool is_oui_db_open() const { return oui_db_.is_open(); }
 
-private:
+   private:
     OUIDatabase oui_db_;
     mutable IPCache cache_;
     bool cache_enabled_ = true;
 };
 
-} // namespace ip_server
+}  // namespace ip_server

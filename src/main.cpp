@@ -1,34 +1,32 @@
+#include <atomic>
+#include <csignal>
+#include <iostream>
+#include <memory>
+
 #include "config.h"
 #include "database.h"
 #include "http_server.h"
 #include "logger.h"
-#include "xdg.h"
 #include "metrics.h"
-#include <iostream>
-#include <csignal>
-#include <memory>
-#include <atomic>
+#include "xdg.h"
 
 namespace ip_server {
 
 class Application {
-public:
+   public:
     Application(const ServerConfig& config)
         : config_(config),
           geo_service_(config.city_db_path, config.asn_db_path, config.cache_size),
           mac_service_(config.oui_db_path, config.cache_size),
           http_server_(config.host, config.port, config.thread_pool_size,
-                      config.enable_rate_limiter, config.max_requests_per_minute,
-                      config.max_batch_size, config.enable_api_auth,
-                      config.api_keys_file, config.default_api_key) {
+                       config.enable_rate_limiter, config.max_requests_per_minute,
+                       config.max_batch_size, config.enable_api_auth, config.api_keys_file,
+                       config.default_api_key) {
+        http_server_.set_lookup_handler(
+            [this](const std::string& ip) { return geo_service_.lookup(ip); });
 
-        http_server_.set_lookup_handler([this](const std::string& ip) {
-            return geo_service_.lookup(ip);
-        });
-
-        http_server_.set_mac_lookup_handler([this](const std::string& mac) {
-            return mac_service_.lookup(mac);
-        });
+        http_server_.set_mac_lookup_handler(
+            [this](const std::string& mac) { return mac_service_.lookup(mac); });
     }
 
     bool run() {
@@ -70,7 +68,7 @@ public:
         return result;
     }
 
-private:
+   private:
     ServerConfig config_;
     IPGeoService geo_service_;
     MACLookupService mac_service_;
@@ -81,7 +79,7 @@ private:
 // Initialize static member
 std::atomic<bool> Application::shutdown_requested_(false);
 
-} // namespace ip_server
+}  // namespace ip_server
 
 int main(int argc, char* argv[]) {
     try {
@@ -93,9 +91,9 @@ int main(int argc, char* argv[]) {
         // Apply logging configuration
         LogConfig log_config;
         log_config.enable_file_logging = config.enable_file_logging;
-        log_config.log_file_path = config.log_file_path;
-        log_config.enable_stdout = config.log_enable_stdout;
-        
+        log_config.log_file_path       = config.log_file_path;
+        log_config.enable_stdout       = config.log_enable_stdout;
+
         // Parse rotation type
         if (config.log_rotation_type == "size") {
             log_config.rotation_type = RotationType::SIZE;
@@ -106,11 +104,11 @@ int main(int argc, char* argv[]) {
         } else {
             log_config.rotation_type = RotationType::NONE;
         }
-        
-        log_config.max_file_size = config.log_max_file_size;
+
+        log_config.max_file_size     = config.log_max_file_size;
         log_config.rotation_interval = std::chrono::minutes(config.log_rotation_interval_minutes);
-        log_config.max_backup_files = config.log_max_backup_files;
-        
+        log_config.max_backup_files  = config.log_max_backup_files;
+
         Logger::instance().set_config(log_config);
 
         // Ensure XDG directories exist
@@ -133,7 +131,9 @@ int main(int argc, char* argv[]) {
         LOG_ERROR("Fatal error: " + std::string(e.what()));
         LOG_ERROR("");
         LOG_ERROR("Please ensure you have valid MaxMind database files.");
-        LOG_ERROR("Download from: https://dev.maxmind.com/geoip/geolite2-free-geolocation-data");
+        LOG_ERROR(
+            "Download from: "
+            "https://dev.maxmind.com/geoip/geolite2-free-geolocation-data");
         return 1;
     }
 

@@ -1,7 +1,9 @@
 #include "auth.h"
-#include "logger.h"
+
 #include <fstream>
 #include <sstream>
+
+#include "logger.h"
 
 namespace ip_server {
 
@@ -36,7 +38,7 @@ void APIAuth::remove_key(const std::string& key) {
 
 bool APIAuth::is_valid(const std::string& key) const {
     if (!enabled_) {
-        return true; // If auth is disabled, all requests are allowed
+        return true;  // If auth is disabled, all requests are allowed
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
@@ -57,7 +59,7 @@ bool APIAuth::load_keys_from_file(const std::string& filepath) {
     int line_num = 0;
     while (std::getline(file, line)) {
         line_num++;
-        
+
         // Skip empty lines and comments
         if (line.empty() || line[0] == '#') {
             continue;
@@ -65,8 +67,8 @@ bool APIAuth::load_keys_from_file(const std::string& filepath) {
 
         // Trim whitespace
         size_t start = line.find_first_not_of(" \t\r\n");
-        size_t end = line.find_last_not_of(" \t\r\n");
-        
+        size_t end   = line.find_last_not_of(" \t\r\n");
+
         if (start != std::string::npos && end != std::string::npos) {
             std::string key = line.substr(start, end - start + 1);
             api_keys_.insert(key);
@@ -83,4 +85,4 @@ size_t APIAuth::key_count() const {
     return api_keys_.size();
 }
 
-} // namespace ip_server
+}  // namespace ip_server

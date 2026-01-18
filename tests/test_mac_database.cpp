@@ -1,15 +1,17 @@
 #include <gtest/gtest.h>
-#include "mac_database.h"
-#include "database.h"
+
+#include <chrono>
 #include <filesystem>
 #include <future>
-#include <chrono>
 #include <thread>
+
+#include "database.h"
+#include "mac_database.h"
 
 using namespace ip_server;
 
 class MACDatabaseTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         // Get the project root directory
         // Tests can be run from project root, build/, or build/tests/
@@ -17,15 +19,16 @@ protected:
         std::filesystem::path project_root;
 
         // Check if we're in build/tests/
-        if (current_path.filename() == "tests" && current_path.parent_path().filename() == "build") {
+        if (current_path.filename() == "tests"
+            && current_path.parent_path().filename() == "build") {
             // Go up two levels to get to project root
             project_root = current_path.parent_path().parent_path();
-        } 
+        }
         // Check if we're in build/
         else if (current_path.filename() == "build") {
             // Go up one level to get to project root
             project_root = current_path.parent_path();
-        } 
+        }
         // Check if db directory exists in current path (project root)
         else if (std::filesystem::exists(current_path / "db" / "master_oui.db")) {
             // Already at project root
@@ -35,14 +38,14 @@ protected:
         else {
             std::filesystem::path search_path = current_path;
             while (search_path.has_parent_path()) {
-                if (std::filesystem::exists(search_path / "CMakeLists.txt") && 
-                    std::filesystem::exists(search_path / "db" / "master_oui.db")) {
+                if (std::filesystem::exists(search_path / "CMakeLists.txt")
+                    && std::filesystem::exists(search_path / "db" / "master_oui.db")) {
                     project_root = search_path;
                     break;
                 }
                 search_path = search_path.parent_path();
             }
-            
+
             // If not found, default to current path
             if (project_root.empty()) {
                 project_root = current_path;
@@ -53,8 +56,8 @@ protected:
 
         // Skip tests if database file doesn't exist
         if (!std::filesystem::exists(oui_db_path)) {
-            GTEST_SKIP() << "OUI database file not found. Expected at: " 
-                        << oui_db_path.string() << ". Skipping MAC database tests.";
+            GTEST_SKIP() << "OUI database file not found. Expected at: " << oui_db_path.string()
+                         << ". Skipping MAC database tests.";
         }
     }
 
@@ -254,7 +257,7 @@ TEST_F(MACDatabaseTest, OUIDatabaseLookupWhenNotOpen) {
 }
 
 class MACLookupServiceTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         // Get the project root directory
         // Tests can be run from project root, build/, or build/tests/
@@ -262,15 +265,16 @@ protected:
         std::filesystem::path project_root;
 
         // Check if we're in build/tests/
-        if (current_path.filename() == "tests" && current_path.parent_path().filename() == "build") {
+        if (current_path.filename() == "tests"
+            && current_path.parent_path().filename() == "build") {
             // Go up two levels to get to project root
             project_root = current_path.parent_path().parent_path();
-        } 
+        }
         // Check if we're in build/
         else if (current_path.filename() == "build") {
             // Go up one level to get to project root
             project_root = current_path.parent_path();
-        } 
+        }
         // Check if db directory exists in current path (project root)
         else if (std::filesystem::exists(current_path / "db" / "master_oui.db")) {
             // Already at project root
@@ -280,14 +284,14 @@ protected:
         else {
             std::filesystem::path search_path = current_path;
             while (search_path.has_parent_path()) {
-                if (std::filesystem::exists(search_path / "CMakeLists.txt") && 
-                    std::filesystem::exists(search_path / "db" / "master_oui.db")) {
+                if (std::filesystem::exists(search_path / "CMakeLists.txt")
+                    && std::filesystem::exists(search_path / "db" / "master_oui.db")) {
                     project_root = search_path;
                     break;
                 }
                 search_path = search_path.parent_path();
             }
-            
+
             // If not found, default to current path
             if (project_root.empty()) {
                 project_root = current_path;
@@ -297,8 +301,8 @@ protected:
         oui_db_path = project_root / "db" / "master_oui.db";
 
         if (!std::filesystem::exists(oui_db_path)) {
-            GTEST_SKIP() << "OUI database file not found. Expected at: " 
-                        << oui_db_path.string() << ". Skipping MAC lookup service tests.";
+            GTEST_SKIP() << "OUI database file not found. Expected at: " << oui_db_path.string()
+                         << ". Skipping MAC lookup service tests.";
         }
     }
 
@@ -306,15 +310,13 @@ protected:
 };
 
 TEST_F(MACLookupServiceTest, MACLookupServiceInitialization) {
-    EXPECT_NO_THROW({
-        MACLookupService service(oui_db_path.string(), 1000);
-    });
+    EXPECT_NO_THROW({ MACLookupService service(oui_db_path.string(), 1000); });
 }
 
 TEST_F(MACLookupServiceTest, MACLookupServiceInitializationFailure) {
-    EXPECT_THROW({
-        MACLookupService service("/nonexistent/path/to/database.db", 1000);
-    }, std::runtime_error);
+    EXPECT_THROW(
+        { MACLookupService service("/nonexistent/path/to/database.db", 1000); },
+        std::runtime_error);
 }
 
 TEST_F(MACLookupServiceTest, MACLookupServiceLookup) {
@@ -409,9 +411,8 @@ TEST_F(MACLookupServiceTest, MACLookupServiceConcurrentLookups) {
 
     // Launch concurrent lookups
     for (int i = 0; i < 10; ++i) {
-        futures.push_back(std::async(std::launch::async, [&service]() {
-            return service.lookup("00:1A:2B:3C:4D:5E");
-        }));
+        futures.push_back(std::async(std::launch::async,
+                                     [&service]() { return service.lookup("00:1A:2B:3C:4D:5E"); }));
     }
 
     // Wait for all futures to complete

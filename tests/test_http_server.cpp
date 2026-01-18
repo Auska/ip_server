@@ -1,16 +1,18 @@
 #include <gtest/gtest.h>
-#include "http_server.h"
-#include "database.h"
-#include <thread>
-#include <chrono>
 #include <httplib.h>
+
+#include <chrono>
 #include <future>
+#include <thread>
 #include <vector>
+
+#include "database.h"
+#include "http_server.h"
 
 using namespace ip_server;
 
 class HTTPServerTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         // Get the project root directory
         // Tests can be run from project root, build/, or build/tests/
@@ -18,15 +20,16 @@ protected:
         std::filesystem::path project_root;
 
         // Check if we're in build/tests/
-        if (current_path.filename() == "tests" && current_path.parent_path().filename() == "build") {
+        if (current_path.filename() == "tests"
+            && current_path.parent_path().filename() == "build") {
             // Go up two levels to get to project root
             project_root = current_path.parent_path().parent_path();
-        } 
+        }
         // Check if we're in build/
         else if (current_path.filename() == "build") {
             // Go up one level to get to project root
             project_root = current_path.parent_path();
-        } 
+        }
         // Check if db directory exists in current path (project root)
         else if (std::filesystem::exists(current_path / "db" / "GeoLite2-City.mmdb")) {
             // Already at project root
@@ -36,14 +39,14 @@ protected:
         else {
             std::filesystem::path search_path = current_path;
             while (search_path.has_parent_path()) {
-                if (std::filesystem::exists(search_path / "CMakeLists.txt") && 
-                    std::filesystem::exists(search_path / "db" / "GeoLite2-City.mmdb")) {
+                if (std::filesystem::exists(search_path / "CMakeLists.txt")
+                    && std::filesystem::exists(search_path / "db" / "GeoLite2-City.mmdb")) {
                     project_root = search_path;
                     break;
                 }
                 search_path = search_path.parent_path();
             }
-            
+
             // If not found, default to current path
             if (project_root.empty()) {
                 project_root = current_path;
@@ -51,13 +54,12 @@ protected:
         }
 
         city_db_path = project_root / "db" / "GeoLite2-City.mmdb";
-        asn_db_path = project_root / "db" / "GeoLite2-ASN.mmdb";
+        asn_db_path  = project_root / "db" / "GeoLite2-ASN.mmdb";
 
         // Skip tests if database files don't exist
         if (!std::filesystem::exists(city_db_path) || !std::filesystem::exists(asn_db_path)) {
-            GTEST_SKIP() << "Database files not found. Expected at: " 
-                        << city_db_path.string() << " and " << asn_db_path.string()
-                        << ". Skipping HTTP server tests.";
+            GTEST_SKIP() << "Database files not found. Expected at: " << city_db_path.string()
+                         << " and " << asn_db_path.string() << ". Skipping HTTP server tests.";
         }
 
         // Initialize service
@@ -65,17 +67,13 @@ protected:
 
         // Start server on a random port
         test_port = 18080;
-        server = std::make_unique<IPGeoHTTPServer>("127.0.0.1", test_port);
+        server    = std::make_unique<IPGeoHTTPServer>("127.0.0.1", test_port);
 
-        server->set_lookup_handler([this](const std::string& ip) {
-            return service->lookup(ip);
-        });
+        server->set_lookup_handler([this](const std::string& ip) { return service->lookup(ip); });
 
         // Start server in background thread
         shutdown_requested.store(false);
-        server_thread = std::thread([this]() {
-            server->start(shutdown_requested);
-        });
+        server_thread = std::thread([this]() { server->start(shutdown_requested); });
 
         // Wait for server to start
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -206,9 +204,7 @@ TEST_F(HTTPServerTest, BatchLookupEndpointInvalidJson) {
 
 TEST_F(HTTPServerTest, CORSSupport) {
     httplib::Client client("127.0.0.1", test_port);
-    httplib::Headers headers = {
-        {"Origin", "http://example.com"}
-    };
+    httplib::Headers headers = {{"Origin", "http://example.com"}};
 
     auto result = client.Get("/lookup?ip=8.8.8.8", headers);
 
@@ -234,9 +230,8 @@ TEST_F(HTTPServerTest, MultipleConcurrentRequests) {
     std::vector<std::future<httplib::Result>> futures;
 
     for (int i = 0; i < 10; i++) {
-        futures.push_back(std::async(std::launch::async, [&client]() {
-            return client.Get("/lookup?ip=8.8.8.8");
-        }));
+        futures.push_back(std::async(std::launch::async,
+                                     [&client]() { return client.Get("/lookup?ip=8.8.8.8"); }));
     }
 
     for (auto& future : futures) {
@@ -255,13 +250,11 @@ TEST_F(HTTPServerTest, HTTPServerNotCopyable) {
 TEST_F(HTTPServerTest, RateLimiting) {
     // Create a new server with strict rate limiting (3 requests per minute)
     uint16_t rate_limit_port = 18081;
-    auto rate_limited_server = std::make_unique<IPGeoHTTPServer>(
-        "127.0.0.1", rate_limit_port, 4, true, 3
-    );
+    auto rate_limited_server =
+        std::make_unique<IPGeoHTTPServer>("127.0.0.1", rate_limit_port, 4, true, 3);
 
-    rate_limited_server->set_lookup_handler([this](const std::string& ip) {
-        return service->lookup(ip);
-    });
+    rate_limited_server->set_lookup_handler(
+        [this](const std::string& ip) { return service->lookup(ip); });
 
     // Start server in background thread
     std::atomic<bool> rl_shutdown_requested(false);
@@ -275,7 +268,7 @@ TEST_F(HTTPServerTest, RateLimiting) {
     httplib::Client client("127.0.0.1", rate_limit_port);
 
     // Make 5 requests (limit is 3)
-    int success_count = 0;
+    int success_count      = 0;
     int rate_limited_count = 0;
 
     for (int i = 0; i < 5; i++) {
@@ -294,8 +287,8 @@ TEST_F(HTTPServerTest, RateLimiting) {
         }
     }
 
-    EXPECT_GE(success_count, 3); // At least 3 requests should succeed
-    EXPECT_GE(rate_limited_count, 1); // At least 1 should be rate limited
+    EXPECT_GE(success_count, 3);       // At least 3 requests should succeed
+    EXPECT_GE(rate_limited_count, 1);  // At least 1 should be rate limited
 
     // Cleanup
     rl_shutdown_requested.store(true);
@@ -308,13 +301,11 @@ TEST_F(HTTPServerTest, RateLimiting) {
 TEST_F(HTTPServerTest, BatchSizeLimit) {
     // Create a new server with small batch size limit (3 IPs)
     uint16_t batch_limit_port = 18082;
-    auto batch_limited_server = std::make_unique<IPGeoHTTPServer>(
-        "127.0.0.1", batch_limit_port, 4, false, 100, 3
-    );
+    auto batch_limited_server =
+        std::make_unique<IPGeoHTTPServer>("127.0.0.1", batch_limit_port, 4, false, 100, 3);
 
-    batch_limited_server->set_lookup_handler([this](const std::string& ip) {
-        return service->lookup(ip);
-    });
+    batch_limited_server->set_lookup_handler(
+        [this](const std::string& ip) { return service->lookup(ip); });
 
     // Start server in background thread
     std::atomic<bool> bl_shutdown_requested(false);
@@ -366,13 +357,11 @@ TEST_F(HTTPServerTest, BatchSizeLimit) {
 TEST_F(HTTPServerTest, RateLimitingWithBatchRequests) {
     // Create a new server with strict rate limiting (2 requests per minute)
     uint16_t rate_limit_batch_port = 18083;
-    auto rate_limited_server = std::make_unique<IPGeoHTTPServer>(
-        "127.0.0.1", rate_limit_batch_port, 4, true, 2
-    );
+    auto rate_limited_server =
+        std::make_unique<IPGeoHTTPServer>("127.0.0.1", rate_limit_batch_port, 4, true, 2);
 
-    rate_limited_server->set_lookup_handler([this](const std::string& ip) {
-        return service->lookup(ip);
-    });
+    rate_limited_server->set_lookup_handler(
+        [this](const std::string& ip) { return service->lookup(ip); });
 
     // Start server in background thread
     std::atomic<bool> rlb_shutdown_requested(false);
@@ -386,7 +375,7 @@ TEST_F(HTTPServerTest, RateLimitingWithBatchRequests) {
     httplib::Client client("127.0.0.1", rate_limit_batch_port);
 
     // Make 3 batch requests (limit is 2)
-    int success_count = 0;
+    int success_count      = 0;
     int rate_limited_count = 0;
 
     for (int i = 0; i < 3; i++) {
@@ -403,8 +392,8 @@ TEST_F(HTTPServerTest, RateLimitingWithBatchRequests) {
         }
     }
 
-    EXPECT_GE(success_count, 2); // At least 2 requests should succeed
-    EXPECT_GE(rate_limited_count, 1); // At least 1 should be rate limited
+    EXPECT_GE(success_count, 2);       // At least 2 requests should succeed
+    EXPECT_GE(rate_limited_count, 1);  // At least 1 should be rate limited
 
     // Cleanup
     rlb_shutdown_requested.store(true);
@@ -417,13 +406,11 @@ TEST_F(HTTPServerTest, RateLimitingWithBatchRequests) {
 TEST_F(HTTPServerTest, DisabledRateLimiter) {
     // Create a new server with rate limiter disabled
     uint16_t no_rate_limit_port = 18084;
-    auto no_rate_limit_server = std::make_unique<IPGeoHTTPServer>(
-        "127.0.0.1", no_rate_limit_port, 4, false
-    );
+    auto no_rate_limit_server =
+        std::make_unique<IPGeoHTTPServer>("127.0.0.1", no_rate_limit_port, 4, false);
 
-    no_rate_limit_server->set_lookup_handler([this](const std::string& ip) {
-        return service->lookup(ip);
-    });
+    no_rate_limit_server->set_lookup_handler(
+        [this](const std::string& ip) { return service->lookup(ip); });
 
     // Start server in background thread
     std::atomic<bool> nrl_shutdown_requested(false);
@@ -464,10 +451,11 @@ TEST_F(HTTPServerTest, ParallelBatchLookupPerformance) {
     }
 
     // First batch - all cache misses
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start   = std::chrono::high_resolution_clock::now();
     auto result1 = client.Post("/lookup", batch_request.dump(), "application/json");
-    auto first_batch_time = std::chrono::duration<double, std::milli>(
-        std::chrono::high_resolution_clock::now() - start).count();
+    auto first_batch_time =
+        std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start)
+            .count();
 
     ASSERT_TRUE(result1);
     EXPECT_EQ(result1->status, 200);
@@ -484,10 +472,11 @@ TEST_F(HTTPServerTest, ParallelBatchLookupPerformance) {
     }
 
     // Second batch - all cache hits
-    start = std::chrono::high_resolution_clock::now();
+    start        = std::chrono::high_resolution_clock::now();
     auto result2 = client.Post("/lookup", batch_request.dump(), "application/json");
-    auto second_batch_time = std::chrono::duration<double, std::milli>(
-        std::chrono::high_resolution_clock::now() - start).count();
+    auto second_batch_time =
+        std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start)
+            .count();
 
     ASSERT_TRUE(result2);
     EXPECT_EQ(result2->status, 200);
@@ -510,11 +499,11 @@ TEST_F(HTTPServerTest, BatchLookupMixedIPs) {
 
     nlohmann::json batch_request;
     batch_request["ips"] = {
-        "8.8.8.8",           // Valid
-        "1.1.1.1",           // Valid
-        "999.999.999.999",   // Invalid
-        "invalid.ip",        // Invalid
-        "9.9.9.9"            // Valid
+        "8.8.8.8",          // Valid
+        "1.1.1.1",          // Valid
+        "999.999.999.999",  // Invalid
+        "invalid.ip",       // Invalid
+        "9.9.9.9"           // Valid
     };
 
     auto result = client.Post("/lookup", batch_request.dump(), "application/json");
@@ -545,11 +534,9 @@ TEST_F(HTTPServerTest, ConcurrentBatchRequests) {
     // Launch 5 concurrent batch requests
     for (int i = 0; i < 5; ++i) {
         nlohmann::json batch_request;
-        batch_request["ips"] = {
-            "8.8.8." + std::to_string(i % 255),
-            "1.1.1." + std::to_string(i % 255),
-            "9.9.9." + std::to_string(i % 255)
-        };
+        batch_request["ips"] = {"8.8.8." + std::to_string(i % 255),
+                                "1.1.1." + std::to_string(i % 255),
+                                "9.9.9." + std::to_string(i % 255)};
 
         futures.push_back(std::async(std::launch::async, [&client, batch_request]() {
             return client.Post("/lookup", batch_request.dump(), "application/json");
@@ -606,7 +593,7 @@ TEST_F(HTTPServerTest, MetricsAfterBatchLookup) {
     ASSERT_TRUE(initial_result);
     EXPECT_EQ(initial_result->status, 200);
 
-    auto initial_json = nlohmann::json::parse(initial_result->body);
+    auto initial_json         = nlohmann::json::parse(initial_result->body);
     uint64_t initial_requests = initial_json["metrics"]["total_requests"];
 
     // Perform batch lookup with 10 IPs
@@ -624,7 +611,7 @@ TEST_F(HTTPServerTest, MetricsAfterBatchLookup) {
     ASSERT_TRUE(updated_result);
     EXPECT_EQ(updated_result->status, 200);
 
-    auto updated_json = nlohmann::json::parse(updated_result->body);
+    auto updated_json         = nlohmann::json::parse(updated_result->body);
     uint64_t updated_requests = updated_json["metrics"]["total_requests"];
 
     // Request count should increase by 10
@@ -659,14 +646,9 @@ TEST_F(HTTPServerTest, BatchLookupResponseOrdering) {
     httplib::Client client("127.0.0.1", test_port);
 
     nlohmann::json batch_request;
-    std::vector<std::string> test_ips = {
-        "8.8.8.8",
-        "1.1.1.1",
-        "9.9.9.9",
-        "208.67.222.222",
-        "208.67.220.220"
-    };
-    batch_request["ips"] = test_ips;
+    std::vector<std::string> test_ips = {"8.8.8.8", "1.1.1.1", "9.9.9.9", "208.67.222.222",
+                                         "208.67.220.220"};
+    batch_request["ips"]              = test_ips;
 
     auto result = client.Post("/lookup", batch_request.dump(), "application/json");
 

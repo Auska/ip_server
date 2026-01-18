@@ -6,4 +6,4 @@ namespace ip_server {
 
 // Future implementations can be added here
 
-} // namespace ip_server
+}  // namespace ip_server

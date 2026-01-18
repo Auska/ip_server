@@ -1,12 +1,14 @@
 #include <gtest/gtest.h>
-#include "rate_limiter.h"
-#include <thread>
+
 #include <chrono>
+#include <thread>
+
+#include "rate_limiter.h"
 
 using namespace ip_server;
 
 class RateLimiterTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         // Create a rate limiter with 5 requests per minute
         limiter = std::make_unique<RateLimiter>(5, std::chrono::seconds(60));
@@ -62,7 +64,7 @@ TEST_F(RateLimiterTest, TimeWindowExpiration) {
     // Wait for the time window to expire (60 seconds)
     // For testing purposes, we'll use a shorter window
     auto short_limiter = std::make_unique<RateLimiter>(3, std::chrono::seconds(1));
-    std::string ip2 = "192.168.1.3";
+    std::string ip2    = "192.168.1.3";
 
     // Make 3 requests
     for (int i = 0; i < 3; i++) {
@@ -113,7 +115,7 @@ TEST_F(RateLimiterTest, CleanupOldEntries) {
 
     // Create a short-lived limiter for testing cleanup
     auto short_limiter = std::make_unique<RateLimiter>(3, std::chrono::seconds(1));
-    std::string ip2 = "192.168.1.3";
+    std::string ip2    = "192.168.1.3";
 
     // Make requests
     for (int i = 0; i < 3; i++) {
@@ -133,7 +135,7 @@ TEST_F(RateLimiterTest, CleanupOldEntries) {
 TEST_F(RateLimiterTest, ZeroLimit) {
     // Create a rate limiter with 0 requests allowed
     auto zero_limiter = std::make_unique<RateLimiter>(0, std::chrono::seconds(60));
-    std::string ip = "192.168.1.1";
+    std::string ip    = "192.168.1.1";
 
     // No requests should be allowed
     EXPECT_FALSE(zero_limiter->is_allowed(ip));
@@ -143,7 +145,7 @@ TEST_F(RateLimiterTest, ZeroLimit) {
 TEST_F(RateLimiterTest, LargeLimit) {
     // Create a rate limiter with a large limit
     auto large_limiter = std::make_unique<RateLimiter>(1000, std::chrono::seconds(60));
-    std::string ip = "192.168.1.1";
+    std::string ip     = "192.168.1.1";
 
     // Make 100 requests
     for (int i = 0; i < 100; i++) {
@@ -155,8 +157,8 @@ TEST_F(RateLimiterTest, LargeLimit) {
 }
 
 TEST_F(RateLimiterTest, ConcurrentRequests) {
-    std::string ip = "192.168.1.1";
-    const int num_threads = 10;
+    std::string ip                = "192.168.1.1";
+    const int num_threads         = 10;
     const int requests_per_thread = 10;
 
     std::vector<std::thread> threads;
@@ -200,7 +202,7 @@ TEST_F(RateLimiterTest, IPv6Address) {
 
 TEST_F(RateLimiterTest, SlidingWindowBehavior) {
     auto short_limiter = std::make_unique<RateLimiter>(3, std::chrono::seconds(2));
-    std::string ip = "192.168.1.1";
+    std::string ip     = "192.168.1.1";
 
     // Make 3 requests at t=0
     for (int i = 0; i < 3; i++) {
@@ -265,8 +267,8 @@ TEST_F(RateLimiterTest, MemoryStatsWithRateLimiting) {
 
 TEST_F(RateLimiterTest, CleanupRemovesIdleRecords) {
     auto short_limiter = std::make_unique<RateLimiter>(5, std::chrono::seconds(2));
-    std::string ip1 = "192.168.1.1";
-    std::string ip2 = "192.168.1.2";
+    std::string ip1    = "192.168.1.1";
+    std::string ip2    = "192.168.1.2";
 
     // Make requests from both IPs
     short_limiter->is_allowed(ip1);

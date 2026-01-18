@@ -1,14 +1,14 @@
 #pragma once
 
+#include <mutex>
 #include <string>
 #include <unordered_set>
-#include <mutex>
 #include <vector>
 
 namespace ip_server {
 
 class APIAuth {
-public:
+   public:
     explicit APIAuth(bool enabled = false);
     ~APIAuth() = default;
 
@@ -33,10 +33,10 @@ public:
     // Get number of registered keys
     size_t key_count() const;
 
-private:
+   private:
     bool enabled_;
     std::unordered_set<std::string> api_keys_;
     mutable std::mutex mutex_;
 };
 
-} // namespace ip_server
+}  // namespace ip_server

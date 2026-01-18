@@ -1,17 +1,19 @@
 #include <benchmark/benchmark.h>
-#include "database.h"
-#include "mac_database.h"
-#include "types.h"
-#include "cache.h"
-#include "rate_limiter.h"
-#include "auth.h"
-#include <filesystem>
-#include <vector>
-#include <string>
-#include <thread>
+
 #include <atomic>
+#include <filesystem>
 #include <future>
 #include <random>
+#include <string>
+#include <thread>
+#include <vector>
+
+#include "auth.h"
+#include "cache.h"
+#include "database.h"
+#include "mac_database.h"
+#include "rate_limiter.h"
+#include "types.h"
 
 using namespace ip_server;
 
@@ -21,8 +23,8 @@ std::filesystem::path find_project_root() {
 
     auto path = current_path;
     while (path.has_parent_path()) {
-        if (std::filesystem::exists(path / "CMakeLists.txt") &&
-            std::filesystem::exists(path / "db")) {
+        if (std::filesystem::exists(path / "CMakeLists.txt")
+            && std::filesystem::exists(path / "db")) {
             return path;
         }
         path = path.parent_path();
@@ -35,10 +37,10 @@ std::filesystem::path find_project_root() {
 // ============================================================================
 
 class MACDatabaseBenchmark : public benchmark::Fixture {
-protected:
+   protected:
     void SetUp(::benchmark::State& state) override {
         auto project_root = find_project_root();
-        oui_db_path = project_root / "db" / "master_oui.db";
+        oui_db_path       = project_root / "db" / "master_oui.db";
 
         if (!std::filesystem::exists(oui_db_path)) {
             state.SkipWithError("OUI database file not found");
@@ -48,23 +50,13 @@ protected:
         oui_db_.open(oui_db_path.string());
 
         // Test MAC addresses
-        test_macs_ = {
-            "00:1A:2B:3C:4D:5E",
-            "00:1A:2B:3C:4D:5F",
-            "F4:EA:B5:12:34:56",
-            "00:0C:29:AB:CD:EF",
-            "00:50:56:C0:00:08",
-            "00:15:5D:00:00:01",
-            "00:1B:21:00:00:00",
-            "00:1E:4F:00:00:00",
-            "00:21:5C:00:00:00",
-            "00:24:81:00:00:00"
-        };
+        test_macs_ = {"00:1A:2B:3C:4D:5E", "00:1A:2B:3C:4D:5F", "F4:EA:B5:12:34:56",
+                      "00:0C:29:AB:CD:EF", "00:50:56:C0:00:08", "00:15:5D:00:00:01",
+                      "00:1B:21:00:00:00", "00:1E:4F:00:00:00", "00:21:5C:00:00:00",
+                      "00:24:81:00:00:00"};
     }
 
-    void TearDown(const ::benchmark::State& /*state*/) override {
-        oui_db_.close();
-    }
+    void TearDown(const ::benchmark::State& /*state*/) override { oui_db_.close(); }
 
     std::filesystem::path oui_db_path;
     OUIDatabase oui_db_;
@@ -91,10 +83,10 @@ BENCHMARK_F(MACDatabaseBenchmark, OUIDatabase_MultipleLookup)(benchmark::State& 
 
 BENCHMARK_F(MACDatabaseBenchmark, OUIDatabase_MACFormatVariants)(benchmark::State& state) {
     std::vector<std::string> mac_formats = {
-        "00:1A:2B:3C:4D:5E",   // Colon
-        "00-1A-2B-3C-4D-5E",   // Hyphen
-        "001A2B3C4D5E",        // No separator
-        "00:1a:2b:3c:4d:5e"    // Lowercase
+        "00:1A:2B:3C:4D:5E",  // Colon
+        "00-1A-2B-3C-4D-5E",  // Hyphen
+        "001A2B3C4D5E",       // No separator
+        "00:1a:2b:3c:4d:5e"   // Lowercase
     };
     size_t index = 0;
     for (auto _ : state) {
@@ -118,11 +110,11 @@ BENCHMARK_F(MACDatabaseBenchmark, OUIDatabase_NotFoundLookup)(benchmark::State& 
 // ============================================================================
 
 class CacheBenchmark : public benchmark::Fixture {
-protected:
+   protected:
     void SetUp(::benchmark::State& state) override {
         auto project_root = find_project_root();
-        city_db_path = project_root / "db" / "GeoLite2-City.mmdb";
-        asn_db_path = project_root / "db" / "GeoLite2-ASN.mmdb";
+        city_db_path      = project_root / "db" / "GeoLite2-City.mmdb";
+        asn_db_path       = project_root / "db" / "GeoLite2-ASN.mmdb";
 
         if (!std::filesystem::exists(city_db_path) || !std::filesystem::exists(asn_db_path)) {
             state.SkipWithError("Database files not found");
@@ -144,10 +136,9 @@ protected:
     void generate_test_ips(size_t count) {
         test_ips_.reserve(count);
         for (size_t i = 0; i < count; ++i) {
-            test_ips_.push_back(std::to_string((i >> 24) & 0xFF) + "." +
-                               std::to_string((i >> 16) & 0xFF) + "." +
-                               std::to_string((i >> 8) & 0xFF) + "." +
-                               std::to_string(i & 0xFF));
+            test_ips_.push_back(std::to_string((i >> 24) & 0xFF) + "."
+                                + std::to_string((i >> 16) & 0xFF) + "."
+                                + std::to_string((i >> 8) & 0xFF) + "." + std::to_string(i & 0xFF));
         }
     }
 
@@ -228,7 +219,7 @@ BENCHMARK_REGISTER_F(CacheBenchmark, Cache_Eviction)->Range(100, 10000);
 // ============================================================================
 
 class RateLimiterBenchmark : public benchmark::Fixture {
-protected:
+   protected:
     void SetUp(::benchmark::State& state) override {
         test_ips_.reserve(1000);
         for (int i = 0; i < 1000; ++i) {
@@ -313,19 +304,19 @@ BENCHMARK_F(RateLimiterBenchmark, RateLimiter_MemoryStats)(benchmark::State& sta
 // ============================================================================
 
 class BatchLookupBenchmark : public benchmark::Fixture {
-protected:
+   protected:
     void SetUp(::benchmark::State& state) override {
         auto project_root = find_project_root();
-        city_db_path = project_root / "db" / "GeoLite2-City.mmdb";
-        asn_db_path = project_root / "db" / "GeoLite2-ASN.mmdb";
+        city_db_path      = project_root / "db" / "GeoLite2-City.mmdb";
+        asn_db_path       = project_root / "db" / "GeoLite2-ASN.mmdb";
 
         if (!std::filesystem::exists(city_db_path) || !std::filesystem::exists(asn_db_path)) {
             state.SkipWithError("Database files not found");
             return;
         }
 
-        service_ = std::make_unique<IPGeoService>(
-            city_db_path.string(), asn_db_path.string(), 10000);
+        service_ =
+            std::make_unique<IPGeoService>(city_db_path.string(), asn_db_path.string(), 10000);
         service_->set_cache_enabled(true);
     }
 
@@ -339,10 +330,9 @@ BENCHMARK_DEFINE_F(BatchLookupBenchmark, BatchLookup_Sequential)(benchmark::Stat
     batch_ips.reserve(state.range(0));
 
     for (int i = 0; i < state.range(0); ++i) {
-        batch_ips.push_back(std::to_string((i >> 24) & 0xFF) + "." +
-                           std::to_string((i >> 16) & 0xFF) + "." +
-                           std::to_string((i >> 8) & 0xFF) + "." +
-                           std::to_string(i & 0xFF));
+        batch_ips.push_back(std::to_string((i >> 24) & 0xFF) + "."
+                            + std::to_string((i >> 16) & 0xFF) + "."
+                            + std::to_string((i >> 8) & 0xFF) + "." + std::to_string(i & 0xFF));
     }
 
     for (auto _ : state) {
@@ -360,10 +350,9 @@ BENCHMARK_DEFINE_F(BatchLookupBenchmark, BatchLookup_Parallel)(benchmark::State&
     batch_ips.reserve(state.range(0));
 
     for (int i = 0; i < state.range(0); ++i) {
-        batch_ips.push_back(std::to_string((i >> 24) & 0xFF) + "." +
-                           std::to_string((i >> 16) & 0xFF) + "." +
-                           std::to_string((i >> 8) & 0xFF) + "." +
-                           std::to_string(i & 0xFF));
+        batch_ips.push_back(std::to_string((i >> 24) & 0xFF) + "."
+                            + std::to_string((i >> 16) & 0xFF) + "."
+                            + std::to_string((i >> 8) & 0xFF) + "." + std::to_string(i & 0xFF));
     }
 
     for (auto _ : state) {
@@ -371,9 +360,8 @@ BENCHMARK_DEFINE_F(BatchLookupBenchmark, BatchLookup_Parallel)(benchmark::State&
         futures.reserve(batch_ips.size());
 
         for (const auto& ip : batch_ips) {
-            futures.push_back(std::async(std::launch::async, [this, &ip]() {
-                return service_->lookup(ip);
-            }));
+            futures.push_back(
+                std::async(std::launch::async, [this, &ip]() { return service_->lookup(ip); }));
         }
 
         for (auto& future : futures) {
@@ -390,10 +378,9 @@ BENCHMARK_F(BatchLookupBenchmark, BatchLookup_ThreadPool)(benchmark::State& stat
     batch_ips.reserve(50);
 
     for (int i = 0; i < 50; ++i) {
-        batch_ips.push_back(std::to_string((i >> 24) & 0xFF) + "." +
-                           std::to_string((i >> 16) & 0xFF) + "." +
-                           std::to_string((i >> 8) & 0xFF) + "." +
-                           std::to_string(i & 0xFF));
+        batch_ips.push_back(std::to_string((i >> 24) & 0xFF) + "."
+                            + std::to_string((i >> 16) & 0xFF) + "."
+                            + std::to_string((i >> 8) & 0xFF) + "." + std::to_string(i & 0xFF));
     }
 
     std::vector<std::thread> threads;
@@ -431,11 +418,11 @@ BENCHMARK_F(BatchLookupBenchmark, BatchLookup_ThreadPool)(benchmark::State& stat
 // ============================================================================
 
 class MemoryBenchmark : public benchmark::Fixture {
-protected:
+   protected:
     void SetUp(::benchmark::State& state) override {
         auto project_root = find_project_root();
-        city_db_path = project_root / "db" / "GeoLite2-City.mmdb";
-        asn_db_path = project_root / "db" / "GeoLite2-ASN.mmdb";
+        city_db_path      = project_root / "db" / "GeoLite2-City.mmdb";
+        asn_db_path       = project_root / "db" / "GeoLite2-ASN.mmdb";
 
         if (!std::filesystem::exists(city_db_path) || !std::filesystem::exists(asn_db_path)) {
             state.SkipWithError("Database files not found");
@@ -454,10 +441,8 @@ BENCHMARK_DEFINE_F(MemoryBenchmark, Memory_IPServiceWithCache)(benchmark::State&
 
         // Pre-warm cache
         for (int i = 0; i < static_cast<int>(state.range(0)); ++i) {
-            service.lookup(std::to_string(i % 256) + "." +
-                          std::to_string(i % 256) + "." +
-                          std::to_string(i % 256) + "." +
-                          std::to_string(i % 256));
+            service.lookup(std::to_string(i % 256) + "." + std::to_string(i % 256) + "."
+                           + std::to_string(i % 256) + "." + std::to_string(i % 256));
         }
     }
     state.SetItemsProcessed(state.iterations());
@@ -520,19 +505,17 @@ BENCHMARK_F(AuthBenchmark, APIAuth_LoadKeysFromFile)(benchmark::State& state) {
 class JSONBenchmark : public benchmark::Fixture {};
 
 BENCHMARK_F(JSONBenchmark, JSON_Serialization)(benchmark::State& state) {
-    nlohmann::json test_data = {
-        {"ip", "8.8.8.8"},
-        {"found", true},
-        {"country", "United States"},
-        {"country_code", "US"},
-        {"city", "Mountain View"},
-        {"continent", "North America"},
-        {"latitude", 37.4223},
-        {"longitude", -122.085},
-        {"timezone", "America/Los_Angeles"},
-        {"as_organization", "Google LLC"},
-        {"as_number", 15169}
-    };
+    nlohmann::json test_data = {{"ip", "8.8.8.8"},
+                                {"found", true},
+                                {"country", "United States"},
+                                {"country_code", "US"},
+                                {"city", "Mountain View"},
+                                {"continent", "North America"},
+                                {"latitude", 37.4223},
+                                {"longitude", -122.085},
+                                {"timezone", "America/Los_Angeles"},
+                                {"as_organization", "Google LLC"},
+                                {"as_number", 15169}};
 
     for (auto _ : state) {
         auto str = test_data.dump();
@@ -542,7 +525,8 @@ BENCHMARK_F(JSONBenchmark, JSON_Serialization)(benchmark::State& state) {
 }
 
 BENCHMARK_F(JSONBenchmark, JSON_Deserialization)(benchmark::State& state) {
-    std::string json_str = R"({"ip":"8.8.8.8","found":true,"country":"United States","country_code":"US","city":"Mountain View","latitude":37.4223,"longitude":-122.085})";
+    std::string json_str =
+        R"({"ip":"8.8.8.8","found":true,"country":"United States","country_code":"US","city":"Mountain View","latitude":37.4223,"longitude":-122.085})";
 
     for (auto _ : state) {
         auto j = nlohmann::json::parse(json_str);
@@ -555,12 +539,10 @@ BENCHMARK_F(JSONBenchmark, JSON_LargeSerialization)(benchmark::State& state) {
     nlohmann::json test_data = nlohmann::json::array();
 
     for (int i = 0; i < 100; ++i) {
-        test_data.push_back({
-            {"ip", "8.8.8." + std::to_string(i)},
-            {"found", true},
-            {"country", "United States"},
-            {"city", "City " + std::to_string(i)}
-        });
+        test_data.push_back({{"ip", "8.8.8." + std::to_string(i)},
+                             {"found", true},
+                             {"country", "United States"},
+                             {"city", "City " + std::to_string(i)}});
     }
 
     for (auto _ : state) {
@@ -575,19 +557,19 @@ BENCHMARK_F(JSONBenchmark, JSON_LargeSerialization)(benchmark::State& state) {
 // ============================================================================
 
 class ConcurrentBenchmark : public benchmark::Fixture {
-protected:
+   protected:
     void SetUp(::benchmark::State& state) override {
         auto project_root = find_project_root();
-        city_db_path = project_root / "db" / "GeoLite2-City.mmdb";
-        asn_db_path = project_root / "db" / "GeoLite2-ASN.mmdb";
+        city_db_path      = project_root / "db" / "GeoLite2-City.mmdb";
+        asn_db_path       = project_root / "db" / "GeoLite2-ASN.mmdb";
 
         if (!std::filesystem::exists(city_db_path) || !std::filesystem::exists(asn_db_path)) {
             state.SkipWithError("Database files not found");
             return;
         }
 
-        service_ = std::make_unique<IPGeoService>(
-            city_db_path.string(), asn_db_path.string(), 10000);
+        service_ =
+            std::make_unique<IPGeoService>(city_db_path.string(), asn_db_path.string(), 10000);
         service_->set_cache_enabled(true);
     }
 
@@ -599,10 +581,9 @@ protected:
 BENCHMARK_DEFINE_F(ConcurrentBenchmark, Concurrent_IPLookup)(benchmark::State& state) {
     std::vector<std::string> test_ips;
     for (int i = 0; i < 100; ++i) {
-        test_ips.push_back(std::to_string((i >> 24) & 0xFF) + "." +
-                          std::to_string((i >> 16) & 0xFF) + "." +
-                          std::to_string((i >> 8) & 0xFF) + "." +
-                          std::to_string(i & 0xFF));
+        test_ips.push_back(std::to_string((i >> 24) & 0xFF) + "." + std::to_string((i >> 16) & 0xFF)
+                           + "." + std::to_string((i >> 8) & 0xFF) + "."
+                           + std::to_string(i & 0xFF));
     }
 
     std::atomic<bool> running{true};

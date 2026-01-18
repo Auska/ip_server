@@ -1,8 +1,11 @@
 #include "xdg.h"
-#include <cstdlib>
+
 #include <pwd.h>
-#include <unistd.h>
 #include <sys/types.h>
+#include <unistd.h>
+
+#include <cstdlib>
+
 #include "logger.h"
 
 namespace ip_server {
@@ -151,4 +154,4 @@ void XDGPaths::ensure_directories() const {
     LOG_INFO("XDG directories ensured");
 }
 
-} // namespace ip_server
+}  // namespace ip_server

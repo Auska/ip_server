@@ -1,20 +1,21 @@
 #pragma once
 
-#include <nlohmann/json.hpp>
-#include <string>
+#include <sqlite3.h>
+
+#include <atomic>
 #include <memory>
 #include <mutex>
-#include <atomic>
-#include <sqlite3.h>
+#include <nlohmann/json.hpp>
+#include <string>
 
 namespace ip_server {
 
 class OUIDatabase {
-public:
+   public:
     OUIDatabase() = default;
     ~OUIDatabase();
 
-    OUIDatabase(const OUIDatabase&) = delete;
+    OUIDatabase(const OUIDatabase&)            = delete;
     OUIDatabase& operator=(const OUIDatabase&) = delete;
     OUIDatabase(OUIDatabase&&) noexcept;
     OUIDatabase& operator=(OUIDatabase&&) noexcept;
@@ -25,7 +26,7 @@ public:
 
     nlohmann::json lookup(const std::string& mac_address) const;
 
-private:
+   private:
     static std::string normalize_mac_address(const std::string& mac_address);
     static std::string extract_oui(const std::string& normalized_mac);
 
@@ -35,4 +36,4 @@ private:
     mutable std::mutex query_mutex_;
 };
 
-} // namespace ip_server
+}  // namespace ip_server

@@ -15,4 +15,4 @@ struct LookupResult {
         : data(d), cache_hit(hit), latency_ms(latency) {}
 };
 
-} // namespace ip_server
+}  // namespace ip_server
