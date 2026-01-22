@@ -425,10 +425,6 @@ void IPGeoHTTPServer::setup_routes() {
         }
     });
 
-    // Note: MAC lookup endpoints have been consolidated into /lookup
-    // Use GET /lookup?mac=... for single MAC lookup
-    // Use POST /lookup with {"macs": [...]} for batch MAC lookup
-
     LOG_INFO("HTTP routes configured");
 }
 

@@ -57,12 +57,6 @@ class IPGeoService {
 
     LookupResult lookup(const std::string& ip_address) const;
 
-    // Cache control
-    void set_cache_enabled(bool enabled) { cache_enabled_ = enabled; }
-    void set_cache_size(size_t size) { IPCache(size).swap(cache_); }
-    void clear_cache() { cache_.clear(); }
-    size_t cache_size() const { return cache_.size(); }
-
     // Database status
     bool is_city_db_open() const { return city_db_.is_open(); }
     bool is_asn_db_open() const { return asn_db_.is_open(); }
@@ -83,12 +77,6 @@ class MACLookupService {
     MACLookupService& operator=(const MACLookupService&) = delete;
 
     LookupResult lookup(const std::string& mac_address) const;
-
-    // Cache control
-    void set_cache_enabled(bool enabled) { cache_enabled_ = enabled; }
-    void set_cache_size(size_t size) { IPCache(size).swap(cache_); }
-    void clear_cache() { cache_.clear(); }
-    size_t cache_size() const { return cache_.size(); }
 
     // Database status
     bool is_oui_db_open() const { return oui_db_.is_open(); }

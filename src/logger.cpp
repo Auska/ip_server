@@ -64,11 +64,8 @@ Logger::~Logger() {
 void Logger::setup_sinks() {
     std::vector<spdlog::sink_ptr> sinks;
 
-    // Set log pattern: [YYYY-MM-DD HH:MM:SS.mmm] [LEVEL] message
-    std::string pattern = "[%Y-%m-%d %H:%M:%S.%e] [%^%L%$] %v";
-
     // Create pattern formatter with custom level flag
-    auto formatter = std::make_unique<spdlog::pattern_formatter>(pattern);
+    auto formatter = std::make_unique<spdlog::pattern_formatter>();
     formatter->add_flag<CustomLevelFormatter>('*').set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%*] %v");
 
     // Add stdout sink

@@ -120,34 +120,6 @@ BENCHMARK_F(DatabaseBenchmark, ASNDatabase_MultipleLookup)(benchmark::State& sta
     state.SetItemsProcessed(state.iterations());
 }
 
-// Benchmark IPGeoService lookup with cache enabled
-BENCHMARK_F(DatabaseBenchmark, IPGeoService_WithCache)(benchmark::State& state) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 10000);
-    service.set_cache_enabled(true);
-
-    size_t index = 0;
-    for (auto _ : state) {
-        auto result = service.lookup(test_ips_[index % test_ips_.size()]);
-        benchmark::DoNotOptimize(result);
-        index++;
-    }
-    state.SetItemsProcessed(state.iterations());
-}
-
-// Benchmark IPGeoService lookup without cache
-BENCHMARK_F(DatabaseBenchmark, IPGeoService_WithoutCache)(benchmark::State& state) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 10000);
-    service.set_cache_enabled(false);
-
-    size_t index = 0;
-    for (auto _ : state) {
-        auto result = service.lookup(test_ips_[index % test_ips_.size()]);
-        benchmark::DoNotOptimize(result);
-        index++;
-    }
-    state.SetItemsProcessed(state.iterations());
-}
-
 // Benchmark IPGeoService lookup with repeated IPs (cache hit)
 BENCHMARK_F(DatabaseBenchmark, IPGeoService_CacheHit)(benchmark::State& state) {
     IPGeoService service(city_db_path.string(), asn_db_path.string(), 10000);
@@ -166,20 +138,6 @@ BENCHMARK_F(DatabaseBenchmark, IPGeoService_CacheHit)(benchmark::State& state) {
         index++;
     }
     state.SetItemsProcessed(state.iterations());
-}
-
-// Benchmark cache operations
-BENCHMARK_F(DatabaseBenchmark, IPGeoService_CacheOperations)(benchmark::State& state) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 10000);
-    service.set_cache_enabled(true);
-
-    for (auto _ : state) {
-        service.clear_cache();
-        for (const auto& ip : test_ips_) {
-            service.lookup(ip);
-        }
-    }
-    state.SetItemsProcessed(state.iterations() * test_ips_.size());
 }
 
 // Benchmark CityDatabase open/close
@@ -231,7 +189,6 @@ BENCHMARK_F(DatabaseBenchmark, CityDatabase_IPv6Lookup)(benchmark::State& state)
 // Benchmark concurrent lookups (simulated)
 BENCHMARK_F(DatabaseBenchmark, IPGeoService_ConcurrentLookups)(benchmark::State& state) {
     IPGeoService service(city_db_path.string(), asn_db_path.string(), 10000);
-    service.set_cache_enabled(true);
 
     size_t index = 0;
     for (auto _ : state) {

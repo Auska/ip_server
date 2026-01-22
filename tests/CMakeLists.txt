@@ -42,7 +42,6 @@ set(PROJECT_SOURCES
     ${CMAKE_SOURCE_DIR}/src/database.cpp
     ${CMAKE_SOURCE_DIR}/src/mac_database.cpp
     ${CMAKE_SOURCE_DIR}/src/http_server.cpp
-    ${CMAKE_SOURCE_DIR}/src/types.cpp
     ${CMAKE_SOURCE_DIR}/src/logger.cpp
     ${CMAKE_SOURCE_DIR}/src/xdg.cpp
     ${CMAKE_SOURCE_DIR}/src/rate_limiter.cpp

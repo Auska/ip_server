@@ -286,19 +286,6 @@ TEST_F(DatabaseTest, CacheSizeLimit) {
     EXPECT_TRUE(result5.cache_hit);
 }
 
-TEST_F(DatabaseTest, CacheDisabled) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
-    service.set_cache_enabled(false);
-
-    // First lookup
-    auto result1 = service.lookup("8.8.8.8");
-    EXPECT_FALSE(result1.cache_hit);
-
-    // Second lookup - still cache miss because cache is disabled
-    auto result2 = service.lookup("8.8.8.8");
-    EXPECT_FALSE(result2.cache_hit);
-}
-
 TEST_F(DatabaseTest, LatencyMeasurement) {
     IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
 

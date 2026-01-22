@@ -15,6 +15,15 @@ bool parse_bool_string(const std::string& value) {
     return value == "true" || value == "1";
 }
 
+void apply_xdg_defaults(ServerConfig& config) {
+    auto& xdg            = XDGPaths::instance();
+    config.city_db_path  = xdg.city_db_path().string();
+    config.asn_db_path   = xdg.asn_db_path().string();
+    config.oui_db_path   = xdg.oui_db_path().string();
+    config.config_file   = xdg.config_file();
+    config.log_file_path = xdg.log_file_path().string();
+}
+
 }  // namespace
 
 ServerConfig ConfigParser::default_config() {
@@ -22,7 +31,6 @@ ServerConfig ConfigParser::default_config() {
     config.host             = "0.0.0.0";
     config.port             = 8080;
     config.thread_pool_size = 4;
-    config.use_xdg          = true;
     return config;
 }
 
@@ -90,12 +98,7 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
         }
 
         // Apply XDG defaults
-        auto& xdg            = XDGPaths::instance();
-        config.city_db_path  = xdg.city_db_path().string();
-        config.asn_db_path   = xdg.asn_db_path().string();
-        config.oui_db_path   = xdg.oui_db_path().string();
-        config.config_file   = xdg.config_file();
-        config.log_file_path = xdg.log_file_path().string();
+        apply_xdg_defaults(config);
 
         LOG_INFO("Using XDG paths:");
         LOG_INFO("  Config: " + config.config_file.string());
@@ -107,7 +110,6 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
         // Check if config file is specified
         if (result.count("config")) {
             config.config_file = result["config"].as<std::string>();
-            config.use_xdg     = false;
         }
 
         // Load from config file if it exists
@@ -122,12 +124,8 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
                          + config.config_file.string());
                 ServerConfig default_cfg = default_config();
                 // Apply XDG defaults to default config
-                auto& xdg                 = XDGPaths::instance();
-                default_cfg.city_db_path  = xdg.city_db_path().string();
-                default_cfg.asn_db_path   = xdg.asn_db_path().string();
-                default_cfg.oui_db_path   = xdg.oui_db_path().string();
-                default_cfg.log_file_path = xdg.log_file_path().string();
-                default_cfg.config_file   = config.config_file;
+                apply_xdg_defaults(default_cfg);
+                default_cfg.config_file = config.config_file;
 
                 if (save_to_file(default_cfg, config.config_file)) {
                     config = default_cfg;
@@ -160,14 +158,12 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
         }
         if (result.count("city-db")) {
             config.city_db_path = result["city-db"].as<std::string>();
-            config.use_xdg      = false;
         }
         if (result.count("asn-db")) {
             config.asn_db_path = result["asn-db"].as<std::string>();
         }
         if (result.count("oui-db")) {
             config.oui_db_path = result["oui-db"].as<std::string>();
-            config.use_xdg     = false;
         }
         if (result.count("enable-rate-limiter")) {
             config.enable_rate_limiter =
@@ -191,8 +187,7 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
         if (result.count("enable-file-logging")) {
             config.enable_file_logging =
                 parse_bool_string(result["enable-file-logging"].as<std::string>());
-            if (config.enable_file_logging && config.use_xdg
-                && config.log_file_path == "logs/ip_server.log") {
+            if (config.enable_file_logging && config.log_file_path == "logs/ip_server.log") {
                 config.log_file_path = XDGPaths::instance().log_file_path().string();
             }
         }
@@ -307,7 +302,8 @@ void ConfigParser::validate(const ServerConfig& config) {
 
     // Validate database paths
     for (const auto& [name, path] :
-         {std::make_pair("City", config.city_db_path), std::make_pair("ASN", config.asn_db_path)}) {
+         {std::make_pair("City", config.city_db_path), std::make_pair("ASN", config.asn_db_path),
+          std::make_pair("OUI", config.oui_db_path)}) {
         if (!path.empty() && !std::filesystem::exists(path)) {
             LOG_WARNING(name + std::string(" database file does not exist: ") + path);
         }
@@ -475,119 +471,6 @@ bool ConfigParser::save_to_file(const ServerConfig& config,
         LOG_ERROR("Failed to save configuration: " + std::string(e.what()));
         return false;
     }
-}
-
-void ConfigParser::print_help(const char* program_name) {
-    std::print("Usage: {} [options]\n", program_name);
-    std::print("\n");
-    std::print("IP Geolocation & AS Lookup Service\n");
-    std::print("\n");
-    std::print("Options:\n");
-    std::print("  --config <path>      Path to configuration file\n");
-    std::print("  --city-db <path>     Path to City MaxMind database\n");
-    std::print(
-        "                      (default: "
-        "~/.local/share/ip-server/databases/GeoLite2-City.mmdb)\n");
-    std::print("  --asn-db <path>      Path to ASN MaxMind database\n");
-    std::print(
-        "                      (default: "
-        "~/.local/share/ip-server/databases/GeoLite2-ASN.mmdb)\n");
-    std::print("  --host <address>     Server host address\n");
-    std::print("                      (default: 0.0.0.0)\n");
-    std::print("  --port <port>        Server port\n");
-    std::print("                      (default: 8080)\n");
-    std::print("  --threads <count>    Thread pool size\n");
-    std::print("                      (default: 4)\n");
-    std::print("  --enable-rate-limiter <true|false>\n");
-    std::print("                      Enable rate limiting\n");
-    std::print("                      (default: true)\n");
-    std::print("  --max-requests-per-minute <count>\n");
-    std::print("                      Maximum requests per IP per minute\n");
-    std::print("                      (default: 100)\n");
-    std::print("  --max-batch-size <count>\n");
-    std::print("                      Maximum batch size for batch lookup\n");
-    std::print("                      (default: 100)\n");
-    std::print("  --enable-api-auth <true|false>\n");
-    std::print("                      Enable API authentication\n");
-    std::print("                      (default: false)\n");
-    std::print("  --api-keys-file <path>\n");
-    std::print(
-        "                      Path to file containing API keys (one per "
-        "line)\n");
-    std::print("  --default-api-key <key>\n");
-    std::print("                      Default API key for testing\n");
-    std::print("  --enable-file-logging <true|false>\n");
-    std::print("                      Enable file logging\n");
-    std::print("                      (default: false)\n");
-    std::print("  --log-enable-stdout <true|false>\n");
-    std::print("                      Enable stdout logging\n");
-    std::print("                      (default: true)\n");
-    std::print("  --log-file <path>    Path to log file\n");
-    std::print(
-        "                      (default: "
-        "~/.local/state/ip-server/logs/ip_server.log)\n");
-    std::print("  --log-rotation <type>\n");
-    std::print("                      Log rotation type: none, size, time, both\n");
-    std::print("                      (default: size)\n");
-    std::print("  --log-max-size <MB>  Maximum log file size in MB before rotation\n");
-    std::print("                      (default: 10)\n");
-    std::print("  --log-rotation-interval <minutes>\n");
-    std::print(
-        "                      Time interval in minutes for time-based "
-        "rotation\n");
-    std::print("                      (default: 1440, 24 hours)\n");
-    std::print("  --log-max-backups <count>\n");
-    std::print("                      Maximum number of backup log files to keep\n");
-    std::print("                      (default: 5)\n");
-    std::print("  --no-xdg             Disable XDG directory standard\n");
-    std::print("  --help, -h           Show this help message\n");
-    std::print("\n");
-    std::print("XDG Directories:\n");
-    std::print(
-        "  Config:  $XDG_CONFIG_HOME/ip-server/ (default: "
-        "~/.config/ip-server/)\n");
-    std::print(
-        "  Data:    $XDG_DATA_HOME/ip-server/ (default: "
-        "~/.local/share/ip-server/)\n");
-    std::print("  Cache:   $XDG_CACHE_HOME/ip-server/ (default: ~/.cache/ip-server/)\n");
-    std::print(
-        "  Logs:    $XDG_STATE_HOME/ip-server/logs/ (default: "
-        "~/.local/state/ip-server/logs/)\n");
-    std::print("\n");
-    std::print("Environment Variables:\n");
-    std::print("  XDG_CONFIG_HOME  Configuration directory\n");
-    std::print("  XDG_DATA_HOME    Data directory\n");
-    std::print("  XDG_CACHE_HOME   Cache directory\n");
-    std::print("  XDG_STATE_HOME   State directory (logs)\n");
-    std::print("\n");
-    std::print("Examples:\n");
-    std::print("  {}\n", program_name);
-    std::print("  {} --port 9000\n", program_name);
-    std::print("  {} --config /path/to/config.json\n", program_name);
-    std::print(
-        "  {} --city-db /path/to/GeoLite2-City.mmdb --asn-db "
-        "/path/to/GeoLite2-ASN.mmdb\n",
-        program_name);
-    std::print("  {} --oui-db /path/to/master_oui.db\n", program_name);
-    std::print("  {} --host 127.0.0.1 --port 8080\n", program_name);
-    std::print("\n");
-    std::print("API Endpoints:\n");
-    std::print("  GET  /                       - Service information\n");
-    std::print("  GET  /health                 - Health check\n");
-    std::print("  GET  /lookup?ip=<address>     - Single IP lookup\n");
-    std::print("  POST /lookup                 - Batch lookup\n");
-    std::print(
-        "                                Body: {{\"ips\": [\"1.1.1.1\", "
-        "\"8.8.8.8\"]}}\n");
-    std::print("  GET  /mac/lookup?mac=<address> - Single MAC lookup\n");
-    std::print("  POST /mac/lookup             - Batch MAC lookup\n");
-    std::print(
-        "                                Body: {{\"macs\": "
-        "[\"00:1A:2B:3C:4D:5E\", \"F4:EA:B5:12:34:56\"]}}\n");
-    std::print("\n");
-    std::print(
-        "For more information, visit: "
-        "https://dev.maxmind.com/geoip/geolite2-free-geolocation-data\n");
 }
 
 }  // namespace ip_server

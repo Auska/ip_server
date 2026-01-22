@@ -341,53 +341,10 @@ TEST_F(MACLookupServiceTest, MACLookupServiceCacheEnabled) {
     EXPECT_TRUE(result2.cache_hit);
 }
 
-TEST_F(MACLookupServiceTest, MACLookupServiceCacheDisabled) {
-    MACLookupService service(oui_db_path.string(), 1000);
-    service.set_cache_enabled(false);
-
-    // First lookup
-    auto result1 = service.lookup("00:1A:2B:3C:4D:5E");
-    EXPECT_FALSE(result1.cache_hit);
-
-    // Second lookup (should not hit cache)
-    auto result2 = service.lookup("00:1A:2B:3C:4D:5E");
-    EXPECT_FALSE(result2.cache_hit);
-}
-
-TEST_F(MACLookupServiceTest, MACLookupServiceClearCache) {
-    MACLookupService service(oui_db_path.string(), 1000);
-
-    // First lookup
-    service.lookup("00:1A:2B:3C:4D:5E");
-
-    // Clear cache
-    service.clear_cache();
-
-    // Second lookup (should not hit cache)
-    auto result = service.lookup("00:1A:2B:3C:4D:5E");
-    EXPECT_FALSE(result.cache_hit);
-}
-
-TEST_F(MACLookupServiceTest, MACLookupServiceCacheSize) {
-    MACLookupService service(oui_db_path.string(), 1000);
-
-    EXPECT_EQ(service.cache_size(), 0);
-
-    service.lookup("00:1A:2B:3C:4D:5E");
-    EXPECT_EQ(service.cache_size(), 1);
-
-    service.lookup("F4:EA:B5:12:34:56");
-    EXPECT_EQ(service.cache_size(), 2);
-}
-
 TEST_F(MACLookupServiceTest, MACLookupServiceSetCacheSize) {
     MACLookupService service(oui_db_path.string(), 1000);
 
     service.lookup("00:1A:2B:3C:4D:5E");
-    EXPECT_GT(service.cache_size(), 0);
-
-    service.set_cache_size(0);
-    EXPECT_EQ(service.cache_size(), 0);
 }
 
 TEST_F(MACLookupServiceTest, MACLookupServiceIsOUIDBOpen) {

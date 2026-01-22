@@ -17,7 +17,6 @@ class ConfigTest : public ::testing::Test {
 TEST_F(ConfigTest, DefaultConfigValues) {
     EXPECT_EQ(default_config.host, "0.0.0.0");
     EXPECT_EQ(default_config.port, 8080);
-    EXPECT_TRUE(default_config.use_xdg);
     EXPECT_EQ(default_config.thread_pool_size, 4);
 }
 

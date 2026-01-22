@@ -87,8 +87,8 @@ Metrics::Stats Metrics::get_stats() const {
     // QPS
     stats.current_qps = calculate_qps();
 
-    // Memory usage (approximate)
-    stats.memory_usage_mb = 0;  // TODO: Implement actual memory tracking
+    // Memory usage (not yet implemented)
+    stats.memory_usage_mb = 0;
 
     return stats;
 }

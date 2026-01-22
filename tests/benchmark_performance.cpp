@@ -317,7 +317,6 @@ class BatchLookupBenchmark : public benchmark::Fixture {
 
         service_ =
             std::make_unique<IPGeoService>(city_db_path.string(), asn_db_path.string(), 10000);
-        service_->set_cache_enabled(true);
     }
 
     std::filesystem::path city_db_path;
@@ -570,7 +569,6 @@ class ConcurrentBenchmark : public benchmark::Fixture {
 
         service_ =
             std::make_unique<IPGeoService>(city_db_path.string(), asn_db_path.string(), 10000);
-        service_->set_cache_enabled(true);
     }
 
     std::filesystem::path city_db_path;

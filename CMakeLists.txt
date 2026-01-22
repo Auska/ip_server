@@ -99,7 +99,6 @@ set(SOURCES
     src/mac_database.cpp
     src/http_server.cpp
     src/logger.cpp
-    src/types.cpp
     src/xdg.cpp
     src/cache.h
     src/rate_limiter.cpp
