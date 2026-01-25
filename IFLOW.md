@@ -4,12 +4,12 @@
 
 这是一个基于 C++23 开发的高性能 IP 地理位置和 AS（自治系统）信息查询服务端。项目采用现代 C++ 设计模式和行业最佳实践，提供 RESTful API 接口，支持单个 IP 查询和批量查询。
 
-**新增功能**: 现在支持 MAC 地址 OUI（组织唯一标识符）查询功能！
+**核心功能**: 支持 IP 地理位置查询、AS 信息查询和 MAC 地址 OUI（组织唯一标识符）查询。
 
 ### 核心技术栈
 
 - **编程语言**: C++23
-- **构建系统**: CMake 3.20+
+- **构建系统**: CMake 3.20+ / Xmake
 - **HTTP 服务器**: cpp-httplib
 - **日志库**: spdlog 1.17.0
 - **数据库**: 
@@ -17,7 +17,8 @@
   - SQLite3 (OUI 数据库)
 - **JSON 处理**: nlohmann/json
 - **命令行解析**: cxxopts 3.3.1
-- **加密**: OpenSSL（可选，已从构建系统移除）
+- **测试框架**: Google Test
+- **性能基准**: Google Benchmark
 
 ### 架构设计
 
@@ -54,7 +55,7 @@
 - **cache.h**: LRU 缓存实现
 - **rate_limiter.h/cpp**: 速率限制器
 - **auth.h/cpp**: API 认证模块
-- **metrics.h/cpp**: 性能指标收集
+- **metrics.h/cpp**: 性能指标收集（支持 P50/P95/P99 延迟百分位）
 - **xdg.h/cpp**: XDG 目录标准实现（强制执行）
 - **main.cpp**: 应用程序入口
 
@@ -62,28 +63,30 @@
 
 - ✅ **IP 地理位置查询**: 国家、城市、经纬度、时区等信息
 - ✅ **AS 信息查询**: 自治系统编号和组织名称
-- ✅ **MAC 地址 OUI 查询**: 制造商、注册机构等信息（新增）
+- ✅ **MAC 地址 OUI 查询**: 制造商、注册机构等信息
 - ✅ **日志文件轮转**: 支持按大小、按时间、混合轮转（基于 spdlog）
 - ✅ **速率限制**: 防止 API 滥用
 - ✅ **API 认证**: 基于 API 密钥的身份验证
-- ✅ **性能指标**: 实时监控查询性能
+- ✅ **性能指标**: 实时监控查询性能（含延迟百分位）
 - ✅ **优雅关闭**: 支持 SIGINT/SIGTERM 信号处理
 - ✅ **XDG 目录标准**: **强制执行**，遵循 Linux 桌面环境规范
 - ✅ **批量查询限制**: 防止过大的批量请求
 - ✅ **源 IP 查询**: 支持查询客户端源 IP 地址
 - ✅ **JSON 配置文件**: 支持 JSON 格式和传统格式配置文件
+- ✅ **双重构建系统**: 支持 CMake 和 Xmake 两种构建方式
+- ✅ **完整性能基准**: 包含数据库、缓存、并发等多维度基准测试
 
 ## 构建和运行
 
 ### 环境要求
 
 - C++23 兼容的编译器 (GCC 11+, Clang 13+, MSVC 19.30+)
-- CMake 3.20+
+- CMake 3.20+ 或 Xmake
 - pthread
 - Google Test (用于单元测试)
-- Google Benchmark (用于性能测试，可选)
+- Google Benchmark (用于性能测试)
 
-### 构建步骤
+### CMake 构建步骤
 
 ```bash
 # 创建构建目录
@@ -102,6 +105,21 @@ cmake --build . -j$(nproc)
 # build/bin/ip_server
 ```
 
+### Xmake 构建步骤
+
+```bash
+# Debug 模式
+xmake f -m debug
+xmake
+
+# Release 模式
+xmake f -m release
+xmake
+
+# 可执行文件位置
+# build/bin/ip_server
+```
+
 **性能对比**:
 - Debug 模式: 启用缓存 ~13.5μs (75k QPS)
 - Release 模式: 启用缓存 ~1.56μs (647k QPS) - **性能提升约 8.6 倍**（使用 -O3 优化 + LTO）
@@ -109,19 +127,25 @@ cmake --build . -j$(nproc)
 ### 运行测试
 
 ```bash
-# 运行所有单元测试（182 个测试）
+# CMake 构建 - 运行所有单元测试（182 个测试）
 ./build/tests/ip_server_tests
 
-# 运行特定测试套件
+# CMake 构建 - 运行特定测试套件
 ./build/tests/ip_server_tests --gtest_filter="LoggerTest.*"
 
-# 运行基准测试
-cmake .. -DBUILD_BENCHMARKS=ON
+# CMake 构建 - 运行基准测试
+cmake .. -DBUILD_BENCHMARKS=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build . -j$(nproc)
 ./build/bin/ip_server_benchmarks
 
 # 使用便捷脚本运行所有基准测试
 ./tests/run_benchmarks.sh
+
+# 使用性能测试脚本（生成 HTML 报告）
+./tests/run_performance_tests.sh --benchmark all --iterations 3
+
+# Xmake 构建 - 运行测试
+xmake test
 ```
 
 详细基准测试文档请参考 [tests/BENCHMARK.md](tests/BENCHMARK.md)
@@ -331,6 +355,7 @@ Content-Type: application/json
 | `--log-rotation-interval <minutes>` | 时间轮转间隔 | 1440 |
 | `--log-max-backups <count>` | 最大备份文件数 | 5 |
 | `--log-enable-stdout <true\|false>` | 启用标准输出日志 | true |
+| `--log-level <level>` | 日志级别 | info |
 | `--help, -h` | 显示帮助信息 | - |
 
 ### 配置文件
@@ -401,6 +426,7 @@ log_max_file_size = 10
 log_rotation_interval_minutes = 1440
 log_max_backup_files = 5
 log_enable_stdout = true
+log_level = info
 ```
 
 ### XDG 目录标准
@@ -468,6 +494,8 @@ LOG_ERROR("Error message");    // 错误信息
 - 彩色控制台输出
 - 线程安全
 
+**日志级别**: trace, debug, info, warn, error, critical, off
+
 ### 错误处理
 
 - 使用异常处理运行时错误
@@ -498,6 +526,7 @@ ip_local/
 ├── CMakeLists.txt              # CMake 构建配置
 ├── README.md                   # 项目文档
 ├── IFLOW.md                    # iFlow 上下文文件（本文件）
+├── xmake.lua                   # Xmake 构建配置
 ├── docs/                       # 详细文档目录
 │   ├── ARCHITECTURE.md         # 架构设计文档
 │   ├── API_EXAMPLES.md         # API 使用示例
@@ -527,9 +556,11 @@ ip_local/
 │   ├── test_auth.cpp          # 认证测试
 │   ├── test_types.cpp         # 类型测试
 │   ├── benchmark_database.cpp # 数据库基准测试
+│   ├── benchmark_performance.cpp # 完整性能基准测试
 │   ├── BENCHMARK.md           # 基准测试文档
 │   ├── TEST_SUMMARY.md        # 测试摘要
-│   └── run_benchmarks.sh      # 基准测试脚本
+│   ├── run_benchmarks.sh      # 基准测试脚本
+│   └── run_performance_tests.sh # 性能测试脚本（生成 HTML 报告）
 ├── external/                   # 外部依赖库
 │   ├── include/
 │   │   ├── httplib.h          # HTTP 服务器库
@@ -585,11 +616,14 @@ spdlog 已提供完整的日志级别支持（trace, debug, info, warn, err, cri
 ### 运行测试
 
 ```bash
-# 运行所有测试
+# CMake 构建 - 运行所有测试
 ./build/tests/ip_server_tests
 
-# 运行特定测试
+# CMake 构建 - 运行特定测试
 ./build/tests/ip_server_tests --gtest_filter="LoggerTest.*"
+
+# Xmake 构建 - 运行测试
+xmake test
 
 # 健康检查
 curl http://localhost:8080/health
@@ -630,6 +664,8 @@ curl -X POST http://localhost:8080/lookup \
 10. **spdlog 配置**: 日志系统基于 spdlog，支持异步日志和多种轮转策略
 11. **XDG 强制执行**: 项目强制使用 XDG 目录标准，`--no-xdg` 选项已移除
 12. **配置文件格式**: 支持 JSON 和传统键值对两种格式
+13. **双重构建**: 同时支持 CMake 和 Xmake 两种构建系统
+14. **测试模式**: 单元测试默认使用 Release 模式编译
 
 ## 性能优化
 
@@ -664,6 +700,54 @@ curl -X POST http://localhost:8080/lookup \
 - 只读模式打开数据库
 - 使用预编译语句提高查询效率
 
+### 性能指标
+
+系统收集以下性能指标用于监控和优化：
+
+- **请求计数**: 总请求数、缓存命中/未命中数
+- **缓存命中率**: 缓存命中占总请求的百分比
+- **吞吐量**: 当前 QPS（每秒查询数）
+- **延迟统计**: 平均延迟、P50/P95/P99 百分位延迟
+- **内存使用**: 估算的内存使用量（MB）
+- **数据库状态**: City、ASN、OUI 数据库连接状态
+
+## 性能基准测试
+
+### 运行完整性能测试
+
+```bash
+# 运行所有性能测试并生成 HTML 报告
+./tests/run_performance_tests.sh --benchmark all --iterations 3
+
+# 只运行特定类别测试
+./tests/run_performance_tests.sh --benchmark database --iterations 3
+./tests/run_performance_tests.sh --benchmark cache --iterations 3
+./tests/run_performance_tests.sh --benchmark rate_limiter --iterations 3
+./tests/run_performance_tests.sh --benchmark batch --iterations 3
+./tests/run_performance_tests.sh --benchmark memory --iterations 3
+./tests/run_performance_tests.sh --benchmark concurrent --iterations 3
+./tests/run_performance_tests.sh --benchmark json --iterations 3
+./tests/run_performance_tests.sh --benchmark mac --iterations 3
+```
+
+### 基准测试类别
+
+| 类别 | 说明 | 测试内容 |
+|------|------|---------|
+| Database | 数据库操作性能 | 单个/批量 IP 查找、MAC OUI 查询 |
+| Cache | 缓存性能 | Get 命中/未命中、Put、淘汰 |
+| RateLimiter | 速率限制性能 | 请求允许、剩余配额、清理、内存统计 |
+| BatchLookup | 批量查询性能 | 顺序/并行/线程池批量查找 |
+| Memory | 内存使用 | IP 服务内存、速率限制器内存 |
+| JSON | JSON 序列化性能 | 序列化/反序列化、大对象序列化 |
+| Concurrent | 并发访问 | 多线程同时查询 |
+| MAC | MAC 数据库性能 | OUI 查询、格式变体、找不到的情况 |
+
+### 输出文件
+
+- **JSON 结果**: `benchmark_results/benchmark_results_<timestamp>.json`
+- **HTML 报告**: `benchmark_results/report_<timestamp>.html`
+
 ## 文档
 
 - **架构设计**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - 详细的架构设计和模块说明
@@ -681,6 +765,8 @@ curl -X POST http://localhost:8080/lookup \
 - spdlog: MIT License
 - cxxopts: MIT License
 - SQLite3: Public Domain
+- Google Test: BSD 3-Clause
+- Google Benchmark: Apache License 2.0
 
 ## 相关链接
 
@@ -690,6 +776,9 @@ curl -X POST http://localhost:8080/lookup \
 - nlohmann/json: https://github.com/nlohmann/json
 - spdlog: https://github.com/gabime/spdlog
 - cxxopts: https://github.com/jarro2783/cxxopts
+- Google Test: https://github.com/google/googletest
+- Google Benchmark: https://github.com/google/benchmark
+- Xmake: https://xmake.io/
 - XDG Base Directory Specification: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
 
 ## 提交规范
@@ -739,3 +828,8 @@ feat: add MAC address OUI lookup functionality
 - ✅ TypesTest: 17 tests - 全部通过
 
 **总计**: 182/182 tests passed ✅
+
+## 版本历史
+
+- **v2.0.0** (当前): 双重构建系统支持、完整性能基准测试套件、增强的指标系统
+- **v1.0.0**: 初始版本，基础 IP/AS/MAC 查询功能
