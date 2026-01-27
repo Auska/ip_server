@@ -40,13 +40,13 @@ class IPCache {
     }
 
     // Put result into cache
-    void put(const std::string& ip, const nlohmann::json& result) {
+    void put(std::string ip, nlohmann::json result) {
         std::lock_guard<std::mutex> lock(mutex_);
 
         auto it = cache_map_.find(ip);
         if (it != cache_map_.end()) {
             // Update existing entry
-            it->second.result    = result;
+            it->second.result    = std::move(result);
             it->second.timestamp = std::chrono::system_clock::now();
             cache_list_.splice(cache_list_.begin(), cache_list_, it->second.list_it);
             return;
@@ -54,8 +54,8 @@ class IPCache {
 
         // Add new entry
         cache_list_.push_front(ip);
-        CacheEntry entry{result, std::chrono::system_clock::now(), cache_list_.begin()};
-        cache_map_[ip] = entry;
+        CacheEntry entry{std::move(result), std::chrono::system_clock::now(), cache_list_.begin()};
+        cache_map_.emplace(std::move(ip), std::move(entry));
 
         // Evict oldest if over capacity
         if (cache_map_.size() > max_size_) {

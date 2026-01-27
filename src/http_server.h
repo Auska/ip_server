@@ -66,7 +66,7 @@ class IPGeoHTTPServer {
     std::unique_ptr<RateLimiter> rate_limiter_;
     std::unique_ptr<APIAuth> api_auth_;
     std::unique_ptr<Metrics> metrics_;
-    std::thread cleanup_thread_;
+    std::jthread cleanup_thread_;
     std::atomic<bool> cleanup_thread_running_;
 };
 

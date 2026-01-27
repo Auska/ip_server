@@ -4,7 +4,6 @@
 #include <chrono>
 #include <future>
 #include <stdexcept>
-#include <thread>
 #include <vector>
 
 #include "auth.h"
@@ -409,7 +408,7 @@ void IPGeoHTTPServer::setup_routes() {
             for (auto& future : futures) {
                 auto result = future.get();
                 metrics_->record_request(result.cache_hit, result.latency_ms);
-                results.push_back(result.data);
+                results.push_back(std::move(result.data));  // 使用移动语义
             }
 
             LOG_INFO("Batch lookup completed for " + std::to_string(results.size()) + " "
@@ -467,8 +466,9 @@ bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
     // Start cleanup thread for rate limiter
     if (enable_rate_limiter_ && rate_limiter_) {
         cleanup_thread_running_.store(true);
-        cleanup_thread_ =
-            std::thread([this, &shutdown_requested]() { cleanup_thread_func(shutdown_requested); });
+        cleanup_thread_ = std::jthread([this, &shutdown_requested]() {
+            cleanup_thread_func(shutdown_requested);
+        });
         LOG_INFO("Rate limiter cleanup thread started");
     }
 
@@ -488,10 +488,7 @@ bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
         if (server_thread.joinable()) {
             server_thread.join();
         }
-        if (cleanup_thread_.joinable()) {
-            cleanup_thread_running_.store(false);
-            cleanup_thread_.join();
-        }
+        // std::jthread 自动 join，无需手动调用
         return false;
     }
 
@@ -506,10 +503,11 @@ bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
         server_thread.join();
     }
 
-    // Stop cleanup thread
+    // Stop cleanup thread (std::jthread 自动 join)
     if (cleanup_thread_.joinable()) {
         cleanup_thread_running_.store(false);
-        cleanup_thread_.join();
+        cleanup_thread_.request_stop();  // 请求停止
+        // 自动 join
         LOG_INFO("Rate limiter cleanup thread stopped");
     }
 
@@ -529,7 +527,7 @@ void IPGeoHTTPServer::cleanup_thread_func(std::atomic<bool>& shutdown_requested)
     LOG_INFO("Rate limiter cleanup thread running");
 
     while (!shutdown_requested.load()) {
-        // Sleep for 5 minutes between cleanups
+        // Sleep for 5 minutes between cleanups or until收到停止请求
         for (int i = 0; i < 300 && !shutdown_requested.load(); ++i) {
             std::this_thread::sleep_for(std::chrono::seconds(1));
         }

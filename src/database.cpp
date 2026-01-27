@@ -102,12 +102,14 @@ nlohmann::json CityDatabase::lookup(const std::string& ip_address) const {
         return result;
     }
 
+    // 第二次查询是必要的，用于获取详细的地理位置数据
     int gai_error, mmdb_error;
     MMDB_lookup_result_s lookup_result =
         MMDB_lookup_string(&mmdb_, ip_address.c_str(), &gai_error, &mmdb_error);
 
     if (!lookup_result.found_entry) {
-        result["ip"] = ip_address;
+        result["ip"]     = ip_address;
+        result["found"]  = false;
         return result;
     }
 
@@ -168,12 +170,14 @@ nlohmann::json ASNDatabase::lookup(const std::string& ip_address) const {
         return result;
     }
 
+    // 第二次查询是必要的，用于获取详细的 ASN 数据
     int gai_error, mmdb_error;
     MMDB_lookup_result_s lookup_result =
         MMDB_lookup_string(&mmdb_, ip_address.c_str(), &gai_error, &mmdb_error);
 
     if (!lookup_result.found_entry) {
-        result["ip"] = ip_address;
+        result["ip"]     = ip_address;
+        result["found"]  = false;
         return result;
     }
 
