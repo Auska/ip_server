@@ -1,13 +1,18 @@
 # IP Geolocation & AS Lookup Service - Agent Guide
 
+## 必须遵守的规则
+
+- 每次提交必须要获得许可
+- 每次方案都会参考最佳实现
+
 ## 项目概述
 
-高性能 IP 地理位置和 AS（自治系统）信息查询服务端，支持 MAC 地址 OUI 查询功能。
+高性能 IP 地理位置和 AS（自治系统）信息查询服务端，支持 MAC 地址 OUI 查询和密码生成功能。
 
 - **版本**: 2.0.0
 - **语言**: C++23
 - **构建系统**: CMake 3.20+ / Xmake
-- **功能**: IP 地理位置、AS 信息、MAC 地址 OUI 查询
+- **功能**: IP 地理位置、AS 信息、MAC 地址 OUI 查询、密码生成
 
 ## 项目结构
 
@@ -20,6 +25,7 @@ ip_local/
 │   ├── mac_database.h/cpp     # OUI 数据库
 │   ├── http_server.h/cpp      # HTTP 服务器
 │   ├── logger.h/cpp           # 日志系统
+│   ├── password_generator.h/cpp  # 密码生成器
 │   ├── types.h                # 数据类型定义
 │   ├── cache.h                # LRU 缓存（仅头文件）
 │   ├── rate_limiter.h/cpp     # 速率限制
@@ -27,7 +33,7 @@ ip_local/
 │   ├── metrics.h/cpp          # 性能指标
 │   └── xdg.h/cpp              # XDG 目录标准
 ├── tests/                      # 测试代码
-│   ├── test_*.cpp             # 单元测试
+│   ├── test_*.cpp             # 单元测试（含 PasswordGeneratorTest）
 │   ├── benchmark_*.cpp        # 基准测试
 │   └── run_benchmarks.sh      # 测试脚本
 ├── external/                   # 第三方依赖
@@ -111,6 +117,9 @@ xmake clean
 
 # Auth 测试
 ./build/tests/ip_server_tests --gtest_filter="AuthTest.*"
+
+# Password Generator 测试
+./build/tests/ip_server_tests --gtest_filter="PasswordGeneratorTest.*"
 
 # Types 测试
 ./build/tests/ip_server_tests --gtest_filter="TypesTest.*"
@@ -336,6 +345,71 @@ Content-Type: application/json
 GET /metrics
 ```
 
+### 密码生成
+
+```bash
+# 生成单个密码（默认配置）
+GET /password/generate
+
+# 生成自定义密码
+GET /password/generate?length=24&exclude_similar=true
+
+# 批量生成密码
+POST /password/generate
+Content-Type: application/json
+
+{
+  "count": 5,
+  "length": 16,
+  "uppercase": true,
+  "lowercase": true,
+  "digits": true,
+  "symbols": true,
+  "exclude_similar": true
+}
+```
+
+响应:
+```json
+{
+  "password": "A8kM#nP2qR5sT9vW",
+  "length": 16,
+  "entropy": 94.5,
+  "strength": "very_strong"
+}
+```
+
+批量响应:
+```json
+{
+  "count": 5,
+  "passwords": [
+    {
+      "password": "A8kM#nP2qR5sT9vW",
+      "length": 16,
+      "entropy": 94.5,
+      "strength": "very_strong"
+    }
+  ]
+}
+```
+
+**密码生成参数**:
+- `length`: 密码长度（8-128，默认 16）
+- `uppercase`: 包含大写字母（默认 true）
+- `lowercase`: 包含小写字母（默认 true）
+- `digits`: 包含数字（默认 true）
+- `symbols`: 包含特殊符号（默认 true）
+- `exclude_similar`: 排除易混淆字符（默认 true）
+  - 排除字符：`I, O, i, l, o, 0, 1`
+
+**密码强度评级**:
+- `very_weak`: entropy < 28
+- `weak`: 28 <= entropy < 36
+- `fair`: 36 <= entropy < 60
+- `strong`: 60 <= entropy < 80
+- `very_strong`: entropy >= 80
+
 ## 代码风格指南
 
 ### 格式化规则
@@ -391,6 +465,16 @@ GET /metrics
 - 测试文件命名: `test_<module>.cpp`
 - 核心模块测试覆盖率 > 90%
 - 使用描述性测试名称
+- 当前测试套件：9 个测试套件，206 个测试用例
+  - PasswordGeneratorTest: 20 个测试
+  - LoggerTest: 17 个测试
+  - ConfigTest: 31 个测试
+  - DatabaseTest: 15 个测试
+  - MACDatabaseTest: 12 个测试
+  - HTTPServerTest: 25 个测试
+  - RateLimiterTest: 12 个测试
+  - AuthTest: 22 个测试
+  - TypesTest: 52 个测试
 
 ### 性能考虑
 
@@ -398,6 +482,8 @@ GET /metrics
 - 资源管理使用移动语义
 - 性能测试优先使用 Release 模式（-O3 + LTO）
 - 使用 Google Benchmark 进行性能验证
+- 密码生成使用 C++23 `<random>` 库，64 位 Mersenne Twister 生成器
+- 密码生成平均延迟：~0.042ms
 
 ### 配置管理
 
@@ -436,6 +522,8 @@ find src tests -name "*.cpp" -o -name "*.h" | xargs clang-format -Werror --dry-r
 | httplib | 0.28.0 | HTTP 服务器 | external/include/ |
 | SQLite3 | 3.51.0+0 | OUI 数据库 | external/ |
 | cxxopts | 3.3.1 | 命令行参数 | external/ |
+| Google Test | - | 单元测试框架 | 系统依赖 |
+| Google Benchmark | - | 性能基准测试 | 系统依赖 |
 
 ## 性能指标
 
@@ -444,6 +532,7 @@ find src tests -name "*.cpp" -o -name "*.h" | xargs clang-format -Werror --dry-r
 - **缓存命中**: ~1.56μs（647k QPS）
 - **缓存未命中**: ~13.5μs（75k QPS）
 - **性能提升**: 约 8.6 倍（vs Debug 模式）
+- **密码生成**: ~0.042ms（~24k QPS）
 
 ### 缓存效果
 
@@ -458,6 +547,29 @@ find src tests -name "*.cpp" -o -name "*.h" | xargs clang-format -Werror --dry-r
 - **部署指南**: docs/DEPLOYMENT.md
 - **基准测试**: tests/BENCHMARK.md
 - **测试摘要**: tests/TEST_SUMMARY.md
+
+## 最新功能
+
+### 密码生成 API（v2.0.0）
+
+新增密码生成功能，支持：
+
+- **安全随机数生成**: 使用 C++23 `<random>` 库，64 位 Mersenne Twister
+- **灵活配置**: 支持大写、小写、数字、符号，可排除易混淆字符
+- **批量生成**: 最多一次生成 100 个密码
+- **强度评估**: 自动计算熵值并评估密码强度
+- **完整集成**: 支持认证、速率限制、性能监控
+
+**使用示例**:
+```bash
+# 生成 24 位强密码
+curl "http://localhost:8080/password/generate?length=24&exclude_similar=true"
+
+# 批量生成 5 个密码
+curl -X POST http://localhost:8080/password/generate \
+  -H "Content-Type: application/json" \
+  -d '{"count": 5, "length": 16, "exclude_similar": true}'
+```
 
 ## 外部资源
 
