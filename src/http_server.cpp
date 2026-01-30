@@ -184,14 +184,37 @@ void IPGeoHTTPServer::setup_routes() {
         res.set_content(health.dump(), "application/json");
     });
 
+    // Helper function to get real client IP from proxy headers
+    auto get_real_client_ip = [](const httplib::Request& req) -> std::string {
+        // Check X-Forwarded-For header (contains list of IPs, first is original client)
+        auto xff = req.get_header_value("X-Forwarded-For");
+        if (!xff.empty()) {
+            // Parse the first IP from X-Forwarded-For (comma-separated)
+            size_t comma_pos = xff.find(',');
+            if (comma_pos != std::string::npos) {
+                return xff.substr(0, comma_pos);
+            }
+            return xff;
+        }
+
+        // Check X-Real-IP header
+        auto xri = req.get_header_value("X-Real-IP");
+        if (!xri.empty()) {
+            return xri;
+        }
+
+        // Fallback to remote_addr
+        return req.remote_addr;
+    };
+
     // Single lookup endpoint (supports both IP and MAC queries)
-    server_.Get("/lookup", [this](const httplib::Request& req, httplib::Response& res) {
+    server_.Get("/lookup", [this, &get_real_client_ip](const httplib::Request& req, httplib::Response& res) {
         // Check authentication
         if (!authenticate_request(req, res)) {
             return;
         }
 
-        auto client_ip = req.remote_addr;
+        auto client_ip = get_real_client_ip(req);
         if (client_ip.empty()) {
             res.status = 400;
             send_error_response(res, 400, "Bad Request", "Unable to determine source IP address");
@@ -273,13 +296,13 @@ void IPGeoHTTPServer::setup_routes() {
     });
 
     // Batch lookup endpoint (supports both IP and MAC queries)
-    server_.Post("/lookup", [this](const httplib::Request& req, httplib::Response& res) {
+    server_.Post("/lookup", [this, &get_real_client_ip](const httplib::Request& req, httplib::Response& res) {
         // Check authentication
         if (!authenticate_request(req, res)) {
             return;
         }
 
-        auto client_ip = req.remote_addr;
+        auto client_ip = get_real_client_ip(req);
         if (client_ip.empty()) {
             res.status = 400;
             send_error_response(res, 400, "Bad Request", "Unable to determine source IP address");
