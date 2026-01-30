@@ -34,6 +34,7 @@ set(TEST_SOURCES
     test_rate_limiter.cpp
     test_auth.cpp
     test_logger.cpp
+    test_password_generator.cpp
 )
 
 # Add source files from src directory
@@ -47,6 +48,7 @@ set(PROJECT_SOURCES
     ${CMAKE_SOURCE_DIR}/src/rate_limiter.cpp
     ${CMAKE_SOURCE_DIR}/src/auth.cpp
     ${CMAKE_SOURCE_DIR}/src/metrics.cpp
+    ${CMAKE_SOURCE_DIR}/src/password_generator.cpp
 )
 
 # Create test executable

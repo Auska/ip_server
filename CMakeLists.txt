@@ -104,6 +104,7 @@ set(SOURCES
     src/rate_limiter.cpp
     src/auth.cpp
     src/metrics.cpp
+    src/password_generator.cpp
 )
 
 # Create executable (depends on sqlite3 and maxminddb)

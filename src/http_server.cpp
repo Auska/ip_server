@@ -9,6 +9,7 @@
 #include "auth.h"
 #include "logger.h"
 #include "metrics.h"
+#include "password_generator.h"
 #include "rate_limiter.h"
 
 namespace ip_server {
@@ -27,6 +28,9 @@ IPGeoHTTPServer::IPGeoHTTPServer(const std::string& host, uint16_t port, int thr
       enable_api_auth_(enable_api_auth) {
     // Initialize metrics collector
     metrics_ = std::make_unique<Metrics>();
+
+    // Initialize password generator
+    password_generator_ = std::make_unique<PasswordGenerator>();
 
     if (enable_rate_limiter_) {
         // Create rate limiter with max 10,000 IP records
@@ -447,6 +451,217 @@ void IPGeoHTTPServer::setup_routes() {
         }
     });
 
+    // Password generation endpoint (GET)
+    server_.Get("/password/generate", [this, &get_real_client_ip](const httplib::Request& req, httplib::Response& res) {
+        // Check authentication
+        if (!authenticate_request(req, res)) {
+            return;
+        }
+
+        auto client_ip = get_real_client_ip(req);
+        if (client_ip.empty()) {
+            res.status = 400;
+            send_error_response(res, 400, "Bad Request", "Unable to determine source IP address");
+            LOG_WARNING("Password generation request: unable to determine source IP");
+            return;
+        }
+
+        // Check rate limit
+        if (enable_rate_limiter_ && !rate_limiter_->is_allowed(client_ip)) {
+            nlohmann::json error;
+            error["error"]     = "Rate limit exceeded";
+            error["remaining"] = rate_limiter_->get_remaining(client_ip);
+            send_json_response(res, error, 429);
+            res.set_header("Retry-After", "60");
+            LOG_WARNING("Rate limit exceeded for IP: " + client_ip);
+            return;
+        }
+
+        try {
+            // Parse query parameters
+            PasswordConfig config;
+
+            auto length_param = req.get_param_value("length");
+            if (!length_param.empty()) {
+                config.length = std::stoi(length_param);
+            }
+
+            auto uppercase_param = req.get_param_value("uppercase");
+            if (!uppercase_param.empty()) {
+                config.uppercase = (uppercase_param == "true" || uppercase_param == "1");
+            }
+
+            auto lowercase_param = req.get_param_value("lowercase");
+            if (!lowercase_param.empty()) {
+                config.lowercase = (lowercase_param == "true" || lowercase_param == "1");
+            }
+
+            auto digits_param = req.get_param_value("digits");
+            if (!digits_param.empty()) {
+                config.digits = (digits_param == "true" || digits_param == "1");
+            }
+
+            auto symbols_param = req.get_param_value("symbols");
+            if (!symbols_param.empty()) {
+                config.symbols = (symbols_param == "true" || symbols_param == "1");
+            }
+
+            auto exclude_similar_param = req.get_param_value("exclude_similar");
+            if (!exclude_similar_param.empty()) {
+                config.exclude_similar = (exclude_similar_param == "true" || exclude_similar_param == "1");
+            }
+
+            // Validate config
+            std::string error_message;
+            if (!PasswordGenerator::validate_config(config, error_message)) {
+                send_error_response(res, 400, "Bad Request", error_message);
+                LOG_WARNING("Invalid password generation config: " + error_message);
+                return;
+            }
+
+            // Generate password
+            auto start_time = std::chrono::high_resolution_clock::now();
+            auto result = password_generator_->generate(config);
+            auto end_time = std::chrono::high_resolution_clock::now();
+            auto latency_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
+
+            // Record metrics
+            metrics_->record_request(false, latency_ms);
+
+            // Build response
+            nlohmann::json response;
+            response["password"] = result.password;
+            response["length"] = result.length;
+            response["entropy"] = result.entropy;
+            response["strength"] = result.strength;
+
+            LOG_DEBUG("Generated password for IP: " + client_ip + ", strength: " + result.strength);
+            send_json_response(res, response, 200);
+
+        } catch (const std::invalid_argument& e) {
+            send_error_response(res, 400, "Bad Request", "Invalid parameter value: " + std::string(e.what()));
+            LOG_WARNING("Invalid parameter in password generation: " + std::string(e.what()));
+        } catch (const std::exception& e) {
+            send_error_response(res, 500, "Internal Server Error", e.what());
+            LOG_ERROR("Error generating password: " + std::string(e.what()));
+        }
+    });
+
+    // Password generation endpoint (POST - batch)
+    server_.Post("/password/generate", [this, &get_real_client_ip](const httplib::Request& req, httplib::Response& res) {
+        // Check authentication
+        if (!authenticate_request(req, res)) {
+            return;
+        }
+
+        auto client_ip = get_real_client_ip(req);
+        if (client_ip.empty()) {
+            res.status = 400;
+            send_error_response(res, 400, "Bad Request", "Unable to determine source IP address");
+            LOG_WARNING("Batch password generation request: unable to determine source IP");
+            return;
+        }
+
+        // Check rate limit
+        if (enable_rate_limiter_ && !rate_limiter_->is_allowed(client_ip)) {
+            nlohmann::json error;
+            error["error"]     = "Rate limit exceeded";
+            error["remaining"] = rate_limiter_->get_remaining(client_ip);
+            send_json_response(res, error, 429);
+            res.set_header("Retry-After", "60");
+            LOG_WARNING("Rate limit exceeded for IP: " + client_ip);
+            return;
+        }
+
+        try {
+            auto body = nlohmann::json::parse(req.body);
+
+            // Parse configuration
+            PasswordConfig config;
+
+            if (body.contains("length") && body["length"].is_number_integer()) {
+                config.length = body["length"].get<int>();
+            }
+
+            if (body.contains("uppercase") && body["uppercase"].is_boolean()) {
+                config.uppercase = body["uppercase"].get<bool>();
+            }
+
+            if (body.contains("lowercase") && body["lowercase"].is_boolean()) {
+                config.lowercase = body["lowercase"].get<bool>();
+            }
+
+            if (body.contains("digits") && body["digits"].is_boolean()) {
+                config.digits = body["digits"].get<bool>();
+            }
+
+            if (body.contains("symbols") && body["symbols"].is_boolean()) {
+                config.symbols = body["symbols"].get<bool>();
+            }
+
+            if (body.contains("exclude_similar") && body["exclude_similar"].is_boolean()) {
+                config.exclude_similar = body["exclude_similar"].get<bool>();
+            }
+
+            // Get count (default to 1)
+            int count = 1;
+            if (body.contains("count") && body["count"].is_number_integer()) {
+                count = body["count"].get<int>();
+            }
+
+            if (count < 1) {
+                send_error_response(res, 400, "Bad Request", "Count must be at least 1");
+                return;
+            }
+
+            if (count > 100) {
+                send_error_response(res, 400, "Bad Request", "Count cannot exceed 100");
+                return;
+            }
+
+            // Validate config
+            std::string error_message;
+            if (!PasswordGenerator::validate_config(config, error_message)) {
+                send_error_response(res, 400, "Bad Request", error_message);
+                LOG_WARNING("Invalid password generation config: " + error_message);
+                return;
+            }
+
+            // Generate passwords
+            auto start_time = std::chrono::high_resolution_clock::now();
+            auto results = password_generator_->generate_batch(config, count);
+            auto end_time = std::chrono::high_resolution_clock::now();
+            auto latency_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
+
+            // Record metrics
+            metrics_->record_request(false, latency_ms);
+
+            // Build response
+            nlohmann::json response;
+            response["count"] = static_cast<int>(results.size());
+            response["passwords"] = nlohmann::json::array();
+
+            for (const auto& result : results) {
+                nlohmann::json password_json;
+                password_json["password"] = result.password;
+                password_json["length"] = result.length;
+                password_json["entropy"] = result.entropy;
+                password_json["strength"] = result.strength;
+                response["passwords"].push_back(password_json);
+            }
+
+            LOG_INFO("Generated " + std::to_string(results.size()) + " password(s) for IP: " + client_ip);
+            send_json_response(res, response, 200);
+
+        } catch (const nlohmann::json::exception& e) {
+            send_error_response(res, 400, "Bad Request", "Invalid JSON: " + std::string(e.what()));
+            LOG_WARNING("Invalid JSON in batch password generation: " + std::string(e.what()));
+        } catch (const std::exception& e) {
+            send_error_response(res, 500, "Internal Server Error", e.what());
+            LOG_ERROR("Error generating batch passwords: " + std::string(e.what()));
+        }
+    });
+
     LOG_INFO("HTTP routes configured");
 }
 
@@ -482,6 +697,8 @@ bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
     LOG_INFO(
         "                                Body: {\"ips\": [...]} or "
         "{\"macs\": [...]}");
+    LOG_INFO("  GET  /password/generate      - Generate password");
+    LOG_INFO("  POST /password/generate      - Batch generate passwords");
     LOG_INFO("");
     LOG_INFO("Press Ctrl+C to stop the server");
     LOG_INFO("========================================");
