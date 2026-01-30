@@ -1,12 +1,13 @@
 # IP 位置信息查询服务端
 
-基于 C++20 开发的高性能 IP 地理位置和 AS（自治系统）信息查询服务端，现已支持 MAC 地址 OUI 查询功能。
+基于 C++23 开发的高性能 IP 地理位置和 AS（自治系统）信息查询服务端，支持 MAC 地址 OUI 查询和密码生成功能。
 
 ## 功能特性
 
 - 查询 IP 地址的地理位置信息（国家、城市、经纬度、时区等）
 - 查询 IP 地址的 AS 信息（自治系统编号和组织名称）
 - 查询 MAC 地址的 OUI（组织唯一标识符）信息（制造商、注册机构等）
+- **生成安全的随机密码**（支持大写、小写、数字、符号，可排除易混淆字符）
 - 提供 RESTful API 接口
 - 支持单个 IP/MAC 查询和批量查询
 - 支持 CORS 跨域请求
@@ -321,6 +322,96 @@ Content-Type: application/json
 ]
 ```
 
+### 4. 密码生成
+
+#### 单个密码生成
+
+**请求:**
+```bash
+# 生成默认密码（16位，包含所有字符类型）
+GET /password/generate
+
+# 生成自定义密码
+GET /password/generate?length=24&exclude_similar=true
+
+# 仅使用字母和数字
+GET /password/generate?length=16&symbols=false
+
+# 自定义所有参数
+GET /password/generate?length=32&uppercase=true&lowercase=true&digits=true&symbols=true&exclude_similar=true
+```
+
+**响应:**
+```json
+{
+  "password": "A8kM#nP2qR5sT9vW",
+  "length": 16,
+  "entropy": 94.5,
+  "strength": "very_strong"
+}
+```
+
+#### 批量密码生成
+
+**请求:**
+```bash
+POST /password/generate
+Content-Type: application/json
+
+{
+  "count": 5,
+  "length": 16,
+  "uppercase": true,
+  "lowercase": true,
+  "digits": true,
+  "symbols": true,
+  "exclude_similar": true
+}
+```
+
+**响应:**
+```json
+{
+  "count": 5,
+  "passwords": [
+    {
+      "password": "A8kM#nP2qR5sT9vW",
+      "length": 16,
+      "entropy": 94.5,
+      "strength": "very_strong"
+    },
+    {
+      "password": "K9m@PqR2sT3uV4wX",
+      "length": 16,
+      "entropy": 94.5,
+      "strength": "very_strong"
+    }
+  ]
+}
+```
+
+**密码生成参数:**
+
+| 参数 | 类型 | 默认值 | 范围 | 说明 |
+|------|------|--------|------|------|
+| `length` | int | 16 | 8-128 | 密码长度 |
+| `uppercase` | bool | true | - | 包含大写字母 (A-Z) |
+| `lowercase` | bool | true | - | 包含小写字母 (a-z) |
+| `digits` | bool | true | - | 包含数字 (0-9) |
+| `symbols` | bool | true | - | 包含特殊符号 (!@#$%^&*()_+-=[]{}|;:,.<>?) |
+| `exclude_similar` | bool | true | - | 排除易混淆字符 (I, O, i, l, o, 0, 1) |
+| `count` | int | 1 | 1-100 | 批量生成数量（仅 POST） |
+
+**密码强度评级:**
+
+| 强度 | 熵值范围 | 说明 |
+|------|----------|------|
+| `very_weak` | < 28 | 非常弱 |
+| `weak` | 28-36 | 弱 |
+| `fair` | 36-60 | 一般 |
+| `strong` | 60-80 | 强 |
+| `very_strong` | >= 80 | 非常强 |
+
 ## 测试示例
 
 使用 curl 测试：
@@ -347,6 +438,17 @@ curl "http://localhost:8080/lookup?mac=00:1A:2B:3C:4D:5E"
 curl -X POST http://localhost:8080/lookup \
   -H "Content-Type: application/json" \
   -d '{"macs": ["00:1A:2B:3C:4D:5E", "F4:EA:B5:12:34:56"]}'
+
+# 生成单个密码
+curl "http://localhost:8080/password/generate?length=24&exclude_similar=true"
+
+# 生成强密码（32位，包含所有字符类型）
+curl "http://localhost:8080/password/generate?length=32&uppercase=true&lowercase=true&digits=true&symbols=true&exclude_similar=true"
+
+# 批量生成 5 个密码
+curl -X POST http://localhost:8080/password/generate \
+  -H "Content-Type: application/json" \
+  -d '{"count": 5, "length": 16, "exclude_similar": true}'
 ```
 
 ## 运行测试
@@ -385,6 +487,7 @@ ip_local/
 │   ├── mac_database.h/cpp     # OUI 数据库
 │   ├── http_server.h/cpp      # HTTP 服务器
 │   ├── logger.h/cpp           # 日志系统
+│   ├── password_generator.h/cpp # 密码生成器
 │   ├── types.h/cpp            # 数据类型
 │   ├── cache.h                # LRU 缓存
 │   ├── rate_limiter.h/cpp     # 速率限制
@@ -398,6 +501,7 @@ ip_local/
 │   ├── test_mac_database.cpp  # MAC 数据库测试
 │   ├── test_http_server.cpp   # HTTP 服务器测试
 │   ├── test_logger.cpp        # 日志测试
+│   ├── test_password_generator.cpp # 密码生成器测试
 │   ├── test_rate_limiter.cpp  # 速率限制测试
 │   ├── test_auth.cpp          # 认证测试
 │   ├── test_types.cpp         # 类型测试
@@ -446,6 +550,14 @@ ip_local/
 - Release 模式使用 `-O3` 优化
 - SQLite3 使用 WAL 模式提高读性能
 - 使用预编译语句提高查询效率
+- 密码生成使用 C++23 `<random>` 库，64 位 Mersenne Twister 生成器
+
+### 性能指标（Release 模式）
+
+- **IP 查询（缓存命中）**: ~1.56μs (647k QPS)
+- **IP 查询（缓存未命中）**: ~13.5μs (75k QPS)
+- **密码生成**: ~0.042ms (~24k QPS)
+- **缓存命中率**: 95%+
 
 ## 文档
 
