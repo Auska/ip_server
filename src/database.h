@@ -61,6 +61,11 @@ class IPGeoService {
     bool is_city_db_open() const { return city_db_.is_open(); }
     bool is_asn_db_open() const { return asn_db_.is_open(); }
 
+    // Cache statistics
+    CacheStats get_cache_stats() const { return cache_.get_stats(); }
+    size_t get_cache_size() const { return cache_.size(); }
+    void clear_cache() { cache_.clear(); }
+
    private:
     CityDatabase city_db_;
     ASNDatabase asn_db_;
@@ -80,6 +85,11 @@ class MACLookupService {
 
     // Database status
     bool is_oui_db_open() const { return oui_db_.is_open(); }
+
+    // Cache statistics
+    CacheStats get_cache_stats() const { return cache_.get_stats(); }
+    size_t get_cache_size() const { return cache_.size(); }
+    void clear_cache() { cache_.clear(); }
 
    private:
     OUIDatabase oui_db_;

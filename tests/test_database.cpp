@@ -452,3 +452,182 @@ TEST_F(DatabaseTest, LookupResultDataIntegrity) {
         }
     }
 }
+
+// ============================================================================
+// Sharded Cache Tests
+// ============================================================================
+
+TEST_F(DatabaseTest, CacheStatsInitialization) {
+    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+
+    auto stats = service.get_cache_stats();
+
+    EXPECT_EQ(stats.total_lookups, 0);
+    EXPECT_EQ(stats.hits, 0);
+    EXPECT_EQ(stats.misses, 0);
+    EXPECT_EQ(stats.evictions, 0);
+    EXPECT_EQ(stats.expired_entries, 0);
+    EXPECT_DOUBLE_EQ(stats.hit_rate(), 0.0);
+}
+
+TEST_F(DatabaseTest, CacheStatsHitRate) {
+    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+
+    // First lookup - miss
+    service.lookup("8.8.8.8");
+
+    // Second lookup - hit
+    service.lookup("8.8.8.8");
+
+    auto stats = service.get_cache_stats();
+    EXPECT_EQ(stats.total_lookups, 2);
+    EXPECT_EQ(stats.hits, 1);
+    EXPECT_EQ(stats.misses, 1);
+    EXPECT_DOUBLE_EQ(stats.hit_rate(), 50.0);
+}
+
+TEST_F(DatabaseTest, CacheStatsAfterClear) {
+    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+
+    // Perform some lookups
+    service.lookup("8.8.8.8");
+    service.lookup("1.1.1.1");
+    service.lookup("8.8.8.8");  // Cache hit
+
+    auto stats_before = service.get_cache_stats();
+    EXPECT_GT(stats_before.total_lookups, 0);
+    EXPECT_GT(stats_before.hits, 0);
+
+    // Clear cache
+    service.clear_cache();
+
+    // Lookups should still be cached but cache is empty
+    auto cache_size = service.get_cache_size();
+    EXPECT_EQ(cache_size, 0);
+
+    // Next lookup should be a miss
+    auto result = service.lookup("8.8.8.8");
+    EXPECT_FALSE(result.cache_hit);
+}
+
+TEST_F(DatabaseTest, CacheStatsEvictionTracking) {
+    // Create service with small cache (5 entries)
+    IPGeoService service(city_db_path.string(), asn_db_path.string(), 5);
+
+    // Use known public DNS server IPs that are definitely in the database
+    std::vector<std::string> known_ips = {"8.8.8.8", "1.1.1.1", "9.9.9.9", "208.67.222.222",
+                                          "64.6.64.6", "185.228.168.9"};
+
+    // Fill cache with more entries than cache size
+    for (const auto& ip : known_ips) {
+        auto result = service.lookup(ip);
+        // Verify the IP was found in database
+        ASSERT_TRUE(result.data.value("found", false)) << "IP " << ip << " not found in database";
+    }
+
+    auto stats = service.get_cache_stats();
+    // With 6 lookups and cache size 5, we should have at least 1 eviction
+    EXPECT_GT(stats.evictions, 0) << "Expected evictions but got " << stats.evictions
+                                  << ". Cache size: " << service.get_cache_size();
+}
+
+TEST_F(DatabaseTest, CacheShardDistribution) {
+    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+
+    // Perform lookups on many different IPs using known public DNS servers
+    std::vector<std::string> test_ips = {"8.8.8.8", "1.1.1.1", "9.9.9.9", "208.67.222.222",
+                                         "208.67.220.220", "64.6.64.6", "64.6.65.6"};
+    for (int i = 0; i < 100; ++i) {
+        // Cycle through test IPs to get cache hits
+        service.lookup(test_ips[i % test_ips.size()]);
+    }
+
+    // Verify cache is being used
+    auto cache_size = service.get_cache_size();
+    EXPECT_GT(cache_size, 0);
+    EXPECT_LE(cache_size, 1000);
+
+    // Verify stats are updated
+    auto stats = service.get_cache_stats();
+    EXPECT_EQ(stats.total_lookups, 100);
+    // First batch_size lookups are misses, rest are hits
+    EXPECT_GT(stats.hits, 0);
+}
+
+TEST_F(DatabaseTest, CacheConcurrentAccess) {
+    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+
+    std::vector<std::string> test_ips;
+    for (int i = 0; i < 50; ++i) {
+        test_ips.push_back("192.168.1." + std::to_string(i));
+    }
+
+    std::vector<std::future<LookupResult>> futures;
+
+    // Launch concurrent lookups to test sharded cache
+    for (const auto& ip : test_ips) {
+        futures.push_back(
+            std::async(std::launch::async, [&service, ip]() { return service.lookup(ip); }));
+    }
+
+    // Wait for all results
+    for (auto& future : futures) {
+        auto result = future.get();
+        EXPECT_TRUE(result.data.contains("ip"));
+        EXPECT_TRUE(result.data.contains("found"));
+    }
+
+    // Verify stats
+    auto stats = service.get_cache_stats();
+    EXPECT_EQ(stats.total_lookups, 50);
+    EXPECT_EQ(stats.hits, 0);
+    EXPECT_EQ(stats.misses, 50);
+}
+
+TEST_F(DatabaseTest, CacheConcurrencyStress) {
+    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+
+    const int num_threads = 4;
+    const int lookups_per_thread = 25;
+
+    // Use known public DNS servers to ensure all IPs are in database
+    std::vector<std::string> known_ips = {
+        "8.8.8.8", "1.1.1.1", "9.9.9.9", "208.67.222.222", "208.67.220.220",
+        "64.6.64.6", "64.6.65.6", "185.228.168.9", "185.228.169.9", "1.0.0.1",
+        "8.8.4.4", "1.1.1.2", "9.9.9.10", "208.67.222.223", "208.67.220.223"
+    };
+
+    std::vector<std::thread> threads;
+
+    for (int t = 0; t < num_threads; ++t) {
+        threads.emplace_back([&service, t, lookups_per_thread, &known_ips]() {
+            for (int i = 0; i < lookups_per_thread; ++i) {
+                // Each thread uses unique subset of known IPs
+                size_t ip_index = (t * lookups_per_thread + i) % known_ips.size();
+                service.lookup(known_ips[ip_index]);
+            }
+        });
+    }
+
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
+    // Verify stats
+    auto stats = service.get_cache_stats();
+    EXPECT_EQ(stats.total_lookups, num_threads * lookups_per_thread);
+    EXPECT_GT(stats.concurrent_accesses, 0);
+    // Hits may occur if same IP is queried multiple times across threads
+    EXPECT_GT(stats.misses, 0);
+}
+
+TEST_F(DatabaseTest, CacheAverageEntrySize) {
+    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+
+    // Perform lookups
+    service.lookup("8.8.8.8");
+    service.lookup("1.1.1.1");
+
+    auto stats = service.get_cache_stats();
+    EXPECT_GT(stats.avg_entry_size, 0.0);
+}

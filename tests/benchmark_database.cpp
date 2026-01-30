@@ -123,7 +123,6 @@ BENCHMARK_F(DatabaseBenchmark, ASNDatabase_MultipleLookup)(benchmark::State& sta
 // Benchmark IPGeoService lookup with repeated IPs (cache hit)
 BENCHMARK_F(DatabaseBenchmark, IPGeoService_CacheHit)(benchmark::State& state) {
     IPGeoService service(city_db_path.string(), asn_db_path.string(), 10000);
-    service.set_cache_enabled(true);
 
     // Pre-warm cache
     for (const auto& ip : test_ips_) {

@@ -441,11 +441,11 @@ TEST_F(HTTPServerTest, DisabledRateLimiter) {
 TEST_F(HTTPServerTest, ParallelBatchLookupPerformance) {
     httplib::Client client("127.0.0.1", test_port);
 
-    // Create a batch of 20 unique IPs
+    // Create a batch of 20 unique IPs using a less common range to avoid cache from previous tests
     nlohmann::json batch_request;
     std::vector<std::string> test_ips;
     for (int i = 0; i < 20; ++i) {
-        std::string ip = "8.8.8." + std::to_string(i % 255);
+        std::string ip = "93.184.216." + std::to_string(100 + i);  // Using example.com IP range
         test_ips.push_back(ip);
         batch_request["ips"].push_back(ip);
     }
@@ -488,9 +488,9 @@ TEST_F(HTTPServerTest, ParallelBatchLookupPerformance) {
     // Results should be identical
     EXPECT_EQ(json1.dump(), json2.dump());
 
-    // Cached batch should be faster (at least 2x faster in most cases)
-    // This is a more realistic expectation than 10x
-    EXPECT_LT(second_batch_time, first_batch_time);
+    // Cached batch should be faster (at least 1.5x faster in most cases)
+    // Reduced threshold from 2x to 1.5x to account for system load variability
+    EXPECT_LT(second_batch_time * 1.5, first_batch_time);
 }
 
 // Test batch lookup with mixed valid and invalid IPs
