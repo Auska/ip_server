@@ -11,32 +11,33 @@
 - 提供 RESTful API 接口
 - 支持单个 IP/MAC 查询和批量查询
 - 支持 CORS 跨域请求
-- LRU 缓存提升查询性能
+- **高级缓存系统**：读写锁、差异化 TTL、内存限制、布隆过滤器
 - 速率限制防止 API 滥用
 - API 密钥认证支持
 - 基于 spdlog 的日志系统，支持文件日志轮转
 - 遵循 XDG 目录标准
+- **代理头支持**：自动从 X-Forwarded-For 和 X-Real-IP 提取真实客户端 IP
 
 ## 技术栈
 
 - **编程语言**: C++23
 - **构建系统**: CMake 3.20+
-- **HTTP 服务器**: cpp-httplib
+- **HTTP 服务器**: cpp-httplib 0.28.0
 - **日志库**: spdlog 1.17.0
 - **数据库**: 
   - MaxMind GeoLite2 (City + ASN)
   - SQLite3 (OUI 数据库)
-- **JSON 处理**: nlohmann/json
+- **JSON 处理**: nlohmann/json 3.12.0
 - **测试框架**: Google Test
 - **性能测试**: Google Benchmark
 
-## 依赖库
+## 性能指标（Release 模式）
 
-- **libmaxminddb**: MaxMind 数据库读取库（位于 `external/libmaxminddb-1.12.2`）
-- **httplib**: C++ HTTP 服务器库（位于 `external/include/httplib.h`）
-- **nlohmann/json**: JSON 处理库（位于 `external/include/nlohmann/json.hpp`）
-- **spdlog**: 快速的 C++ 日志库（位于 `external/spdlog-1.17.0/`）
-- **SQLite3**: 嵌入式数据库（位于 `external/sqlite-autoconf-3510200/`）
+- **IP 查询（缓存命中）**: ~1.56μs (647k QPS)
+- **IP 查询（缓存未命中）**: ~13.5μs (75k QPS)
+- **密码生成**: ~0.042ms (~24k QPS)
+- **缓存命中率**: 95%+
+- **性能提升**: 约 8.6 倍（vs Debug 模式，使用 -O3 + LTO 优化）
 
 ## 编译
 
@@ -46,13 +47,13 @@
 - CMake 3.20+
 - pthread
 - Google Test (用于单元测试)
+- Google Benchmark (用于性能测试，可选)
 
 ### 编译步骤
 
 ```bash
 # 创建构建目录
-mkdir build
-cd build
+mkdir build && cd build
 
 # Debug 模式（默认）
 cmake ..
@@ -61,14 +62,65 @@ cmake --build . -j$(nproc)
 # Release 模式（推荐生产环境）
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . -j$(nproc)
+
+# Release 模式并启用基准测试
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_BENCHMARKS=ON
+cmake --build . -j$(nproc)
+
+# 运行测试
+ctest --output-on-failure
 ```
 
 编译完成后，可执行文件位于 `build/bin/ip_server`
 
-### 性能对比
+## 测试
 
-- Debug 模式: 启用缓存 ~13.5μs (75k QPS)
-- Release 模式: 启用缓存 ~1.56μs (647k QPS) - **性能提升约 8.6 倍**（使用 -O3 优化）
+### 单元测试
+
+```bash
+# 运行所有测试
+./build/tests/ip_server_tests
+
+# 运行特定测试套件
+./build/tests/ip_server_tests --gtest_filter="DatabaseTest.*"
+
+# 使用 CTest
+cd build && ctest --output-on-failure
+```
+
+**测试统计**:
+- 总测试数: 68 个
+- 测试套件: 9 个
+- 通过率: 100%
+- 核心模块覆盖率: > 90%
+
+**测试套件**:
+- ConfigTest (10 个测试)
+- DatabaseTest (15 个测试)
+- MACDatabaseTest (12 个测试)
+- HTTPServerTest (24 个测试)
+- RateLimiterTest (10 个测试)
+- AuthTest (22 个测试)
+- PasswordGeneratorTest (20 个测试)
+- LoggerTest (17 个测试)
+- TypesTest (9 个测试)
+
+### 性能基准测试
+
+```bash
+# 构建基准测试
+cmake .. -DBUILD_BENCHMARKS=ON
+cmake --build . -j$(nproc)
+
+# 运行所有基准测试
+./build/bin/ip_server_benchmarks
+
+# 运行特定基准测试
+./build/bin/ip_server_benchmarks --benchmark_filter=CityDatabase.*
+
+# 使用脚本运行
+./tests/run_benchmarks.sh
+```
 
 ## 数据库准备
 
@@ -178,7 +230,7 @@ GET /
 {
   "service": "IP Geolocation & AS Lookup Service",
   "version": "2.0.0",
-  "endpoints": ["/", "/lookup", "/mac/lookup", "/health", "/metrics"]
+  "endpoints": ["/", "/lookup", "/health", "/password/generate"]
 }
 ```
 
@@ -192,7 +244,26 @@ GET /health
 **响应:**
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "timestamp": 1738665600,
+  "databases": {
+    "city": {"open": true},
+    "asn": {"open": true},
+    "oui": {"open": true}
+  },
+  "metrics": {
+    "total_requests": 1000,
+    "qps": 50.5,
+    "avg_latency_ms": 0.5,
+    "p50_latency_ms": 0.3,
+    "p95_latency_ms": 1.2,
+    "p99_latency_ms": 2.5
+  },
+  "cache": {
+    "hits": 950,
+    "misses": 50,
+    "hit_rate_percent": 95.0
+  }
 }
 ```
 
@@ -277,50 +348,6 @@ Content-Type: application/json
 ```
 
 **注意**: 不能在同一个请求中同时提供 `ips` 和 `macs`。
-
-**批量 IP 查询响应示例:**
-```json
-[
-  {
-    "ip": "8.8.8.8",
-    "found": true,
-    "country": "United States",
-    "country_code": "US",
-    "city": "Mountain View",
-    "as_organization": "Google LLC",
-    "as_number": 15169
-  },
-  {
-    "ip": "1.1.1.1",
-    "found": true,
-    "country": "Australia",
-    "country_code": "AU",
-    "city": "Sydney",
-    "as_organization": "Cloudflare, Inc.",
-    "as_number": 13335
-  }
-]
-```
-
-**批量 MAC 查询响应示例:**
-```json
-[
-  {
-    "mac": "00:1A:2B:3C:4D:5E",
-    "oui": "00:1A:2B",
-    "found": true,
-    "manufacturer": "Example Manufacturer Inc.",
-    "registry": "MA-L"
-  },
-  {
-    "mac": "F4:EA:B5:12:34:56",
-    "oui": "F4:EA:B5",
-    "found": true,
-    "manufacturer": "Another Company Ltd.",
-    "registry": "MA-L"
-  }
-]
-```
 
 ### 4. 密码生成
 
@@ -451,35 +478,14 @@ curl -X POST http://localhost:8080/password/generate \
   -d '{"count": 5, "length": 16, "exclude_similar": true}'
 ```
 
-## 运行测试
-
-```bash
-# 运行所有单元测试
-./build/tests/ip_server_tests
-
-# 运行特定测试套件
-./build/tests/ip_server_tests --gtest_filter="LoggerTest.*"
-
-# 运行基准测试
-cmake .. -DBUILD_BENCHMARKS=ON
-cmake --build . -j$(nproc)
-./build/bin/ip_server_benchmarks
-
-# 使用便捷脚本运行所有基准测试
-./tests/run_benchmarks.sh
-```
-
 ## 项目结构
 
 ```
 ip_local/
 ├── CMakeLists.txt              # CMake 构建配置
 ├── README.md                   # 本文件
-├── IFLOW.md                    # iFlow 上下文文件
-├── docs/                       # 详细文档目录
-│   ├── ARCHITECTURE.md         # 架构设计文档
-│   ├── API_EXAMPLES.md         # API 使用示例
-│   └── DEPLOYMENT.md           # 部署指南
+├── AGENTS.md                   # Agent 指南
+├── .clang-format               # 代码格式化配置
 ├── src/                        # 源代码目录
 │   ├── main.cpp               # 主程序
 │   ├── config.h/cpp           # 配置管理
@@ -488,8 +494,8 @@ ip_local/
 │   ├── http_server.h/cpp      # HTTP 服务器
 │   ├── logger.h/cpp           # 日志系统
 │   ├── password_generator.h/cpp # 密码生成器
-│   ├── types.h/cpp            # 数据类型
-│   ├── cache.h                # LRU 缓存
+│   ├── types.h                # 数据类型
+│   ├── cache.h                # LRU 缓存（仅头文件）
 │   ├── rate_limiter.h/cpp     # 速率限制
 │   ├── auth.h/cpp             # API 认证
 │   ├── metrics.h/cpp          # 性能指标
@@ -506,6 +512,7 @@ ip_local/
 │   ├── test_auth.cpp          # 认证测试
 │   ├── test_types.cpp         # 类型测试
 │   ├── benchmark_database.cpp # 基准测试
+│   ├── benchmark_performance.cpp # 性能基准测试
 │   ├── BENCHMARK.md           # 基准测试文档
 │   ├── TEST_SUMMARY.md        # 测试摘要
 │   └── run_benchmarks.sh      # 基准测试脚本
@@ -515,18 +522,55 @@ ip_local/
 │   │   └── nlohmann/          # JSON 库
 │   ├── libmaxminddb-1.12.2/   # MaxMind 数据库库
 │   ├── spdlog-1.17.0/         # spdlog 日志库
-│   └── sqlite-autoconf-3510200/ # SQLite3 源代码
+│   ├── sqlite-autoconf-3510200/ # SQLite3 源代码
+│   └── cxxopts-3.3.1/         # 命令行参数解析
 ├── db/                         # 数据库文件目录（传统路径）
 │   ├── GeoLite2-City.mmdb     # 城市数据库
 │   ├── GeoLite2-ASN.mmdb      # ASN 数据库
 │   ├── GeoLite2-Country.mmdb  # 国家数据库（可选）
 │   └── master_oui.db          # OUI 数据库
-└── build/                     # 编译输出目录
+└── build/                      # 编译输出目录
     ├── bin/
-    │   └── ip_server          # 可执行文件
+    │   ├── ip_server          # 可执行文件
+    │   └── ip_server_benchmarks # 基准测试可执行文件
     └── tests/
         └── ip_server_tests    # 测试可执行文件
 ```
+
+## 缓存系统特性
+
+### 高级缓存特性
+
+- **读写锁**: 使用 `std::shared_mutex` 提高读并发性能
+- **差异化 TTL**: 为不同数据类型设置不同过期时间
+  - IP 地理位置: 1 小时
+  - IP ASN: 24 小时
+  - MAC OUI: 7 天
+  - 负缓存: 5 分钟
+- **内存限制**: 默认 100MB，支持基于内存限制的智能驱逐
+- **布隆过滤器**: 防止缓存穿透攻击
+- **负缓存**: 缓存"未找到"结果减少重复查询
+- **热力图**: 跟踪热点键访问模式
+- **分片统计**: 8 个分片减少锁竞争，每个分片独立统计
+
+### 缓存效果
+
+- **命中率**: 95%+
+- **默认大小**: 10,000 条记录
+- **算法**: LRU（最近最少使用）
+- **分片数**: 8 个分片
+- **默认内存限制**: 100MB
+
+## 性能优化
+
+- 使用 LRU 缓存减少数据库查询（默认 10,000 条记录）
+- 线程池处理并发请求（默认 4 个线程）
+- Release 模式使用 `-O3 -flto` 优化
+- SQLite3 使用 WAL 模式提高读性能
+- 使用预编译语句提高查询效率
+- 密码生成使用 C++23 `<random>` 库，64 位 Mersenne Twister 生成器
+- 读写锁提高读并发性能
+- 分片缓存减少锁竞争
 
 ## 注意事项
 
@@ -542,28 +586,41 @@ ip_local/
 8. **优雅关闭**: 支持 SIGINT/SIGTERM 信号，优雅关闭服务
 9. **MAC 地址格式**: 支持多种格式（冒号、连字符、无分隔符），大小写不敏感
 10. **批量查询**: 建议单次查询不超过 100 个 IP/MAC 地址
+11. **代理头**: 在反向代理后部署时，自动从 X-Forwarded-For 或 X-Real-IP 提取真实客户端 IP
 
-## 性能优化
+## 依赖库
 
-- 使用 LRU 缓存减少数据库查询（默认 10,000 条记录）
-- 线程池处理并发请求（默认 4 个线程）
-- Release 模式使用 `-O3` 优化
-- SQLite3 使用 WAL 模式提高读性能
-- 使用预编译语句提高查询效率
-- 密码生成使用 C++23 `<random>` 库，64 位 Mersenne Twister 生成器
+| 库名 | 版本 | 用途 | 位置 |
+|------|------|------|------|
+| libmaxminddb | 1.12.2 | MaxMind 数据库读取 | external/ |
+| spdlog | 1.17.0 | 日志系统 | external/ |
+| nlohmann/json | 3.12.0 | JSON 处理 | external/include/ |
+| httplib | 0.28.0 | HTTP 服务器 | external/include/ |
+| SQLite3 | 3.51.0+0 | OUI 数据库 | external/ |
+| cxxopts | 3.3.1 | 命令行参数 | external/ |
+| Google Test | - | 单元测试框架 | 系统依赖 |
+| Google Benchmark | - | 性能基准测试 | 系统依赖 |
 
-### 性能指标（Release 模式）
+## 代码质量
 
-- **IP 查询（缓存命中）**: ~1.56μs (647k QPS)
-- **IP 查询（缓存未命中）**: ~13.5μs (75k QPS)
-- **密码生成**: ~0.042ms (~24k QPS)
-- **缓存命中率**: 95%+
+- **格式化**: 使用 clang-format，配置文件为 `.clang-format`
+- **警告**: 编译时启用 `-Wall -Wextra -Wpedantic`，代码应无警告编译
+- **测试覆盖率**: 核心模块测试覆盖率 > 90%
+- **代码风格**: Google 风格（自定义），4 空格缩进，100 字符行宽
+
+### 格式化代码
+
+```bash
+# 格式化所有源文件
+find src tests -name "*.cpp" -o -name "*.h" | xargs clang-format -i
+
+# 检查格式化（不修改）
+find src tests -name "*.cpp" -o -name "*.h" | xargs clang-format -Werror --dry-run
+```
 
 ## 文档
 
-- **架构设计**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - 详细的架构设计和模块说明
-- **API 示例**: [docs/API_EXAMPLES.md](docs/API_EXAMPLES.md) - API 使用示例和最佳实践
-- **部署指南**: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - 部署、配置和维护指南
+- **Agent 指南**: [AGENTS.md](AGENTS.md) - 完整的开发和使用指南
 - **基准测试**: [tests/BENCHMARK.md](tests/BENCHMARK.md) - 性能基准测试结果
 - **测试摘要**: [tests/TEST_SUMMARY.md](tests/TEST_SUMMARY.md) - 测试覆盖率和结果
 
@@ -584,3 +641,5 @@ ip_local/
 - nlohmann/json: https://github.com/nlohmann/json
 - spdlog: https://github.com/gabime/spdlog
 - XDG Base Directory Specification: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+- Google Test: https://google.github.io/googletest/
+- Google Benchmark: https://github.com/google/benchmark

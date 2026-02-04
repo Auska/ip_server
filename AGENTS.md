@@ -4,15 +4,18 @@
 
 - 每次提交必须要获得许可
 - 每次方案都会参考最佳实现
+- 代码必须无警告编译（`-Wall -Wextra -Wpedantic`）
 
 ## 项目概述
 
-高性能 IP 地理位置和 AS（自治系统）信息查询服务端，支持 MAC 地址 OUI 查询和密码生成功能。
+高性能 IP 地理位置和 AS（自治系统）信息查询服务端，支持 MAC 地址 OUI 查询、密码生成功能和完整的测试套件。
 
 - **版本**: 2.0.0
 - **语言**: C++23
-- **构建系统**: CMake 3.20+ / Xmake
+- **构建系统**: CMake 3.20+
 - **功能**: IP 地理位置、AS 信息、MAC 地址 OUI 查询、密码生成
+- **测试**: 68 个单元测试，覆盖率 > 90%
+- **性能**: Release 模式缓存命中 ~1.56μs（647k QPS）
 
 ## 项目结构
 
@@ -33,8 +36,10 @@ ip_local/
 │   ├── metrics.h/cpp          # 性能指标
 │   └── xdg.h/cpp              # XDG 目录标准
 ├── tests/                      # 测试代码
-│   ├── test_*.cpp             # 单元测试（含 PasswordGeneratorTest）
+│   ├── test_*.cpp             # 单元测试（9 个测试套件，68 个测试）
 │   ├── benchmark_*.cpp        # 基准测试
+│   ├── TEST_SUMMARY.md        # 测试摘要
+│   ├── BENCHMARK.md           # 基准测试指南
 │   └── run_benchmarks.sh      # 测试脚本
 ├── external/                   # 第三方依赖
 │   ├── include/               # httplib.h, nlohmann/json
@@ -42,12 +47,19 @@ ip_local/
 │   ├── spdlog-1.17.0/         # 日志库
 │   ├── sqlite-autoconf-3510200/ # SQLite3
 │   └── cxxopts-3.3.1/         # 命令行参数解析
-└── db/                         # 数据库文件（传统路径）
+├── docs/                       # 文档
+│   ├── ARCHITECTURE.md        # 架构设计
+│   ├── API_EXAMPLES.md        # API 示例
+│   └── DEPLOYMENT.md          # 部署指南
+├── db/                         # 数据库文件（传统路径）
+├── CMakeLists.txt              # CMake 构建配置
+├── README.md                   # 项目说明
+└── .clang-format               # 代码格式化配置
 ```
 
 ## 构建命令
 
-### CMake
+### CMake（推荐）
 
 ```bash
 # 创建构建目录
@@ -64,6 +76,9 @@ cmake --build . -j$(nproc)
 # Release 模式并启用基准测试
 cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_BENCHMARKS=ON
 cmake --build . -j$(nproc)
+
+# 运行测试
+ctest --output-on-failure
 ```
 
 **Release 模式性能优化**:
@@ -71,34 +86,24 @@ cmake --build . -j$(nproc)
 - 链接选项: `-flto -s`（strip symbols）
 - 性能提升: 约 8.6 倍（Debug: ~13.5μs → Release: ~1.56μs）
 
-### Xmake
-
-```bash
-# Debug 模式
-xmake f -m debug
-xmake
-
-# Release 模式
-xmake f -m release
-xmake
-
-# 清理构建
-xmake clean
-```
-
 ## 测试命令
 
-### 运行所有测试（CMake）
+### 运行所有测试
 
 ```bash
+# 使用 CMake
 ./build/tests/ip_server_tests
+
+# 使用 CTest
+cd build
+ctest --output-on-failure
 ```
 
-### 运行特定测试套件（CMake）
+### 运行特定测试套件
 
 ```bash
-# Logger 测试
-./build/tests/ip_server_tests --gtest_filter="LoggerTest.*"
+# Config 测试
+./build/tests/ip_server_tests --gtest_filter="ConfigTest.*"
 
 # Database 测试
 ./build/tests/ip_server_tests --gtest_filter="DatabaseTest.*"
@@ -109,9 +114,6 @@ xmake clean
 # HTTP Server 测试
 ./build/tests/ip_server_tests --gtest_filter="HTTPServerTest.*"
 
-# Config 测试
-./build/tests/ip_server_tests --gtest_filter="ConfigTest.*"
-
 # Rate Limiter 测试
 ./build/tests/ip_server_tests --gtest_filter="RateLimiterTest.*"
 
@@ -121,21 +123,43 @@ xmake clean
 # Password Generator 测试
 ./build/tests/ip_server_tests --gtest_filter="PasswordGeneratorTest.*"
 
+# Logger 测试
+./build/tests/ip_server_tests --gtest_filter="LoggerTest.*"
+
 # Types 测试
 ./build/tests/ip_server_tests --gtest_filter="TypesTest.*"
 ```
 
-### 运行测试（Xmake）
+### 测试统计
 
-```bash
-xmake test
-```
+- **总测试数**: 68 个
+- **测试套件**: 9 个
+- **通过率**: 100%
+- **执行时间**: ~12.5 秒
+
+**测试套件详情**:
+- ConfigTest: 10 个测试
+- DatabaseTest: 15 个测试
+- MACDatabaseTest: 12 个测试
+- HTTPServerTest: 24 个测试
+- RateLimiterTest: 10 个测试
+- AuthTest: 22 个测试
+- PasswordGeneratorTest: 20 个测试
+- LoggerTest: 17 个测试
+- TypesTest: 9 个测试
 
 ### 性能基准测试
 
 ```bash
+# 构建基准测试
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_BENCHMARKS=ON
+cmake --build . -j$(nproc)
+
 # 运行所有基准测试
 ./build/bin/ip_server_benchmarks
+
+# 运行特定基准测试
+./build/bin/ip_server_benchmarks --benchmark_filter=CityDatabase.*
 
 # 使用脚本运行
 ./tests/run_benchmarks.sh
@@ -148,6 +172,11 @@ xmake test
 ./tests/run_performance_tests.sh --benchmark cache
 ./tests/run_performance_tests.sh --benchmark concurrent
 ```
+
+**基准测试类别**:
+- 数据库查询测试（City/ASN 单次/多次查询）
+- 服务层测试（缓存命中率、并发查询、缓存大小影响）
+- 数据库操作测试（打开/关闭性能、初始化性能）
 
 ## 运行服务
 
@@ -253,7 +282,7 @@ GET /
 {
   "service": "IP Geolocation & AS Lookup Service",
   "version": "2.0.0",
-  "endpoints": ["/", "/lookup", "/mac/lookup", "/health", "/metrics"]
+  "endpoints": ["/", "/lookup", "/health"]
 }
 ```
 
@@ -339,12 +368,6 @@ Content-Type: application/json
 }
 ```
 
-### 性能指标
-
-```bash
-GET /metrics
-```
-
 ### 密码生成
 
 ```bash
@@ -376,21 +399,6 @@ Content-Type: application/json
   "length": 16,
   "entropy": 94.5,
   "strength": "very_strong"
-}
-```
-
-批量响应:
-```json
-{
-  "count": 5,
-  "passwords": [
-    {
-      "password": "A8kM#nP2qR5sT9vW",
-      "length": 16,
-      "entropy": 94.5,
-      "strength": "very_strong"
-    }
-  ]
 }
 ```
 
@@ -465,16 +473,9 @@ Content-Type: application/json
 - 测试文件命名: `test_<module>.cpp`
 - 核心模块测试覆盖率 > 90%
 - 使用描述性测试名称
-- 当前测试套件：9 个测试套件，206 个测试用例
-  - PasswordGeneratorTest: 20 个测试
-  - LoggerTest: 17 个测试
-  - ConfigTest: 31 个测试
-  - DatabaseTest: 15 个测试
-  - MACDatabaseTest: 12 个测试
-  - HTTPServerTest: 25 个测试
-  - RateLimiterTest: 12 个测试
-  - AuthTest: 22 个测试
-  - TypesTest: 52 个测试
+- 每个测试独立运行，不依赖其他测试
+- 添加新功能时必须添加对应测试
+- 修复 bug 时添加回归测试
 
 ### 性能考虑
 
@@ -512,6 +513,20 @@ find src tests -name "*.cpp" -o -name "*.h" | xargs clang-format -Werror --dry-r
 - 代码应无警告编译
 - MSVC 使用 `/W4`
 
+### 代码检查
+
+```bash
+# 编译检查（应该无警告）
+cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake --build . -j$(nproc)
+
+# 运行测试
+ctest --output-on-failure
+
+# 运行基准测试
+./build/bin/ip_server_benchmarks
+```
+
 ## 依赖库
 
 | 库名 | 版本 | 用途 | 位置 |
@@ -539,6 +554,19 @@ find src tests -name "*.cpp" -o -name "*.h" | xargs clang-format -Werror --dry-r
 - **命中率**: 95%+
 - **默认大小**: 10,000 条记录
 - **算法**: LRU（最近最少使用）
+- **分片**: 8 个分片减少锁竞争
+
+### 缓存高级特性
+
+- **读写锁**: 使用 `std::shared_mutex` 提高读并发
+- **差异化 TTL**: 不同数据类型使用不同 TTL
+  - IP 地理位置: 1 小时
+  - IP ASN: 24 小时
+  - MAC OUI: 7 天
+  - 负缓存: 5 分钟
+- **内存限制**: 默认 100MB，支持内存感知驱逐
+- **布隆过滤器**: 防止缓存穿透
+- **热力图**: 跟踪热点键访问模式
 
 ## 相关文档
 
@@ -550,9 +578,17 @@ find src tests -name "*.cpp" -o -name "*.h" | xargs clang-format -Werror --dry-r
 
 ## 最新功能
 
-### 密码生成 API（v2.0.0）
+### 缓存增强（v2.0.0）
 
-新增密码生成功能，支持：
+- **读写锁**: 替换 `std::mutex` 为 `std::shared_mutex` 提高读并发
+- **差异化 TTL**: 为不同数据类型设置不同过期时间
+- **内存限制**: 支持基于内存限制的驱逐策略
+- **布隆过滤器**: 防止缓存穿透攻击
+- **负缓存**: 缓存"未找到"结果减少重复查询
+- **热力图**: 跟踪热点键访问模式
+- **分片统计**: 每个分片的独立统计信息
+
+### 密码生成 API（v2.0.0）
 
 - **安全随机数生成**: 使用 C++23 `<random>` 库，64 位 Mersenne Twister
 - **灵活配置**: 支持大写、小写、数字、符号，可排除易混淆字符
@@ -571,6 +607,12 @@ curl -X POST http://localhost:8080/password/generate \
   -d '{"count": 5, "length": 16, "exclude_similar": true}'
 ```
 
+### 代理头支持（v2.0.0）
+
+- **X-Forwarded-For**: 从代理头提取真实客户端 IP
+- **X-Real-IP**: 支持标准真实 IP 头
+- **自动回退**: 无代理头时使用 `remote_addr`
+
 ## 外部资源
 
 - MaxMind GeoLite2: https://dev.maxmind.com/geoip/geolite2-free-geolocation-data
@@ -579,3 +621,5 @@ curl -X POST http://localhost:8080/password/generate \
 - nlohmann/json: https://github.com/nlohmann/json
 - spdlog: https://github.com/gabime/spdlog
 - XDG Base Directory: https://specifications.freedesktop.org/basedir-spec/
+- Google Test: https://google.github.io/googletest/
+- Google Benchmark: https://github.com/google/benchmark
