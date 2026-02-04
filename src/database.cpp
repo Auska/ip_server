@@ -205,8 +205,8 @@ nlohmann::json ASNDatabase::lookup(const std::string& ip_address) const {
 // IPGeoService implementation
 
 IPGeoService::IPGeoService(const std::string& city_db_path, const std::string& asn_db_path,
-                           size_t cache_size)
-    : cache_(cache_size) {
+                           size_t cache_size, size_t shard_count, size_t max_memory_bytes)
+    : cache_(cache_size, shard_count, std::chrono::seconds(3600), max_memory_bytes) {
     if (!city_db_.open(city_db_path)) {
         throw std::runtime_error("Failed to open City database: " + city_db_path);
     }
@@ -215,7 +215,9 @@ IPGeoService::IPGeoService(const std::string& city_db_path, const std::string& a
         throw std::runtime_error("Failed to open ASN database: " + asn_db_path);
     }
 
-    LOG_INFO("IPGeoService initialized with cache size: " + std::to_string(cache_size));
+    LOG_INFO("IPGeoService initialized with cache size: " + std::to_string(cache_size) +
+             ", shards: " + std::to_string(shard_count) +
+             ", max memory: " + std::to_string(max_memory_bytes / (1024 * 1024)) + "MB");
 }
 
 LookupResult IPGeoService::lookup(const std::string& ip_address) const {
@@ -253,6 +255,11 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
         bool asn_found  = asn_result.value("found", false);
 
         if (!city_found && !asn_found) {
+            // Cache negative result
+            if (cache_enabled_) {
+                cache_.put(ip_address, result, CacheDataType::NEGATIVE);
+                LOG_DEBUG("Cached negative result for IP: " + ip_address);
+            }
             auto end          = std::chrono::high_resolution_clock::now();
             double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
             return LookupResult(result, false, latency_ms);
@@ -280,8 +287,8 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
         }
 
         // Cache the result
-        if (cache_enabled_ && result["found"]) {
-            cache_.put(ip_address, result);
+        if (cache_enabled_) {
+            cache_.put(ip_address, result, CacheDataType::IP_GEOLOCATION);
             LOG_DEBUG("Cached result for IP: " + ip_address);
         }
 
@@ -297,13 +304,16 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
 
 // MACLookupService implementation
 
-MACLookupService::MACLookupService(const std::string& oui_db_path, size_t cache_size)
-    : cache_(cache_size) {
+MACLookupService::MACLookupService(const std::string& oui_db_path, size_t cache_size,
+                                    size_t shard_count, size_t max_memory_bytes)
+    : cache_(cache_size, shard_count, std::chrono::seconds(3600), max_memory_bytes) {
     if (!oui_db_.open(oui_db_path)) {
         throw std::runtime_error("Failed to open OUI database: " + oui_db_path);
     }
 
-    LOG_INFO("MACLookupService initialized with cache size: " + std::to_string(cache_size));
+    LOG_INFO("MACLookupService initialized with cache size: " + std::to_string(cache_size) +
+             ", shards: " + std::to_string(shard_count) +
+             ", max memory: " + std::to_string(max_memory_bytes / (1024 * 1024)) + "MB");
 }
 
 LookupResult MACLookupService::lookup(const std::string& mac_address) const {
@@ -327,9 +337,13 @@ LookupResult MACLookupService::lookup(const std::string& mac_address) const {
     try {
         result = oui_db_.lookup(mac_address);
 
-        // Cache the result
-        if (cache_enabled_ && result.value("found", false)) {
-            cache_.put(mac_address, result);
+        // Cache the result (including negative results)
+        if (cache_enabled_) {
+            if (result.value("found", false)) {
+                cache_.put(mac_address, result, CacheDataType::MAC_OUI);
+            } else {
+                cache_.put(mac_address, result, CacheDataType::NEGATIVE);
+            }
             LOG_DEBUG("Cached result for MAC: " + mac_address);
         }
 

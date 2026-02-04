@@ -49,7 +49,8 @@ class ASNDatabase : public MaxMindDatabase {
 class IPGeoService {
    public:
     explicit IPGeoService(const std::string& city_db_path, const std::string& asn_db_path,
-                          size_t cache_size = 10000);
+                          size_t cache_size = 10000, size_t shard_count = 8,
+                          size_t max_memory_bytes = 100 * 1024 * 1024);
     ~IPGeoService() = default;
 
     IPGeoService(const IPGeoService&)            = delete;
@@ -63,8 +64,14 @@ class IPGeoService {
 
     // Cache statistics
     CacheStats get_cache_stats() const { return cache_.get_stats(); }
+    std::vector<ShardStats> get_shard_stats() const { return cache_.get_shard_stats(); }
+    CacheHeatMap get_heat_map(size_t top_n = 10) const { return cache_.get_heat_map(top_n); }
     size_t get_cache_size() const { return cache_.size(); }
+    size_t get_cache_memory_usage() const { return cache_.get_total_memory_usage(); }
     void clear_cache() { cache_.clear(); }
+
+    // Cache configuration
+    void set_cache_ttl(CacheDataType type, std::chrono::seconds ttl) { cache_.set_ttl(type, ttl); }
 
    private:
     CityDatabase city_db_;
@@ -75,7 +82,8 @@ class IPGeoService {
 
 class MACLookupService {
    public:
-    explicit MACLookupService(const std::string& oui_db_path, size_t cache_size = 10000);
+    explicit MACLookupService(const std::string& oui_db_path, size_t cache_size = 10000,
+                              size_t shard_count = 8, size_t max_memory_bytes = 50 * 1024 * 1024);
     ~MACLookupService() = default;
 
     MACLookupService(const MACLookupService&)            = delete;
@@ -88,8 +96,14 @@ class MACLookupService {
 
     // Cache statistics
     CacheStats get_cache_stats() const { return cache_.get_stats(); }
+    std::vector<ShardStats> get_shard_stats() const { return cache_.get_shard_stats(); }
+    CacheHeatMap get_heat_map(size_t top_n = 10) const { return cache_.get_heat_map(top_n); }
     size_t get_cache_size() const { return cache_.size(); }
+    size_t get_cache_memory_usage() const { return cache_.get_total_memory_usage(); }
     void clear_cache() { cache_.clear(); }
+
+    // Cache configuration
+    void set_cache_ttl(CacheDataType type, std::chrono::seconds ttl) { cache_.set_ttl(type, ttl); }
 
    private:
     OUIDatabase oui_db_;
