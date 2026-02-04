@@ -621,7 +621,7 @@ BENCHMARK_DEFINE_F(ConcurrentBenchmark, Concurrent_IPLookup)(benchmark::State& s
         for (int t = 0; t < num_threads; ++t) {
             threads.emplace_back([this, &test_ips, &total_lookups, t, num_threads]() {
                 size_t index = t * (test_ips.size() / num_threads);
-                size_t end = (t + 1) * (test_ips.size() / num_threads);
+                size_t end   = (t + 1) * (test_ips.size() / num_threads);
                 for (size_t i = index; i < end; ++i) {
                     auto result = service_->lookup(test_ips[i % test_ips.size()]);
                     benchmark::DoNotOptimize(result);
@@ -654,7 +654,7 @@ class ShardedCacheBenchmark : public benchmark::Fixture {
     void SetUp(::benchmark::State& state) override {
         // Test with different shard counts
         shard_count_ = state.range(0);
-        cache_size_ = state.range(1);
+        cache_size_  = state.range(1);
 
         // Generate test IPs
         for (int i = 0; i < 1000; ++i) {
@@ -695,7 +695,7 @@ BENCHMARK_DEFINE_F(ShardedCacheBenchmark, ShardedCache_ConcurrentRead)(benchmark
         for (int t = 0; t < num_threads; ++t) {
             threads.emplace_back([this, &cache, &total_reads, t, num_threads]() {
                 size_t index = t * (test_ips_.size() / num_threads);
-                size_t end = (t + 1) * (test_ips_.size() / num_threads);
+                size_t end   = (t + 1) * (test_ips_.size() / num_threads);
                 for (size_t i = index; i < end; ++i) {
                     auto result = cache.get(test_ips_[i]);
                     benchmark::DoNotOptimize(result);
@@ -710,7 +710,7 @@ BENCHMARK_DEFINE_F(ShardedCacheBenchmark, ShardedCache_ConcurrentRead)(benchmark
     }
 
     state.SetItemsProcessed(state.iterations() * test_ips_.size());
-    state.counters["shards"] = shard_count_;
+    state.counters["shards"]     = shard_count_;
     state.counters["cache_size"] = cache_size_;
 }
 BENCHMARK_REGISTER_F(ShardedCacheBenchmark, ShardedCache_ConcurrentRead)
@@ -733,7 +733,7 @@ BENCHMARK_DEFINE_F(ShardedCacheBenchmark, ShardedCache_ConcurrentWrite)(benchmar
         for (int t = 0; t < num_threads; ++t) {
             threads.emplace_back([this, &cache, &total_writes, t, num_threads]() {
                 size_t index = t * (test_ips_.size() / num_threads);
-                size_t end = (t + 1) * (test_ips_.size() / num_threads);
+                size_t end   = (t + 1) * (test_ips_.size() / num_threads);
                 for (size_t i = index; i < end; ++i) {
                     cache.put(test_ips_[i], dummy_result_);
                     total_writes.fetch_add(1);
@@ -747,7 +747,7 @@ BENCHMARK_DEFINE_F(ShardedCacheBenchmark, ShardedCache_ConcurrentWrite)(benchmar
     }
 
     state.SetItemsProcessed(state.iterations() * test_ips_.size());
-    state.counters["shards"] = shard_count_;
+    state.counters["shards"]     = shard_count_;
     state.counters["cache_size"] = cache_size_;
 }
 BENCHMARK_REGISTER_F(ShardedCacheBenchmark, ShardedCache_ConcurrentWrite)
@@ -775,7 +775,7 @@ BENCHMARK_DEFINE_F(ShardedCacheBenchmark, ShardedCache_MixedWorkload)(benchmark:
         for (int t = 0; t < num_threads; ++t) {
             threads.emplace_back([this, &cache, &total_ops, t, num_threads]() {
                 size_t index = t * (test_ips_.size() / num_threads);
-                size_t end = (t + 1) * (test_ips_.size() / num_threads);
+                size_t end   = (t + 1) * (test_ips_.size() / num_threads);
                 for (size_t i = index; i < end; ++i) {
                     // 70% reads, 30% writes
                     if (i % 10 < 7) {
@@ -795,7 +795,7 @@ BENCHMARK_DEFINE_F(ShardedCacheBenchmark, ShardedCache_MixedWorkload)(benchmark:
     }
 
     state.SetItemsProcessed(state.iterations() * test_ips_.size());
-    state.counters["shards"] = shard_count_;
+    state.counters["shards"]     = shard_count_;
     state.counters["cache_size"] = cache_size_;
 }
 BENCHMARK_REGISTER_F(ShardedCacheBenchmark, ShardedCache_MixedWorkload)
@@ -813,18 +813,19 @@ class CacheHitRateBenchmark : public benchmark::Fixture {
     void SetUp(::benchmark::State& state) override {
         project_root = find_project_root();
         city_db_path = project_root / "db" / "GeoLite2-City.mmdb";
-        asn_db_path = project_root / "db" / "GeoLite2-ASN.mmdb";
+        asn_db_path  = project_root / "db" / "GeoLite2-ASN.mmdb";
 
         if (!std::filesystem::exists(city_db_path) || !std::filesystem::exists(asn_db_path)) {
             state.SkipWithError("Database files not found");
             return;
         }
 
-        service_ = std::make_unique<IPGeoService>(city_db_path.string(), asn_db_path.string(), 10000);
+        service_ =
+            std::make_unique<IPGeoService>(city_db_path.string(), asn_db_path.string(), 10000);
 
         // Use known public DNS servers
-        test_ips_ = {"8.8.8.8", "1.1.1.1", "9.9.9.9", "208.67.222.222", "208.67.220.220",
-                     "64.6.64.6", "64.6.65.6", "185.228.168.9", "185.228.169.9", "1.0.0.1"};
+        test_ips_ = {"8.8.8.8",   "1.1.1.1",   "9.9.9.9",       "208.67.222.222", "208.67.220.220",
+                     "64.6.64.6", "64.6.65.6", "185.228.168.9", "185.228.169.9",  "1.0.0.1"};
     }
 
     void TearDown(const ::benchmark::State& /*state*/) override {
@@ -848,8 +849,8 @@ BENCHMARK_DEFINE_F(CacheHitRateBenchmark, CacheHitRate_90Percent)(benchmark::Sta
             if (i < 90) {
                 service_->lookup(test_ips_[i % hot_ips]);
             } else {
-                std::string cold_ip = "10.0." + std::to_string((i / 256) % 256) + "."
-                                      + std::to_string(i % 256);
+                std::string cold_ip =
+                    "10.0." + std::to_string((i / 256) % 256) + "." + std::to_string(i % 256);
                 service_->lookup(cold_ip);
             }
         }
@@ -871,8 +872,8 @@ BENCHMARK_DEFINE_F(CacheHitRateBenchmark, CacheHitRate_95Percent)(benchmark::Sta
             if (i < 95) {
                 service_->lookup(test_ips_[i % hot_ips]);
             } else {
-                std::string cold_ip = "10.0." + std::to_string((i / 256) % 256) + "."
-                                      + std::to_string(i % 256);
+                std::string cold_ip =
+                    "10.0." + std::to_string((i / 256) % 256) + "." + std::to_string(i % 256);
                 service_->lookup(cold_ip);
             }
         }
@@ -894,8 +895,8 @@ BENCHMARK_DEFINE_F(CacheHitRateBenchmark, CacheHitRate_99Percent)(benchmark::Sta
             if (i < 99) {
                 service_->lookup(test_ips_[i % hot_ips]);
             } else {
-                std::string cold_ip = "10.0." + std::to_string((i / 256) % 256) + "."
-                                      + std::to_string(i % 256);
+                std::string cold_ip =
+                    "10.0." + std::to_string((i / 256) % 256) + "." + std::to_string(i % 256);
                 service_->lookup(cold_ip);
             }
         }
@@ -915,15 +916,16 @@ class CacheStatsBenchmark : public benchmark::Fixture {
    protected:
     void SetUp(::benchmark::State& state) override {
         auto project_root = find_project_root();
-        city_db_path = project_root / "db" / "GeoLite2-City.mmdb";
-        asn_db_path = project_root / "db" / "GeoLite2-ASN.mmdb";
+        city_db_path      = project_root / "db" / "GeoLite2-City.mmdb";
+        asn_db_path       = project_root / "db" / "GeoLite2-ASN.mmdb";
 
         if (!std::filesystem::exists(city_db_path) || !std::filesystem::exists(asn_db_path)) {
             state.SkipWithError("Database files not found");
             return;
         }
 
-        service_ = std::make_unique<IPGeoService>(city_db_path.string(), asn_db_path.string(), 10000);
+        service_ =
+            std::make_unique<IPGeoService>(city_db_path.string(), asn_db_path.string(), 10000);
 
         // Populate cache
         for (int i = 0; i < 100; ++i) {
@@ -959,7 +961,7 @@ BENCHMARK_F(CacheStatsBenchmark, CacheStats_GetCacheSize)(benchmark::State& stat
 BENCHMARK_F(CacheStatsBenchmark, CacheStats_HitRateCalculation)(benchmark::State& state) {
     for (auto _ : state) {
         auto stats = service_->get_cache_stats();
-        auto rate = stats.hit_rate();
+        auto rate  = stats.hit_rate();
         benchmark::DoNotOptimize(rate);
     }
     state.SetItemsProcessed(state.iterations());

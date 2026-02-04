@@ -13,8 +13,7 @@ PasswordGenerator::PasswordGenerator() {
     LOG_INFO("PasswordGenerator initialized");
 }
 
-bool PasswordGenerator::validate_config(const PasswordConfig& config,
-                                        std::string& error_message) {
+bool PasswordGenerator::validate_config(const PasswordConfig& config, std::string& error_message) {
     if (config.length < 8) {
         error_message = "Password length must be at least 8 characters";
         return false;
@@ -63,7 +62,7 @@ PasswordResult PasswordGenerator::generate(const PasswordConfig& config) {
         if (config.exclude_similar) {
             for (char c : std::string_view(CONFUSING_UPPER)) {
                 upper_set.erase(std::remove(upper_set.begin(), upper_set.end(), c),
-                               upper_set.end());
+                                upper_set.end());
             }
         }
         if (!upper_set.empty()) {
@@ -75,7 +74,7 @@ PasswordResult PasswordGenerator::generate(const PasswordConfig& config) {
         if (config.exclude_similar) {
             for (char c : std::string_view(CONFUSING_LOWER)) {
                 lower_set.erase(std::remove(lower_set.begin(), lower_set.end(), c),
-                               lower_set.end());
+                                lower_set.end());
             }
         }
         if (!lower_set.empty()) {
@@ -87,7 +86,7 @@ PasswordResult PasswordGenerator::generate(const PasswordConfig& config) {
         if (config.exclude_similar) {
             for (char c : std::string_view(CONFUSING_DIGITS)) {
                 digit_set.erase(std::remove(digit_set.begin(), digit_set.end(), c),
-                               digit_set.end());
+                                digit_set.end());
             }
         }
         if (!digit_set.empty()) {
@@ -103,7 +102,7 @@ PasswordResult PasswordGenerator::generate(const PasswordConfig& config) {
     for (const auto& char_set : required_chars) {
         if (char_set.empty()) continue;
         std::uniform_int_distribution<size_t> char_dist(0, char_set.size() - 1);
-        size_t pos = pos_dist(gen);
+        size_t pos    = pos_dist(gen);
         password[pos] = char_set[char_dist(gen)];
     }
 
@@ -112,8 +111,8 @@ PasswordResult PasswordGenerator::generate(const PasswordConfig& config) {
 
     PasswordResult result;
     result.password = password;
-    result.length = static_cast<int>(password.length());
-    result.entropy = calculate_entropy(password, static_cast<int>(pool.size()));
+    result.length   = static_cast<int>(password.length());
+    result.entropy  = calculate_entropy(password, static_cast<int>(pool.size()));
     result.strength = get_strength_rating(result.entropy);
 
     return result;
@@ -147,7 +146,7 @@ std::string PasswordGenerator::build_character_pool(const PasswordConfig& config
         if (config.exclude_similar) {
             for (char c : std::string_view(CONFUSING_UPPER)) {
                 upper_set.erase(std::remove(upper_set.begin(), upper_set.end(), c),
-                               upper_set.end());
+                                upper_set.end());
             }
         }
         pool += upper_set;
@@ -158,7 +157,7 @@ std::string PasswordGenerator::build_character_pool(const PasswordConfig& config
         if (config.exclude_similar) {
             for (char c : std::string_view(CONFUSING_LOWER)) {
                 lower_set.erase(std::remove(lower_set.begin(), lower_set.end(), c),
-                               lower_set.end());
+                                lower_set.end());
             }
         }
         pool += lower_set;
@@ -169,7 +168,7 @@ std::string PasswordGenerator::build_character_pool(const PasswordConfig& config
         if (config.exclude_similar) {
             for (char c : std::string_view(CONFUSING_DIGITS)) {
                 digit_set.erase(std::remove(digit_set.begin(), digit_set.end(), c),
-                               digit_set.end());
+                                digit_set.end());
             }
         }
         pool += digit_set;

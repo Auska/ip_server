@@ -16,9 +16,7 @@ struct LookupResult {
 
     // Move constructor
     LookupResult(LookupResult&& other) noexcept
-        : data(std::move(other.data))
-        , cache_hit(other.cache_hit)
-        , latency_ms(other.latency_ms) {}
+        : data(std::move(other.data)), cache_hit(other.cache_hit), latency_ms(other.latency_ms) {}
 
     // Move assignment
     LookupResult& operator=(LookupResult&& other) noexcept {

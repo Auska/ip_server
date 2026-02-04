@@ -56,10 +56,7 @@ bool APIAuth::load_keys_from_file(const std::string& filepath) {
     api_keys_.clear();
 
     std::string line;
-    int line_num = 0;
     while (std::getline(file, line)) {
-        line_num++;
-
         // Skip empty lines and comments
         if (line.empty() || line[0] == '#') {
             continue;

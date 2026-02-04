@@ -6,11 +6,11 @@
 namespace ip_server {
 
 struct PasswordConfig {
-    int length = 16;
-    bool uppercase = true;
-    bool lowercase = true;
-    bool digits = true;
-    bool symbols = true;
+    int length           = 16;
+    bool uppercase       = true;
+    bool lowercase       = true;
+    bool digits          = true;
+    bool symbols         = true;
     bool exclude_similar = true;
 };
 
@@ -26,10 +26,10 @@ class PasswordGenerator {
     PasswordGenerator();
     ~PasswordGenerator() = default;
 
-    PasswordGenerator(const PasswordGenerator&) = delete;
+    PasswordGenerator(const PasswordGenerator&)            = delete;
     PasswordGenerator& operator=(const PasswordGenerator&) = delete;
 
-    PasswordGenerator(PasswordGenerator&&) noexcept = default;
+    PasswordGenerator(PasswordGenerator&&) noexcept            = default;
     PasswordGenerator& operator=(PasswordGenerator&&) noexcept = default;
 
     PasswordResult generate(const PasswordConfig& config);
@@ -45,12 +45,12 @@ class PasswordGenerator {
     // Character sets
     static constexpr const char* UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     static constexpr const char* LOWERCASE = "abcdefghijklmnopqrstuvwxyz";
-    static constexpr const char* DIGITS = "0123456789";
-    static constexpr const char* SYMBOLS = "!@#$%^&*()_+-=[]{}|;:,.<>?";
+    static constexpr const char* DIGITS    = "0123456789";
+    static constexpr const char* SYMBOLS   = "!@#$%^&*()_+-=[]{}|;:,.<>?";
 
     // Confusing characters to exclude
-    static constexpr const char* CONFUSING_UPPER = "IO";
-    static constexpr const char* CONFUSING_LOWER = "ilo";
+    static constexpr const char* CONFUSING_UPPER  = "IO";
+    static constexpr const char* CONFUSING_LOWER  = "ilo";
     static constexpr const char* CONFUSING_DIGITS = "01";
 };
 

@@ -23,7 +23,6 @@ IPGeoHTTPServer::IPGeoHTTPServer(const std::string& host, uint16_t port, int thr
       port_(port),
       thread_pool_size_(thread_pool_size),
       enable_rate_limiter_(enable_rate_limiter),
-      max_requests_per_minute_(max_requests_per_minute),
       max_batch_size_(max_batch_size),
       enable_api_auth_(enable_api_auth) {
     // Initialize metrics collector
@@ -212,7 +211,8 @@ void IPGeoHTTPServer::setup_routes() {
     };
 
     // Single lookup endpoint (supports both IP and MAC queries)
-    server_.Get("/lookup", [this, &get_real_client_ip](const httplib::Request& req, httplib::Response& res) {
+    server_.Get("/lookup", [this, &get_real_client_ip](const httplib::Request& req,
+                                                       httplib::Response& res) {
         // Check authentication
         if (!authenticate_request(req, res)) {
             return;
@@ -300,7 +300,8 @@ void IPGeoHTTPServer::setup_routes() {
     });
 
     // Batch lookup endpoint (supports both IP and MAC queries)
-    server_.Post("/lookup", [this, &get_real_client_ip](const httplib::Request& req, httplib::Response& res) {
+    server_.Post("/lookup", [this, &get_real_client_ip](const httplib::Request& req,
+                                                        httplib::Response& res) {
         // Check authentication
         if (!authenticate_request(req, res)) {
             return;
@@ -452,7 +453,8 @@ void IPGeoHTTPServer::setup_routes() {
     });
 
     // Password generation endpoint (GET)
-    server_.Get("/password/generate", [this, &get_real_client_ip](const httplib::Request& req, httplib::Response& res) {
+    server_.Get("/password/generate", [this, &get_real_client_ip](const httplib::Request& req,
+                                                                  httplib::Response& res) {
         // Check authentication
         if (!authenticate_request(req, res)) {
             return;
@@ -508,7 +510,8 @@ void IPGeoHTTPServer::setup_routes() {
 
             auto exclude_similar_param = req.get_param_value("exclude_similar");
             if (!exclude_similar_param.empty()) {
-                config.exclude_similar = (exclude_similar_param == "true" || exclude_similar_param == "1");
+                config.exclude_similar =
+                    (exclude_similar_param == "true" || exclude_similar_param == "1");
             }
 
             // Validate config
@@ -521,9 +524,10 @@ void IPGeoHTTPServer::setup_routes() {
 
             // Generate password
             auto start_time = std::chrono::high_resolution_clock::now();
-            auto result = password_generator_->generate(config);
-            auto end_time = std::chrono::high_resolution_clock::now();
-            auto latency_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
+            auto result     = password_generator_->generate(config);
+            auto end_time   = std::chrono::high_resolution_clock::now();
+            auto latency_ms =
+                std::chrono::duration<double, std::milli>(end_time - start_time).count();
 
             // Record metrics
             metrics_->record_request(false, latency_ms);
@@ -531,15 +535,16 @@ void IPGeoHTTPServer::setup_routes() {
             // Build response
             nlohmann::json response;
             response["password"] = result.password;
-            response["length"] = result.length;
-            response["entropy"] = result.entropy;
+            response["length"]   = result.length;
+            response["entropy"]  = result.entropy;
             response["strength"] = result.strength;
 
             LOG_DEBUG("Generated password for IP: " + client_ip + ", strength: " + result.strength);
             send_json_response(res, response, 200);
 
         } catch (const std::invalid_argument& e) {
-            send_error_response(res, 400, "Bad Request", "Invalid parameter value: " + std::string(e.what()));
+            send_error_response(res, 400, "Bad Request",
+                                "Invalid parameter value: " + std::string(e.what()));
             LOG_WARNING("Invalid parameter in password generation: " + std::string(e.what()));
         } catch (const std::exception& e) {
             send_error_response(res, 500, "Internal Server Error", e.what());
@@ -548,7 +553,8 @@ void IPGeoHTTPServer::setup_routes() {
     });
 
     // Password generation endpoint (POST - batch)
-    server_.Post("/password/generate", [this, &get_real_client_ip](const httplib::Request& req, httplib::Response& res) {
+    server_.Post("/password/generate", [this, &get_real_client_ip](const httplib::Request& req,
+                                                                   httplib::Response& res) {
         // Check authentication
         if (!authenticate_request(req, res)) {
             return;
@@ -629,28 +635,30 @@ void IPGeoHTTPServer::setup_routes() {
 
             // Generate passwords
             auto start_time = std::chrono::high_resolution_clock::now();
-            auto results = password_generator_->generate_batch(config, count);
-            auto end_time = std::chrono::high_resolution_clock::now();
-            auto latency_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
+            auto results    = password_generator_->generate_batch(config, count);
+            auto end_time   = std::chrono::high_resolution_clock::now();
+            auto latency_ms =
+                std::chrono::duration<double, std::milli>(end_time - start_time).count();
 
             // Record metrics
             metrics_->record_request(false, latency_ms);
 
             // Build response
             nlohmann::json response;
-            response["count"] = static_cast<int>(results.size());
+            response["count"]     = static_cast<int>(results.size());
             response["passwords"] = nlohmann::json::array();
 
             for (const auto& result : results) {
                 nlohmann::json password_json;
                 password_json["password"] = result.password;
-                password_json["length"] = result.length;
-                password_json["entropy"] = result.entropy;
+                password_json["length"]   = result.length;
+                password_json["entropy"]  = result.entropy;
                 password_json["strength"] = result.strength;
                 response["passwords"].push_back(password_json);
             }
 
-            LOG_INFO("Generated " + std::to_string(results.size()) + " password(s) for IP: " + client_ip);
+            LOG_INFO("Generated " + std::to_string(results.size())
+                     + " password(s) for IP: " + client_ip);
             send_json_response(res, response, 200);
 
         } catch (const nlohmann::json::exception& e) {
@@ -706,9 +714,8 @@ bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
     // Start cleanup thread for rate limiter
     if (enable_rate_limiter_ && rate_limiter_) {
         cleanup_thread_running_.store(true);
-        cleanup_thread_ = std::jthread([this, &shutdown_requested]() {
-            cleanup_thread_func(shutdown_requested);
-        });
+        cleanup_thread_ = std::jthread(
+            [this, &shutdown_requested]() { cleanup_thread_func(shutdown_requested); });
         LOG_INFO("Rate limiter cleanup thread started");
     }
 

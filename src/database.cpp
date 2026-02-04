@@ -108,8 +108,8 @@ nlohmann::json CityDatabase::lookup(const std::string& ip_address) const {
         MMDB_lookup_string(&mmdb_, ip_address.c_str(), &gai_error, &mmdb_error);
 
     if (!lookup_result.found_entry) {
-        result["ip"]     = ip_address;
-        result["found"]  = false;
+        result["ip"]    = ip_address;
+        result["found"] = false;
         return result;
     }
 
@@ -176,8 +176,8 @@ nlohmann::json ASNDatabase::lookup(const std::string& ip_address) const {
         MMDB_lookup_string(&mmdb_, ip_address.c_str(), &gai_error, &mmdb_error);
 
     if (!lookup_result.found_entry) {
-        result["ip"]     = ip_address;
-        result["found"]  = false;
+        result["ip"]    = ip_address;
+        result["found"] = false;
         return result;
     }
 
@@ -215,9 +215,9 @@ IPGeoService::IPGeoService(const std::string& city_db_path, const std::string& a
         throw std::runtime_error("Failed to open ASN database: " + asn_db_path);
     }
 
-    LOG_INFO("IPGeoService initialized with cache size: " + std::to_string(cache_size) +
-             ", shards: " + std::to_string(shard_count) +
-             ", max memory: " + std::to_string(max_memory_bytes / (1024 * 1024)) + "MB");
+    LOG_INFO("IPGeoService initialized with cache size: " + std::to_string(cache_size)
+             + ", shards: " + std::to_string(shard_count)
+             + ", max memory: " + std::to_string(max_memory_bytes / (1024 * 1024)) + "MB");
 }
 
 LookupResult IPGeoService::lookup(const std::string& ip_address) const {
@@ -305,15 +305,15 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
 // MACLookupService implementation
 
 MACLookupService::MACLookupService(const std::string& oui_db_path, size_t cache_size,
-                                    size_t shard_count, size_t max_memory_bytes)
+                                   size_t shard_count, size_t max_memory_bytes)
     : cache_(cache_size, shard_count, std::chrono::seconds(3600), max_memory_bytes) {
     if (!oui_db_.open(oui_db_path)) {
         throw std::runtime_error("Failed to open OUI database: " + oui_db_path);
     }
 
-    LOG_INFO("MACLookupService initialized with cache size: " + std::to_string(cache_size) +
-             ", shards: " + std::to_string(shard_count) +
-             ", max memory: " + std::to_string(max_memory_bytes / (1024 * 1024)) + "MB");
+    LOG_INFO("MACLookupService initialized with cache size: " + std::to_string(cache_size)
+             + ", shards: " + std::to_string(shard_count)
+             + ", max memory: " + std::to_string(max_memory_bytes / (1024 * 1024)) + "MB");
 }
 
 LookupResult MACLookupService::lookup(const std::string& mac_address) const {

@@ -58,7 +58,6 @@ class IPGeoHTTPServer {
     uint16_t port_;
     int thread_pool_size_;
     bool enable_rate_limiter_;
-    int max_requests_per_minute_;
     int max_batch_size_;
     bool enable_api_auth_;
     httplib::Server server_;

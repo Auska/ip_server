@@ -33,7 +33,8 @@ TEST_F(ConfigTest, ParseNoArguments) {
 
 TEST_F(ConfigTest, ParseHostArgument) {
     // Set up a temporary config path that doesn't exist to avoid loading existing config
-    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--host", "127.0.0.1"};
+    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--host",
+                          "127.0.0.1"};
     int argc           = 5;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -53,7 +54,8 @@ TEST_F(ConfigTest, ParsePortArgument) {
 }
 
 TEST_F(ConfigTest, ParseCityDbArgument) {
-    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--city-db", "/path/to/city.mmdb"};
+    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--city-db",
+                          "/path/to/city.mmdb"};
     int argc           = 5;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -62,7 +64,8 @@ TEST_F(ConfigTest, ParseCityDbArgument) {
 }
 
 TEST_F(ConfigTest, ParseAsnDbArgument) {
-    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--asn-db", "/path/to/asn.mmdb"};
+    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--asn-db",
+                          "/path/to/asn.mmdb"};
     int argc           = 5;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -80,10 +83,12 @@ TEST_F(ConfigTest, ParseThreadsArgument) {
 }
 
 TEST_F(ConfigTest, ParseMultipleArguments) {
-    const char* argv[] =
-        {"ip_server",         "--config", "/nonexistent/config.json", "--host",   "192.168.1.1",      "--port",    "8080", "--city-db",
-         "/custom/city.mmdb", "--asn-db", "/custom/asn.mmdb", "--threads", "16"};
-    int argc = 13;
+    const char* argv[] = {"ip_server", "--config",         "/nonexistent/config.json",
+                          "--host",    "192.168.1.1",      "--port",
+                          "8080",      "--city-db",        "/custom/city.mmdb",
+                          "--asn-db",  "/custom/asn.mmdb", "--threads",
+                          "16"};
+    int argc           = 13;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
@@ -102,14 +107,16 @@ TEST_F(ConfigTest, InvalidPortNumber) {
 }
 
 TEST_F(ConfigTest, InvalidThreadCount) {
-    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--threads", "invalid"};
+    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--threads",
+                          "invalid"};
     int argc           = 5;
 
     EXPECT_THROW(ConfigParser::parse(argc, const_cast<char**>(argv)), std::runtime_error);
 }
 
 TEST_F(ConfigTest, ParseEnableRateLimiter) {
-    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--enable-rate-limiter", "false"};
+    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json",
+                          "--enable-rate-limiter", "false"};
     int argc           = 5;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -118,7 +125,8 @@ TEST_F(ConfigTest, ParseEnableRateLimiter) {
 }
 
 TEST_F(ConfigTest, ParseMaxRequestsPerMinute) {
-    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--max-requests-per-minute", "200"};
+    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json",
+                          "--max-requests-per-minute", "200"};
     int argc           = 5;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -127,7 +135,8 @@ TEST_F(ConfigTest, ParseMaxRequestsPerMinute) {
 }
 
 TEST_F(ConfigTest, ParseMaxBatchSize) {
-    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--max-batch-size", "50"};
+    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--max-batch-size",
+                          "50"};
     int argc           = 5;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -136,8 +145,15 @@ TEST_F(ConfigTest, ParseMaxBatchSize) {
 }
 
 TEST_F(ConfigTest, ParseAllNewParameters) {
-    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--enable-rate-limiter", "true", "--max-requests-per-minute",
-                          "150",       "--max-batch-size",      "75"};
+    const char* argv[] = {"ip_server",
+                          "--config",
+                          "/nonexistent/config.json",
+                          "--enable-rate-limiter",
+                          "true",
+                          "--max-requests-per-minute",
+                          "150",
+                          "--max-batch-size",
+                          "75"};
     int argc           = 9;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -159,21 +175,24 @@ TEST_F(ConfigTest, DefaultNewParameters) {
 }
 
 TEST_F(ConfigTest, InvalidMaxRequestsPerMinute) {
-    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--max-requests-per-minute", "invalid"};
+    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json",
+                          "--max-requests-per-minute", "invalid"};
     int argc           = 5;
 
     EXPECT_THROW(ConfigParser::parse(argc, const_cast<char**>(argv)), std::runtime_error);
 }
 
 TEST_F(ConfigTest, InvalidMaxBatchSize) {
-    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--max-batch-size", "invalid"};
+    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--max-batch-size",
+                          "invalid"};
     int argc           = 5;
 
     EXPECT_THROW(ConfigParser::parse(argc, const_cast<char**>(argv)), std::runtime_error);
 }
 
 TEST_F(ConfigTest, RateLimiterDisabledWithZeroRequests) {
-    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--enable-rate-limiter", "false"};
+    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json",
+                          "--enable-rate-limiter", "false"};
     int argc           = 5;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -219,7 +238,12 @@ TEST_F(ConfigTest, ValidThreadPoolSize) {
 }
 
 TEST_F(ConfigTest, ValidateMaxRequestsPerMinuteTooSmall) {
-    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--enable-rate-limiter", "true", "--max-requests-per-minute",
+    const char* argv[] = {"ip_server",
+                          "--config",
+                          "/nonexistent/config.json",
+                          "--enable-rate-limiter",
+                          "true",
+                          "--max-requests-per-minute",
                           "0"};
     int argc           = 7;
 
@@ -227,7 +251,12 @@ TEST_F(ConfigTest, ValidateMaxRequestsPerMinuteTooSmall) {
 }
 
 TEST_F(ConfigTest, ValidateMaxRequestsPerMinuteTooLarge) {
-    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--enable-rate-limiter", "true", "--max-requests-per-minute",
+    const char* argv[] = {"ip_server",
+                          "--config",
+                          "/nonexistent/config.json",
+                          "--enable-rate-limiter",
+                          "true",
+                          "--max-requests-per-minute",
                           "20000"};
     int argc           = 7;
 
@@ -235,21 +264,24 @@ TEST_F(ConfigTest, ValidateMaxRequestsPerMinuteTooLarge) {
 }
 
 TEST_F(ConfigTest, ValidateMaxBatchSizeTooSmall) {
-    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--max-batch-size", "0"};
+    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--max-batch-size",
+                          "0"};
     int argc           = 5;
 
     EXPECT_THROW(ConfigParser::parse(argc, const_cast<char**>(argv)), std::runtime_error);
 }
 
 TEST_F(ConfigTest, ValidateMaxBatchSizeTooLarge) {
-    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--max-batch-size", "2000"};
+    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--max-batch-size",
+                          "2000"};
     int argc           = 5;
 
     EXPECT_THROW(ConfigParser::parse(argc, const_cast<char**>(argv)), std::runtime_error);
 }
 
 TEST_F(ConfigTest, ParseEnableApiAuth) {
-    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--enable-api-auth", "true"};
+    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--enable-api-auth",
+                          "true"};
     int argc           = 5;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -258,7 +290,8 @@ TEST_F(ConfigTest, ParseEnableApiAuth) {
 }
 
 TEST_F(ConfigTest, ParseApiKeysFile) {
-    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--api-keys-file", "/path/to/keys.txt"};
+    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--api-keys-file",
+                          "/path/to/keys.txt"};
     int argc           = 5;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
@@ -267,7 +300,8 @@ TEST_F(ConfigTest, ParseApiKeysFile) {
 }
 
 TEST_F(ConfigTest, ParseDefaultApiKey) {
-    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--default-api-key", "my_secret_key"};
+    const char* argv[] = {"ip_server", "--config", "/nonexistent/config.json", "--default-api-key",
+                          "my_secret_key"};
     int argc           = 5;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));

@@ -517,8 +517,8 @@ TEST_F(DatabaseTest, CacheStatsEvictionTracking) {
     IPGeoService service(city_db_path.string(), asn_db_path.string(), 5);
 
     // Use known public DNS server IPs that are definitely in the database
-    std::vector<std::string> known_ips = {"8.8.8.8", "1.1.1.1", "9.9.9.9", "208.67.222.222",
-                                          "64.6.64.6", "185.228.168.9"};
+    std::vector<std::string> known_ips = {"8.8.8.8",        "1.1.1.1",   "9.9.9.9",
+                                          "208.67.222.222", "64.6.64.6", "185.228.168.9"};
 
     // Fill cache with more entries than cache size
     for (const auto& ip : known_ips) {
@@ -537,8 +537,9 @@ TEST_F(DatabaseTest, CacheShardDistribution) {
     IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
 
     // Perform lookups on many different IPs using known public DNS servers
-    std::vector<std::string> test_ips = {"8.8.8.8", "1.1.1.1", "9.9.9.9", "208.67.222.222",
-                                         "208.67.220.220", "64.6.64.6", "64.6.65.6"};
+    std::vector<std::string> test_ips = {"8.8.8.8",        "1.1.1.1",        "9.9.9.9",
+                                         "208.67.222.222", "208.67.220.220", "64.6.64.6",
+                                         "64.6.65.6"};
     for (int i = 0; i < 100; ++i) {
         // Cycle through test IPs to get cache hits
         service.lookup(test_ips[i % test_ips.size()]);
@@ -589,15 +590,15 @@ TEST_F(DatabaseTest, CacheConcurrentAccess) {
 TEST_F(DatabaseTest, CacheConcurrencyStress) {
     IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
 
-    const int num_threads = 4;
+    const int num_threads        = 4;
     const int lookups_per_thread = 25;
 
     // Use known public DNS servers to ensure all IPs are in database
-    std::vector<std::string> known_ips = {
-        "8.8.8.8", "1.1.1.1", "9.9.9.9", "208.67.222.222", "208.67.220.220",
-        "64.6.64.6", "64.6.65.6", "185.228.168.9", "185.228.169.9", "1.0.0.1",
-        "8.8.4.4", "1.1.1.2", "9.9.9.10", "208.67.222.223", "208.67.220.223"
-    };
+    std::vector<std::string> known_ips = {"8.8.8.8",        "1.1.1.1",        "9.9.9.9",
+                                          "208.67.222.222", "208.67.220.220", "64.6.64.6",
+                                          "64.6.65.6",      "185.228.168.9",  "185.228.169.9",
+                                          "1.0.0.1",        "8.8.4.4",        "1.1.1.2",
+                                          "9.9.9.10",       "208.67.222.223", "208.67.220.223"};
 
     std::vector<std::thread> threads;
 
@@ -756,8 +757,8 @@ TEST_F(DatabaseTest, CacheTTLConfiguration) {
 TEST_F(DatabaseTest, ConcurrentReadWritePerformance) {
     IPGeoService service(city_db_path.string(), asn_db_path.string(), 10000, 16);
 
-    const int num_readers = 8;
-    const int num_writers = 4;
+    const int num_readers           = 8;
+    const int num_writers           = 4;
     const int operations_per_thread = 50;
 
     std::vector<std::thread> threads;
@@ -799,7 +800,7 @@ TEST_F(DatabaseTest, CacheMemoryLimitRespected) {
         service.lookup("8.8.8." + std::to_string(i % 255));
     }
 
-    auto stats = service.get_cache_stats();
+    auto stats        = service.get_cache_stats();
     auto memory_usage = service.get_cache_memory_usage();
 
     // Memory usage should be close to or below limit (allowing for some overhead)

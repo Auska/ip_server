@@ -1,22 +1,22 @@
 #pragma once
 
+#include <array>
+#include <atomic>
+#include <bitset>
 #include <chrono>
 #include <list>
 #include <memory>
-#include <shared_mutex>
 #include <nlohmann/json.hpp>
+#include <shared_mutex>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <atomic>
-#include <array>
-#include <bitset>
 
 namespace ip_server {
 
 // Simple Bloom Filter implementation for cache penetration protection
-template<size_t Bits = 65536, size_t HashCount = 3>
+template <size_t Bits = 65536, size_t HashCount = 3>
 class BloomFilter {
    public:
     BloomFilter() = default;
@@ -74,9 +74,9 @@ class BloomFilter {
 // Data type for differentiated TTL
 enum class CacheDataType {
     IP_GEOLOCATION,  // IP geolocation data
-    IP_ASN,         // IP ASN data
-    MAC_OUI,        // MAC OUI data
-    NEGATIVE        // Negative cache (not found)
+    IP_ASN,          // IP ASN data
+    MAC_OUI,         // MAC OUI data
+    NEGATIVE         // Negative cache (not found)
 };
 
 // Cache statistics structure
@@ -96,33 +96,29 @@ struct CacheStats {
         return total_lookups > 0 ? (static_cast<double>(hits) / total_lookups) * 100.0 : 0.0;
     }
 
-    double get_memory_usage_mb() const {
-        return memory_usage_bytes / (1024.0 * 1024.0);
-    }
+    double get_memory_usage_mb() const { return memory_usage_bytes / (1024.0 * 1024.0); }
 
     void reset() {
-        total_lookups = 0;
-        hits = 0;
-        misses = 0;
-        evictions = 0;
-        expired_entries = 0;
+        total_lookups       = 0;
+        hits                = 0;
+        misses              = 0;
+        evictions           = 0;
+        expired_entries     = 0;
         concurrent_accesses = 0;
-        memory_usage_bytes = 0;
-        negative_hits = 0;
-        negative_misses = 0;
-        avg_entry_size = 0.0;
+        memory_usage_bytes  = 0;
+        negative_hits       = 0;
+        negative_misses     = 0;
+        avg_entry_size      = 0.0;
     }
 };
 
 // Single LRU cache shard with its own shared_mutex
 class CacheShard {
    public:
-    explicit CacheShard(size_t max_size = 100,
+    explicit CacheShard(size_t max_size                  = 100,
                         std::chrono::seconds default_ttl = std::chrono::seconds(3600),
-                        size_t max_memory_bytes = 10 * 1024 * 1024)  // 10MB default
-        : max_size_(max_size),
-          default_ttl_(default_ttl),
-          max_memory_bytes_(max_memory_bytes) {}
+                        size_t max_memory_bytes          = 10 * 1024 * 1024)  // 10MB default
+        : max_size_(max_size), default_ttl_(default_ttl), max_memory_bytes_(max_memory_bytes) {}
 
     // Get cached result if exists and not expired
     std::optional<nlohmann::json> get(const std::string& key, CacheStats& stats) {
@@ -146,7 +142,6 @@ class CacheShard {
             // Double-check after acquiring write lock
             it = cache_map_.find(key);
             if (it != cache_map_.end()) {
-                bool is_negative = (it->second.data_type == CacheDataType::NEGATIVE);
                 cache_list_.erase(it->second.list_it);
                 negative_cache_.erase(key);
                 memory_usage_bytes_ -= it->second.size_bytes;
@@ -179,17 +174,17 @@ class CacheShard {
         std::unique_lock<std::shared_mutex> lock(mutex_);
 
         size_t entry_size = result.dump().size();
-        stats.avg_entry_size = (stats.avg_entry_size * (cache_map_.size()) + entry_size)
-                               / (cache_map_.size() + 1);
+        stats.avg_entry_size =
+            (stats.avg_entry_size * (cache_map_.size()) + entry_size) / (cache_map_.size() + 1);
 
         auto it = cache_map_.find(key);
         if (it != cache_map_.end()) {
             // Update existing entry
             memory_usage_bytes_ -= it->second.size_bytes;
-            it->second.result = std::move(result);
-            it->second.timestamp = std::chrono::system_clock::now();
+            it->second.result     = std::move(result);
+            it->second.timestamp  = std::chrono::system_clock::now();
             it->second.size_bytes = entry_size;
-            it->second.data_type = data_type;
+            it->second.data_type  = data_type;
             memory_usage_bytes_ += entry_size;
             cache_list_.splice(cache_list_.begin(), cache_list_, it->second.list_it);
             return;
@@ -200,8 +195,8 @@ class CacheShard {
 
         // Add new entry
         cache_list_.push_front(key);
-        CacheEntry entry{std::move(result), std::chrono::system_clock::now(),
-                        cache_list_.begin(), entry_size, data_type};
+        CacheEntry entry{std::move(result), std::chrono::system_clock::now(), cache_list_.begin(),
+                         entry_size, data_type};
         cache_map_.emplace(std::move(key), std::move(entry));
         memory_usage_bytes_ += entry_size;
 
@@ -275,8 +270,7 @@ class CacheShard {
 
     void evict_if_needed(size_t new_entry_size, CacheStats& stats) {
         // Evict based on memory limit
-        while (!cache_list_.empty() &&
-               (memory_usage_bytes_ + new_entry_size > max_memory_bytes_)) {
+        while (!cache_list_.empty() && (memory_usage_bytes_ + new_entry_size > max_memory_bytes_)) {
             auto oldest = cache_list_.back();
             evict_entry(oldest, stats);
         }
@@ -298,9 +292,7 @@ struct ShardStats {
     size_t shard_index;
     size_t size;
     size_t memory_usage_bytes;
-    double get_memory_usage_mb() const {
-        return memory_usage_bytes / (1024.0 * 1024.0);
-    }
+    double get_memory_usage_mb() const { return memory_usage_bytes / (1024.0 * 1024.0); }
     uint64_t hits;
     uint64_t misses;
     double hit_rate;
@@ -319,10 +311,10 @@ class IPCache {
    public:
     explicit IPCache(size_t max_size = 10000, size_t shard_count = 8,
                      std::chrono::seconds default_ttl = std::chrono::seconds(3600),
-                     size_t max_memory_bytes = 100 * 1024 * 1024)  // 100MB default
+                     size_t max_memory_bytes          = 100 * 1024 * 1024)  // 100MB default
         : shard_count_(shard_count), max_memory_bytes_(max_memory_bytes) {
         // Calculate shard size - for small caches, allow smaller per-shard sizes
-        size_t shard_size = (max_size + shard_count - 1) / shard_count;  // Ceiling division
+        size_t shard_size   = (max_size + shard_count - 1) / shard_count;  // Ceiling division
         size_t shard_memory = (max_memory_bytes + shard_count - 1) / shard_count;
         shards_.reserve(shard_count);
 
@@ -342,7 +334,8 @@ class IPCache {
     }
 
     // Put result into cache
-    void put(std::string key, nlohmann::json result, CacheDataType data_type = CacheDataType::IP_GEOLOCATION) {
+    void put(std::string key, nlohmann::json result,
+             CacheDataType data_type = CacheDataType::IP_GEOLOCATION) {
         size_t shard_index = get_shard_index(key);
         shards_[shard_index]->put(std::move(key), std::move(result), stats_, data_type);
     }
@@ -358,7 +351,7 @@ class IPCache {
 
     // Get cache statistics
     CacheStats get_stats() const {
-        CacheStats combined = stats_;
+        CacheStats combined         = stats_;
         combined.memory_usage_bytes = get_total_memory_usage();
         return combined;
     }
@@ -370,12 +363,12 @@ class IPCache {
 
         for (size_t i = 0; i < shard_count_; ++i) {
             ShardStats stats;
-            stats.shard_index = i;
-            stats.size = shards_[i]->size();
+            stats.shard_index        = i;
+            stats.size               = shards_[i]->size();
             stats.memory_usage_bytes = shards_[i]->memory_usage();
             // Note: Individual shard hit/miss tracking not implemented to avoid atomic overhead
-            stats.hits = 0;
-            stats.misses = 0;
+            stats.hits     = 0;
+            stats.misses   = 0;
             stats.hit_rate = 0.0;
             shard_stats.push_back(stats);
         }
@@ -389,14 +382,15 @@ class IPCache {
         heat_map.total_accesses = stats_.total_lookups;
 
         // Get top N hot keys
-        std::vector<std::pair<std::string, uint64_t>> sorted_keys(
-            key_access_counts_.begin(), key_access_counts_.end());
-        std::partial_sort(sorted_keys.begin(), sorted_keys.begin() +
-                          std::min(top_n, sorted_keys.size()), sorted_keys.end(),
+        std::vector<std::pair<std::string, uint64_t>> sorted_keys(key_access_counts_.begin(),
+                                                                  key_access_counts_.end());
+        std::partial_sort(sorted_keys.begin(),
+                          sorted_keys.begin() + std::min(top_n, sorted_keys.size()),
+                          sorted_keys.end(),
                           [](const auto& a, const auto& b) { return a.second > b.second; });
 
         heat_map.hot_keys.assign(sorted_keys.begin(),
-                                sorted_keys.begin() + std::min(top_n, sorted_keys.size()));
+                                 sorted_keys.begin() + std::min(top_n, sorted_keys.size()));
 
         // Get shard distribution
         heat_map.shard_distribution.reserve(shard_count_);
@@ -445,10 +439,10 @@ class IPCache {
     void configure_default_ttls() {
         // Set default TTLs for different data types
         for (auto& shard : shards_) {
-            shard->set_ttl(CacheDataType::IP_GEOLOCATION, std::chrono::seconds(3600));   // 1 hour
-            shard->set_ttl(CacheDataType::IP_ASN, std::chrono::seconds(86400));          // 24 hours
-            shard->set_ttl(CacheDataType::MAC_OUI, std::chrono::seconds(86400 * 7));     // 7 days
-            shard->set_ttl(CacheDataType::NEGATIVE, std::chrono::seconds(300));          // 5 minutes
+            shard->set_ttl(CacheDataType::IP_GEOLOCATION, std::chrono::seconds(3600));  // 1 hour
+            shard->set_ttl(CacheDataType::IP_ASN, std::chrono::seconds(86400));         // 24 hours
+            shard->set_ttl(CacheDataType::MAC_OUI, std::chrono::seconds(86400 * 7));    // 7 days
+            shard->set_ttl(CacheDataType::NEGATIVE, std::chrono::seconds(300));         // 5 minutes
         }
     }
 
