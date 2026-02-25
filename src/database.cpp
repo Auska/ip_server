@@ -95,17 +95,29 @@ nlohmann::json MaxMindDatabase::lookup(const std::string& ip_address) const {
 // CityDatabase implementation
 
 nlohmann::json CityDatabase::lookup(const std::string& ip_address) const {
-    auto result = MaxMindDatabase::lookup(ip_address);
+    nlohmann::json result;
 
-    if (!result.value("found", false) || result.contains("error")) {
-        result["ip"] = ip_address;
+    if (!is_open_) {
+        result["error"] = "Database not open";
+        result["ip"]   = ip_address;
         return result;
     }
 
-    // 第二次查询是必要的，用于获取详细的地理位置数据
     int gai_error, mmdb_error;
     MMDB_lookup_result_s lookup_result =
         MMDB_lookup_string(&mmdb_, ip_address.c_str(), &gai_error, &mmdb_error);
+
+    if (gai_error != 0) {
+        result["error"] = "Invalid IP address";
+        result["ip"]   = ip_address;
+        return result;
+    }
+
+    if (mmdb_error != MMDB_SUCCESS) {
+        result["error"] = std::string("MaxMind DB lookup error: ") + MMDB_strerror(mmdb_error);
+        result["ip"]   = ip_address;
+        return result;
+    }
 
     if (!lookup_result.found_entry) {
         result["ip"]    = ip_address;
@@ -113,7 +125,8 @@ nlohmann::json CityDatabase::lookup(const std::string& ip_address) const {
         return result;
     }
 
-    result["ip"] = ip_address;
+    result["ip"]    = ip_address;
+    result["found"] = true;
 
     MMDB_entry_data_s entry_data;
     int status;
@@ -163,17 +176,29 @@ nlohmann::json CityDatabase::lookup(const std::string& ip_address) const {
 // ASNDatabase implementation
 
 nlohmann::json ASNDatabase::lookup(const std::string& ip_address) const {
-    auto result = MaxMindDatabase::lookup(ip_address);
+    nlohmann::json result;
 
-    if (!result.value("found", false) || result.contains("error")) {
-        result["ip"] = ip_address;
+    if (!is_open_) {
+        result["error"] = "Database not open";
+        result["ip"]   = ip_address;
         return result;
     }
 
-    // 第二次查询是必要的，用于获取详细的 ASN 数据
     int gai_error, mmdb_error;
     MMDB_lookup_result_s lookup_result =
         MMDB_lookup_string(&mmdb_, ip_address.c_str(), &gai_error, &mmdb_error);
+
+    if (gai_error != 0) {
+        result["error"] = "Invalid IP address";
+        result["ip"]   = ip_address;
+        return result;
+    }
+
+    if (mmdb_error != MMDB_SUCCESS) {
+        result["error"] = std::string("MaxMind DB lookup error: ") + MMDB_strerror(mmdb_error);
+        result["ip"]   = ip_address;
+        return result;
+    }
 
     if (!lookup_result.found_entry) {
         result["ip"]    = ip_address;
@@ -181,7 +206,8 @@ nlohmann::json ASNDatabase::lookup(const std::string& ip_address) const {
         return result;
     }
 
-    result["ip"] = ip_address;
+    result["ip"]    = ip_address;
+    result["found"] = true;
 
     MMDB_entry_data_s entry_data;
     int status;

@@ -173,6 +173,8 @@ class CacheShard {
              CacheDataType data_type = CacheDataType::IP_GEOLOCATION) {
         std::unique_lock<std::shared_mutex> lock(mutex_);
 
+        // Note: dump().size() serializes the JSON but is necessary for accurate size estimation
+        // Consider upgrading nlohmann/json to 3.11+ which has byte_size() method
         size_t entry_size = result.dump().size();
         stats.avg_entry_size =
             (stats.avg_entry_size * (cache_map_.size()) + entry_size) / (cache_map_.size() + 1);

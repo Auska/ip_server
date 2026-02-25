@@ -43,8 +43,13 @@ PasswordResult PasswordGenerator::generate(const PasswordConfig& config) {
         throw std::runtime_error("Character pool is empty");
     }
 
-    std::random_device rd;
-    std::mt19937_64 gen(rd());
+    // Use thread_local random generator for better performance
+    // Initialize with random_device seed
+    thread_local std::mt19937_64 gen([]() -> uint64_t {
+        std::random_device rd;
+        return rd();
+    }());
+
     std::uniform_int_distribution<size_t> dist(0, pool.size() - 1);
 
     std::string password;
