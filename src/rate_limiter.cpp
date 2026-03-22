@@ -13,38 +13,53 @@ void RateLimiter::cleanup_old_timestamps(IPRecord& record) const {
     }
 }
 
+void RateLimiter::evict_lru() {
+    if (lru_list_.empty()) {
+        return;
+    }
+
+    const std::string& lru_ip = lru_list_.back();
+    LOG_DEBUG("Rate limiter: Evicting IP record (LRU): " + lru_ip);
+    ip_records_.erase(lru_ip);
+    lru_list_.pop_back();
+}
+
 bool RateLimiter::is_allowed(const std::string& ip_address) {
     std::lock_guard<std::mutex> lock(mutex_);
 
     total_requests_++;
 
-    auto now     = std::chrono::steady_clock::now();
-    auto& record = ip_records_[ip_address];
+    if (max_requests_ <= 0) {
+        total_rate_limited_++;
+        return false;
+    }
 
-    // Update last access time
-    record.last_access = now;
+    auto now = std::chrono::steady_clock::now();
+    auto it = ip_records_.find(ip_address);
 
-    // Remove timestamps outside the time window
-    cleanup_old_timestamps(record);
-
-    // Check if under limit
-    if (record.timestamps.size() < static_cast<size_t>(max_requests_)) {
-        record.timestamps.push_back(now);
-
-        // Enforce maximum IP records limit (LRU eviction)
-        if (ip_records_.size() > max_ip_records_) {
-            // Find the least recently used IP (oldest last_access)
-            auto lru_it = ip_records_.begin();
-            for (auto it = ip_records_.begin(); it != ip_records_.end(); ++it) {
-                if (it->second.last_access < lru_it->second.last_access) {
-                    lru_it = it;
-                }
-            }
-
-            LOG_DEBUG("Rate limiter: Evicting IP record (LRU): " + lru_it->first);
-            ip_records_.erase(lru_it);
+    if (it == ip_records_.end()) {
+        if (ip_records_.size() >= max_ip_records_) {
+            evict_lru();
         }
 
+        lru_list_.push_front(ip_address);
+        IPRecord record;
+        record.last_access = now;
+        record.timestamps.push_back(now);
+        record.lru_it = lru_list_.begin();
+        ip_records_.emplace(ip_address, std::move(record));
+        return true;
+    }
+
+    IPRecord& record = it->second;
+
+    lru_list_.splice(lru_list_.begin(), lru_list_, record.lru_it);
+    record.last_access = now;
+
+    cleanup_old_timestamps(record);
+
+    if (record.timestamps.size() < static_cast<size_t>(max_requests_)) {
+        record.timestamps.push_back(now);
         return true;
     }
 
@@ -60,10 +75,9 @@ int RateLimiter::get_remaining(const std::string& ip_address) const {
         return max_requests_;
     }
 
-    auto now     = std::chrono::steady_clock::now();
+    auto now = std::chrono::steady_clock::now();
     size_t count = 0;
 
-    // Count timestamps within the window
     for (const auto& timestamp : it->second.timestamps) {
         if (now - timestamp <= window_) {
             count++;
@@ -76,16 +90,15 @@ int RateLimiter::get_remaining(const std::string& ip_address) const {
 void RateLimiter::cleanup() {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    // Remove old entries for all IPs
     for (auto& [ip, record] : ip_records_) {
         cleanup_old_timestamps(record);
     }
 
-    // Remove empty records
-    auto it              = ip_records_.begin();
+    auto it = ip_records_.begin();
     size_t removed_count = 0;
     while (it != ip_records_.end()) {
         if (it->second.timestamps.empty()) {
+            lru_list_.erase(it->second.lru_it);
             it = ip_records_.erase(it);
             removed_count++;
         } else {
@@ -101,16 +114,15 @@ void RateLimiter::cleanup() {
 size_t RateLimiter::estimate_memory_usage() const {
     size_t total = 0;
 
-    // Estimate map overhead (rough approximation)
     total += ip_records_.size() * sizeof(std::pair<std::string, IPRecord>);
 
-    // Estimate string storage for IP addresses
     for (const auto& [ip, record] : ip_records_) {
         total += ip.size() * sizeof(char);
-        // Estimate deque overhead
         total += record.timestamps.size() * sizeof(std::chrono::steady_clock::time_point);
         total += sizeof(std::deque<std::chrono::steady_clock::time_point>);
     }
+
+    total += lru_list_.size() * sizeof(std::string);
 
     return total;
 }
@@ -119,11 +131,11 @@ RateLimiter::MemoryStats RateLimiter::get_memory_stats() const {
     std::lock_guard<std::mutex> lock(mutex_);
 
     MemoryStats stats;
-    stats.ip_record_count        = ip_records_.size();
-    stats.total_timestamps       = 0;
+    stats.ip_record_count = ip_records_.size();
+    stats.total_timestamps = 0;
     stats.estimated_memory_bytes = 0;
-    stats.total_requests         = total_requests_.load();
-    stats.total_rate_limited     = total_rate_limited_.load();
+    stats.total_requests = total_requests_.load();
+    stats.total_rate_limited = total_rate_limited_.load();
 
     for (const auto& [ip, record] : ip_records_) {
         stats.total_timestamps += record.timestamps.size();
@@ -137,7 +149,7 @@ RateLimiter::MemoryStats RateLimiter::get_memory_stats() const {
 void RateLimiter::reset_stats() {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    total_requests_     = 0;
+    total_requests_ = 0;
     total_rate_limited_ = 0;
 
     LOG_INFO("Rate limiter statistics reset");

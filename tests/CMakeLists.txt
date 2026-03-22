@@ -61,6 +61,8 @@ target_link_libraries(ip_server_tests
     sqlite3
     maxminddb
     spdlog::spdlog
+    OpenSSL::SSL
+    OpenSSL::Crypto
     pthread
 )
 
@@ -96,6 +98,8 @@ if(BUILD_BENCHMARKS)
             sqlite3
             maxminddb
             spdlog::spdlog
+            OpenSSL::SSL
+            OpenSSL::Crypto
             pthread
         )
     # Set output directory

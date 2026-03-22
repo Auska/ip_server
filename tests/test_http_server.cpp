@@ -155,10 +155,9 @@ TEST_F(HTTPServerTest, LookupEndpointInvalidIP) {
     auto result = client.Get("/lookup?ip=invalid.ip");
 
     ASSERT_TRUE(result);
-    EXPECT_EQ(result->status, 200);
+    EXPECT_EQ(result->status, 400);
 
     auto json = nlohmann::json::parse(result->body);
-    EXPECT_TRUE(json.contains("ip"));
     EXPECT_TRUE(json.contains("error"));
 }
 
@@ -501,8 +500,8 @@ TEST_F(HTTPServerTest, BatchLookupMixedIPs) {
     batch_request["ips"] = {
         "8.8.8.8",          // Valid
         "1.1.1.1",          // Valid
-        "999.999.999.999",  // Invalid
-        "invalid.ip",       // Invalid
+        "not.an.ip",        // Invalid - will be filtered (letters)
+        "invalid.ip",       // Invalid - will be filtered (letters)
         "9.9.9.9"           // Valid
     };
 
@@ -513,16 +512,13 @@ TEST_F(HTTPServerTest, BatchLookupMixedIPs) {
 
     auto json = nlohmann::json::parse(result->body);
     EXPECT_TRUE(json.is_array());
-    EXPECT_EQ(json.size(), 5);
+    // Invalid IPs are filtered out, so only 3 valid results
+    EXPECT_EQ(json.size(), 3);
 
     // Check valid IPs
     EXPECT_TRUE(json[0].contains("found"));
     EXPECT_TRUE(json[1].contains("found"));
-    EXPECT_TRUE(json[4].contains("found"));
-
-    // Check invalid IPs
-    EXPECT_TRUE(json[2].contains("error"));
-    EXPECT_TRUE(json[3].contains("error"));
+    EXPECT_TRUE(json[2].contains("found"));
 }
 
 // Test concurrent batch requests

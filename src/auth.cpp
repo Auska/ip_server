@@ -3,16 +3,45 @@
 #include <fstream>
 #include <sstream>
 
+#include <openssl/evp.h>
+#include <openssl/sha.h>
+
 #include "logger.h"
 
 namespace ip_server {
 
+namespace {
+
+std::string sha256_hash(const std::string& input) {
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256(reinterpret_cast<const unsigned char*>(input.c_str()), input.size(), hash);
+
+    std::stringstream ss;
+    for (unsigned char c : hash) {
+        ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(c);
+    }
+    return ss.str();
+}
+
+}  // namespace
+
 APIAuth::APIAuth(bool enabled) : enabled_(enabled) {
     if (enabled_) {
-        LOG_INFO("API authentication enabled");
+        LOG_INFO("API authentication enabled with secure key hashing");
     } else {
         LOG_INFO("API authentication disabled");
     }
+}
+
+std::string APIAuth::hash_key(const std::string& key) {
+    return sha256_hash(key);
+}
+
+std::string APIAuth::generate_key_id(const std::string& key_hash) {
+    if (key_hash.size() >= 8) {
+        return "key_" + key_hash.substr(0, 8);
+    }
+    return "key_unknown";
 }
 
 void APIAuth::add_key(const std::string& key) {
@@ -22,27 +51,40 @@ void APIAuth::add_key(const std::string& key) {
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
-    if (api_keys_.insert(key).second) {
-        LOG_INFO("Added API key: " + key.substr(0, 8) + "...");
+    std::string key_hash = hash_key(key);
+    std::string key_id = generate_key_id(key_hash);
+
+    if (api_key_hashes_.insert(key_hash).second) {
+        key_id_map_[key_hash] = key_id;
+        LOG_INFO("Added API key: " + key_id);
     } else {
-        LOG_WARNING("API key already exists: " + key.substr(0, 8) + "...");
+        LOG_WARNING("API key already exists: " + key_id);
     }
 }
 
 void APIAuth::remove_key(const std::string& key) {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (api_keys_.erase(key) > 0) {
-        LOG_INFO("Removed API key: " + key.substr(0, 8) + "...");
+    std::string key_hash = hash_key(key);
+    std::string key_id = generate_key_id(key_hash);
+
+    if (api_key_hashes_.erase(key_hash) > 0) {
+        key_id_map_.erase(key_hash);
+        LOG_INFO("Removed API key: " + key_id);
     }
 }
 
 bool APIAuth::is_valid(const std::string& key) const {
     if (!enabled_) {
-        return true;  // If auth is disabled, all requests are allowed
+        return true;
     }
 
+    if (key.empty()) {
+        return false;
+    }
+
+    std::string key_hash = hash_key(key);
     std::lock_guard<std::mutex> lock(mutex_);
-    return api_keys_.find(key) != api_keys_.end();
+    return api_key_hashes_.find(key_hash) != api_key_hashes_.end();
 }
 
 bool APIAuth::load_keys_from_file(const std::string& filepath) {
@@ -53,33 +95,39 @@ bool APIAuth::load_keys_from_file(const std::string& filepath) {
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
-    api_keys_.clear();
+    api_key_hashes_.clear();
+    key_id_map_.clear();
 
     std::string line;
+    size_t count = 0;
     while (std::getline(file, line)) {
-        // Skip empty lines and comments
         if (line.empty() || line[0] == '#') {
             continue;
         }
 
-        // Trim whitespace
         size_t start = line.find_first_not_of(" \t\r\n");
-        size_t end   = line.find_last_not_of(" \t\r\n");
+        size_t end = line.find_last_not_of(" \t\r\n");
 
         if (start != std::string::npos && end != std::string::npos) {
             std::string key = line.substr(start, end - start + 1);
-            api_keys_.insert(key);
+            std::string key_hash = hash_key(key);
+            std::string key_id = generate_key_id(key_hash);
+
+            if (api_key_hashes_.insert(key_hash).second) {
+                key_id_map_[key_hash] = key_id;
+                count++;
+            }
         }
     }
 
     file.close();
-    LOG_INFO("Loaded " + std::to_string(api_keys_.size()) + " API keys from: " + filepath);
+    LOG_INFO("Loaded " + std::to_string(count) + " API keys from: " + filepath);
     return true;
 }
 
 size_t APIAuth::key_count() const {
     std::lock_guard<std::mutex> lock(mutex_);
-    return api_keys_.size();
+    return api_key_hashes_.size();
 }
 
 }  // namespace ip_server

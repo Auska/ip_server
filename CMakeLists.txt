@@ -42,6 +42,9 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/external/cxxopts-3.3.1/include
 )
 
+# Find OpenSSL for API key hashing
+find_package(OpenSSL REQUIRED)
+
 # Build SQLite3 library first
 add_library(sqlite3 STATIC
     ${CMAKE_SOURCE_DIR}/external/sqlite-autoconf-3510200/sqlite3.c
@@ -124,6 +127,8 @@ target_link_libraries(ip_server
     maxminddb
     spdlog::spdlog
     cxxopts::cxxopts
+    OpenSSL::SSL
+    OpenSSL::Crypto
     pthread
 )
 

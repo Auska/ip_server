@@ -32,10 +32,8 @@ class Application {
     bool run() {
         LOG_INFO("Application starting...");
 
-        // Setup atomic flag for graceful shutdown
         shutdown_requested_.store(false);
 
-        // Setup signal handlers for graceful shutdown
         std::signal(SIGINT, [](int) {
             if (!shutdown_requested_.exchange(true)) {
                 LOG_INFO("Received SIGINT, shutting down gracefully...");
@@ -48,17 +46,14 @@ class Application {
             }
         });
 
-        // Set database status in metrics
         if (auto metrics = http_server_.get_metrics()) {
             metrics->set_city_db_status(geo_service_.is_city_db_open());
             metrics->set_asn_db_status(geo_service_.is_asn_db_open());
             metrics->set_oui_db_status(mac_service_.is_oui_db_open());
         }
 
-        // Start server and wait for shutdown signal
         bool result = http_server_.start(shutdown_requested_);
 
-        // Perform graceful shutdown
         if (shutdown_requested_.load()) {
             LOG_INFO("Performing graceful shutdown...");
             http_server_.stop();
@@ -76,7 +71,6 @@ class Application {
     static std::atomic<bool> shutdown_requested_;
 };
 
-// Initialize static member
 std::atomic<bool> Application::shutdown_requested_(false);
 
 }  // namespace ip_server
@@ -85,16 +79,13 @@ int main(int argc, char* argv[]) {
     try {
         using namespace ip_server;
 
-        // Parse configuration
         auto config = ConfigParser::parse(argc, argv);
 
-        // Apply logging configuration
         LogConfig log_config;
         log_config.enable_file_logging = config.enable_file_logging;
-        log_config.log_file_path       = config.log_file_path;
-        log_config.enable_stdout       = config.log_enable_stdout;
+        log_config.log_file_path = config.log_file_path;
+        log_config.enable_stdout = config.log_enable_stdout;
 
-        // Parse rotation type
         if (config.log_rotation_type == "size") {
             log_config.rotation_type = RotationType::SIZE;
         } else if (config.log_rotation_type == "time") {
@@ -105,22 +96,29 @@ int main(int argc, char* argv[]) {
             log_config.rotation_type = RotationType::NONE;
         }
 
-        log_config.max_file_size     = config.log_max_file_size;
+        log_config.max_file_size = config.log_max_file_size;
         log_config.rotation_interval = std::chrono::minutes(config.log_rotation_interval_minutes);
-        log_config.max_backup_files  = config.log_max_backup_files;
+        log_config.max_backup_files = config.log_max_backup_files;
 
         Logger::instance().set_config(log_config);
 
-        // Ensure XDG directories exist
+        if (config.log_level == "debug") {
+            Logger::instance().set_level(LogLevel::DEBUG);
+        } else if (config.log_level == "info") {
+            Logger::instance().set_level(LogLevel::INFO);
+        } else if (config.log_level == "warning") {
+            Logger::instance().set_level(LogLevel::WARNING);
+        } else if (config.log_level == "error") {
+            Logger::instance().set_level(LogLevel::ERROR);
+        }
+
         XDGPaths::instance().ensure_directories();
 
-        // Create default config file if it doesn't exist
         if (!config.config_file.empty() && !std::filesystem::exists(config.config_file)) {
             LOG_INFO("Creating default config file: " + config.config_file.string());
             ConfigParser::save_to_file(config, config.config_file);
         }
 
-        // Create and run application
         Application app(config);
         if (!app.run()) {
             LOG_ERROR("Application failed to start");

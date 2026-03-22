@@ -15,7 +15,7 @@ class OUIDatabase {
     OUIDatabase() = default;
     ~OUIDatabase();
 
-    OUIDatabase(const OUIDatabase&)            = delete;
+    OUIDatabase(const OUIDatabase&) = delete;
     OUIDatabase& operator=(const OUIDatabase&) = delete;
     OUIDatabase(OUIDatabase&&) noexcept;
     OUIDatabase& operator=(OUIDatabase&&) noexcept;

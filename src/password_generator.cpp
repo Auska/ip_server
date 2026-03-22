@@ -9,8 +9,20 @@
 
 namespace ip_server {
 
+namespace {
+
+std::mt19937_64::result_type generate_secure_seed() {
+    std::random_device rd;
+    std::seed_seq seq{rd(), rd(), rd(), rd(), rd(), rd(), rd(), rd()};
+    std::mt19937_64::result_type seed;
+    seq.generate(&seed, &seed + 1);
+    return seed;
+}
+
+}  // namespace
+
 PasswordGenerator::PasswordGenerator() {
-    LOG_INFO("PasswordGenerator initialized");
+    LOG_INFO("PasswordGenerator initialized with secure seed");
 }
 
 bool PasswordGenerator::validate_config(const PasswordConfig& config, std::string& error_message) {
@@ -43,24 +55,17 @@ PasswordResult PasswordGenerator::generate(const PasswordConfig& config) {
         throw std::runtime_error("Character pool is empty");
     }
 
-    // Use thread_local random generator for better performance
-    // Initialize with random_device seed
-    thread_local std::mt19937_64 gen([]() -> uint64_t {
-        std::random_device rd;
-        return rd();
-    }());
+    thread_local std::mt19937_64 gen(generate_secure_seed());
 
     std::uniform_int_distribution<size_t> dist(0, pool.size() - 1);
 
     std::string password;
     password.reserve(config.length);
 
-    // Generate password
     for (int i = 0; i < config.length; ++i) {
         password += pool[dist(gen)];
     }
 
-    // Ensure at least one character from each enabled type
     std::vector<std::string> required_chars;
     if (config.uppercase) {
         std::string upper_set = UPPERCASE;
@@ -102,22 +107,20 @@ PasswordResult PasswordGenerator::generate(const PasswordConfig& config) {
         required_chars.push_back(SYMBOLS);
     }
 
-    // Replace random positions with required characters
     std::uniform_int_distribution<size_t> pos_dist(0, config.length - 1);
     for (const auto& char_set : required_chars) {
         if (char_set.empty()) continue;
         std::uniform_int_distribution<size_t> char_dist(0, char_set.size() - 1);
-        size_t pos    = pos_dist(gen);
+        size_t pos = pos_dist(gen);
         password[pos] = char_set[char_dist(gen)];
     }
 
-    // Shuffle password
     std::shuffle(password.begin(), password.end(), gen);
 
     PasswordResult result;
     result.password = password;
-    result.length   = static_cast<int>(password.length());
-    result.entropy  = calculate_entropy(password, static_cast<int>(pool.size()));
+    result.length = static_cast<int>(password.length());
+    result.entropy = calculate_entropy(password, static_cast<int>(pool.size()));
     result.strength = get_strength_rating(result.entropy);
 
     return result;

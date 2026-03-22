@@ -2,6 +2,7 @@
 
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -12,30 +13,46 @@ class APIAuth {
     explicit APIAuth(bool enabled = false);
     ~APIAuth() = default;
 
-    // Add API key to whitelist
     void add_key(const std::string& key);
 
-    // Remove API key from whitelist
     void remove_key(const std::string& key);
 
-    // Check if API key is valid
     bool is_valid(const std::string& key) const;
 
-    // Check if authentication is enabled
     bool is_enabled() const { return enabled_; }
 
-    // Enable/disable authentication
     void set_enabled(bool enabled) { enabled_ = enabled; }
 
-    // Load keys from file (one key per line)
     bool load_keys_from_file(const std::string& filepath);
 
-    // Get number of registered keys
     size_t key_count() const;
 
+    void set_trusted_proxies(const std::vector<std::string>& proxies) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        trusted_proxies_ = proxies;
+    }
+
+    bool is_trusted_proxy(const std::string& ip) const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (trusted_proxies_.empty()) {
+            return true;
+        }
+        for (const auto& proxy : trusted_proxies_) {
+            if (proxy == ip) {
+                return true;
+            }
+        }
+        return false;
+    }
+
    private:
+    static std::string hash_key(const std::string& key);
+    static std::string generate_key_id(const std::string& key_hash);
+
     bool enabled_;
-    std::unordered_set<std::string> api_keys_;
+    std::unordered_set<std::string> api_key_hashes_;
+    std::unordered_map<std::string, std::string> key_id_map_;
+    std::vector<std::string> trusted_proxies_;
     mutable std::mutex mutex_;
 };
 

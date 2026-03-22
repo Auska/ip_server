@@ -19,7 +19,7 @@ class MaxMindDatabase {
     MaxMindDatabase() = default;
     virtual ~MaxMindDatabase();
 
-    MaxMindDatabase(const MaxMindDatabase&)            = delete;
+    MaxMindDatabase(const MaxMindDatabase&) = delete;
     MaxMindDatabase& operator=(const MaxMindDatabase&) = delete;
     MaxMindDatabase(MaxMindDatabase&&) noexcept;
     MaxMindDatabase& operator=(MaxMindDatabase&&) noexcept;
@@ -33,7 +33,10 @@ class MaxMindDatabase {
    protected:
     MMDB_s mmdb_{};
     std::atomic<bool> is_open_{false};
-    mutable std::mutex open_close_mutex_;  // Only for open/close operations
+    mutable std::mutex open_close_mutex_;
+
+    nlohmann::json perform_lookup(const std::string& ip_address, int& gai_error, int& mmdb_error,
+                                  MMDB_lookup_result_s& result) const;
 };
 
 class CityDatabase : public MaxMindDatabase {
@@ -53,16 +56,14 @@ class IPGeoService {
                           size_t max_memory_bytes = 100 * 1024 * 1024);
     ~IPGeoService() = default;
 
-    IPGeoService(const IPGeoService&)            = delete;
+    IPGeoService(const IPGeoService&) = delete;
     IPGeoService& operator=(const IPGeoService&) = delete;
 
     LookupResult lookup(const std::string& ip_address) const;
 
-    // Database status
     bool is_city_db_open() const { return city_db_.is_open(); }
     bool is_asn_db_open() const { return asn_db_.is_open(); }
 
-    // Cache statistics
     CacheStats get_cache_stats() const { return cache_.get_stats(); }
     std::vector<ShardStats> get_shard_stats() const { return cache_.get_shard_stats(); }
     CacheHeatMap get_heat_map(size_t top_n = 10) const { return cache_.get_heat_map(top_n); }
@@ -70,7 +71,6 @@ class IPGeoService {
     size_t get_cache_memory_usage() const { return cache_.get_total_memory_usage(); }
     void clear_cache() { cache_.clear(); }
 
-    // Cache configuration
     void set_cache_ttl(CacheDataType type, std::chrono::seconds ttl) { cache_.set_ttl(type, ttl); }
 
    private:
@@ -86,15 +86,13 @@ class MACLookupService {
                               size_t shard_count = 8, size_t max_memory_bytes = 50 * 1024 * 1024);
     ~MACLookupService() = default;
 
-    MACLookupService(const MACLookupService&)            = delete;
+    MACLookupService(const MACLookupService&) = delete;
     MACLookupService& operator=(const MACLookupService&) = delete;
 
     LookupResult lookup(const std::string& mac_address) const;
 
-    // Database status
     bool is_oui_db_open() const { return oui_db_.is_open(); }
 
-    // Cache statistics
     CacheStats get_cache_stats() const { return cache_.get_stats(); }
     std::vector<ShardStats> get_shard_stats() const { return cache_.get_shard_stats(); }
     CacheHeatMap get_heat_map(size_t top_n = 10) const { return cache_.get_heat_map(top_n); }
@@ -102,7 +100,6 @@ class MACLookupService {
     size_t get_cache_memory_usage() const { return cache_.get_total_memory_usage(); }
     void clear_cache() { cache_.clear(); }
 
-    // Cache configuration
     void set_cache_ttl(CacheDataType type, std::chrono::seconds ttl) { cache_.set_ttl(type, ttl); }
 
    private:

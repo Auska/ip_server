@@ -10,8 +10,6 @@
 
 namespace ip_server {
 
-// MaxMindDatabase implementation
-
 MaxMindDatabase::~MaxMindDatabase() {
     close();
 }
@@ -61,77 +59,60 @@ void MaxMindDatabase::close() {
     }
 }
 
-nlohmann::json MaxMindDatabase::lookup(const std::string& ip_address) const {
-    nlohmann::json result;
+nlohmann::json MaxMindDatabase::perform_lookup(const std::string& ip_address, int& gai_error,
+                                               int& mmdb_error,
+                                               MMDB_lookup_result_s& result) const {
+    nlohmann::json json_result;
 
     if (!is_open_) {
-        result["error"] = "Database not open";
-        return result;
+        json_result["error"] = "Database not open";
+        json_result["ip"] = ip_address;
+        return json_result;
     }
 
-    int gai_error, mmdb_error;
-    MMDB_lookup_result_s lookup_result =
-        MMDB_lookup_string(&mmdb_, ip_address.c_str(), &gai_error, &mmdb_error);
+    result = MMDB_lookup_string(&mmdb_, ip_address.c_str(), &gai_error, &mmdb_error);
 
     if (gai_error != 0) {
-        result["error"] = "Invalid IP address";
-        return result;
+        json_result["error"] = "Invalid IP address";
+        json_result["ip"] = ip_address;
+        return json_result;
     }
 
     if (mmdb_error != MMDB_SUCCESS) {
-        result["error"] = std::string("MaxMind DB lookup error: ") + MMDB_strerror(mmdb_error);
-        return result;
+        json_result["error"] = std::string("MaxMind DB lookup error: ") + MMDB_strerror(mmdb_error);
+        json_result["ip"] = ip_address;
+        return json_result;
     }
 
-    if (!lookup_result.found_entry) {
-        result["found"] = false;
-        return result;
+    if (!result.found_entry) {
+        json_result["ip"] = ip_address;
+        json_result["found"] = false;
+        return json_result;
     }
 
-    result["found"] = true;
-    return result;
+    json_result["ip"] = ip_address;
+    json_result["found"] = true;
+    return json_result;
 }
 
-// CityDatabase implementation
+nlohmann::json MaxMindDatabase::lookup(const std::string& ip_address) const {
+    int gai_error, mmdb_error;
+    MMDB_lookup_result_s result;
+    return perform_lookup(ip_address, gai_error, mmdb_error, result);
+}
 
 nlohmann::json CityDatabase::lookup(const std::string& ip_address) const {
-    nlohmann::json result;
-
-    if (!is_open_) {
-        result["error"] = "Database not open";
-        result["ip"]   = ip_address;
-        return result;
-    }
-
     int gai_error, mmdb_error;
-    MMDB_lookup_result_s lookup_result =
-        MMDB_lookup_string(&mmdb_, ip_address.c_str(), &gai_error, &mmdb_error);
+    MMDB_lookup_result_s lookup_result;
+    nlohmann::json result = perform_lookup(ip_address, gai_error, mmdb_error, lookup_result);
 
-    if (gai_error != 0) {
-        result["error"] = "Invalid IP address";
-        result["ip"]   = ip_address;
+    if (result.contains("error") || !result.value("found", false)) {
         return result;
     }
-
-    if (mmdb_error != MMDB_SUCCESS) {
-        result["error"] = std::string("MaxMind DB lookup error: ") + MMDB_strerror(mmdb_error);
-        result["ip"]   = ip_address;
-        return result;
-    }
-
-    if (!lookup_result.found_entry) {
-        result["ip"]    = ip_address;
-        result["found"] = false;
-        return result;
-    }
-
-    result["ip"]    = ip_address;
-    result["found"] = true;
 
     MMDB_entry_data_s entry_data;
     int status;
 
-    // Country
     status = MMDB_get_value(&lookup_result.entry, &entry_data, "country", "names", "en", nullptr);
     if (status == MMDB_SUCCESS && entry_data.has_data) {
         result["country"] = std::string(entry_data.utf8_string, entry_data.data_size);
@@ -142,19 +123,16 @@ nlohmann::json CityDatabase::lookup(const std::string& ip_address) const {
         result["country_code"] = std::string(entry_data.utf8_string, entry_data.data_size);
     }
 
-    // City
     status = MMDB_get_value(&lookup_result.entry, &entry_data, "city", "names", "en", nullptr);
     if (status == MMDB_SUCCESS && entry_data.has_data) {
         result["city"] = std::string(entry_data.utf8_string, entry_data.data_size);
     }
 
-    // Continent
     status = MMDB_get_value(&lookup_result.entry, &entry_data, "continent", "names", "en", nullptr);
     if (status == MMDB_SUCCESS && entry_data.has_data) {
         result["continent"] = std::string(entry_data.utf8_string, entry_data.data_size);
     }
 
-    // Location
     status = MMDB_get_value(&lookup_result.entry, &entry_data, "location", "latitude", nullptr);
     if (status == MMDB_SUCCESS && entry_data.has_data) {
         result["latitude"] = entry_data.double_value;
@@ -173,53 +151,24 @@ nlohmann::json CityDatabase::lookup(const std::string& ip_address) const {
     return result;
 }
 
-// ASNDatabase implementation
-
 nlohmann::json ASNDatabase::lookup(const std::string& ip_address) const {
-    nlohmann::json result;
-
-    if (!is_open_) {
-        result["error"] = "Database not open";
-        result["ip"]   = ip_address;
-        return result;
-    }
-
     int gai_error, mmdb_error;
-    MMDB_lookup_result_s lookup_result =
-        MMDB_lookup_string(&mmdb_, ip_address.c_str(), &gai_error, &mmdb_error);
+    MMDB_lookup_result_s lookup_result;
+    nlohmann::json result = perform_lookup(ip_address, gai_error, mmdb_error, lookup_result);
 
-    if (gai_error != 0) {
-        result["error"] = "Invalid IP address";
-        result["ip"]   = ip_address;
+    if (result.contains("error") || !result.value("found", false)) {
         return result;
     }
-
-    if (mmdb_error != MMDB_SUCCESS) {
-        result["error"] = std::string("MaxMind DB lookup error: ") + MMDB_strerror(mmdb_error);
-        result["ip"]   = ip_address;
-        return result;
-    }
-
-    if (!lookup_result.found_entry) {
-        result["ip"]    = ip_address;
-        result["found"] = false;
-        return result;
-    }
-
-    result["ip"]    = ip_address;
-    result["found"] = true;
 
     MMDB_entry_data_s entry_data;
     int status;
 
-    // AS Organization
     status = MMDB_get_value(&lookup_result.entry, &entry_data, "autonomous_system_organization",
                             nullptr);
     if (status == MMDB_SUCCESS && entry_data.has_data) {
         result["as_organization"] = std::string(entry_data.utf8_string, entry_data.data_size);
     }
 
-    // AS Number
     status = MMDB_get_value(&lookup_result.entry, &entry_data, "autonomous_system_number", nullptr);
     if (status == MMDB_SUCCESS && entry_data.has_data) {
         result["as_number"] = entry_data.uint32;
@@ -227,8 +176,6 @@ nlohmann::json ASNDatabase::lookup(const std::string& ip_address) const {
 
     return result;
 }
-
-// IPGeoService implementation
 
 IPGeoService::IPGeoService(const std::string& city_db_path, const std::string& asn_db_path,
                            size_t cache_size, size_t shard_count, size_t max_memory_bytes)
@@ -247,53 +194,50 @@ IPGeoService::IPGeoService(const std::string& city_db_path, const std::string& a
 }
 
 LookupResult IPGeoService::lookup(const std::string& ip_address) const {
-    auto start     = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::high_resolution_clock::now();
     bool cache_hit = false;
 
-    // Check cache first
     if (cache_enabled_) {
         auto cached = cache_.get(ip_address);
         if (cached.has_value()) {
             LOG_DEBUG("Cache hit for IP: " + ip_address);
-            cache_hit         = true;
-            auto end          = std::chrono::high_resolution_clock::now();
+            cache_hit = true;
+            auto end = std::chrono::high_resolution_clock::now();
             double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
             return LookupResult(cached.value(), true, latency_ms);
         }
     }
 
     nlohmann::json result;
-    result["ip"]    = ip_address;
+    result["ip"] = ip_address;
     result["found"] = false;
 
     try {
         auto city_result = city_db_.lookup(ip_address);
-        auto asn_result  = asn_db_.lookup(ip_address);
+        auto asn_result = asn_db_.lookup(ip_address);
 
         if (city_result.contains("error")) {
-            result["error"]   = city_result["error"];
-            auto end          = std::chrono::high_resolution_clock::now();
+            result["error"] = city_result["error"];
+            auto end = std::chrono::high_resolution_clock::now();
             double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
             return LookupResult(result, false, latency_ms);
         }
 
         bool city_found = city_result.value("found", false);
-        bool asn_found  = asn_result.value("found", false);
+        bool asn_found = asn_result.value("found", false);
 
         if (!city_found && !asn_found) {
-            // Cache negative result
             if (cache_enabled_) {
                 cache_.put(ip_address, result, CacheDataType::NEGATIVE);
                 LOG_DEBUG("Cached negative result for IP: " + ip_address);
             }
-            auto end          = std::chrono::high_resolution_clock::now();
+            auto end = std::chrono::high_resolution_clock::now();
             double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
             return LookupResult(result, false, latency_ms);
         }
 
         result["found"] = true;
 
-        // Merge city information
         if (city_found) {
             if (city_result.contains("country")) result["country"] = city_result["country"];
             if (city_result.contains("country_code"))
@@ -305,14 +249,12 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
             if (city_result.contains("timezone")) result["timezone"] = city_result["timezone"];
         }
 
-        // Merge ASN information
         if (asn_found) {
             if (asn_result.contains("as_organization"))
                 result["as_organization"] = asn_result["as_organization"];
             if (asn_result.contains("as_number")) result["as_number"] = asn_result["as_number"];
         }
 
-        // Cache the result
         if (cache_enabled_) {
             cache_.put(ip_address, result, CacheDataType::IP_GEOLOCATION);
             LOG_DEBUG("Cached result for IP: " + ip_address);
@@ -323,12 +265,10 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
         result["error"] = e.what();
     }
 
-    auto end          = std::chrono::high_resolution_clock::now();
+    auto end = std::chrono::high_resolution_clock::now();
     double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
     return LookupResult(result, cache_hit, latency_ms);
 }
-
-// MACLookupService implementation
 
 MACLookupService::MACLookupService(const std::string& oui_db_path, size_t cache_size,
                                    size_t shard_count, size_t max_memory_bytes)
@@ -343,16 +283,15 @@ MACLookupService::MACLookupService(const std::string& oui_db_path, size_t cache_
 }
 
 LookupResult MACLookupService::lookup(const std::string& mac_address) const {
-    auto start     = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::high_resolution_clock::now();
     bool cache_hit = false;
 
-    // Check cache first
     if (cache_enabled_) {
         auto cached = cache_.get(mac_address);
         if (cached.has_value()) {
             LOG_DEBUG("Cache hit for MAC: " + mac_address);
-            cache_hit         = true;
-            auto end          = std::chrono::high_resolution_clock::now();
+            cache_hit = true;
+            auto end = std::chrono::high_resolution_clock::now();
             double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
             return LookupResult(cached.value(), true, latency_ms);
         }
@@ -363,7 +302,6 @@ LookupResult MACLookupService::lookup(const std::string& mac_address) const {
     try {
         result = oui_db_.lookup(mac_address);
 
-        // Cache the result (including negative results)
         if (cache_enabled_) {
             if (result.value("found", false)) {
                 cache_.put(mac_address, result, CacheDataType::MAC_OUI);
@@ -378,7 +316,7 @@ LookupResult MACLookupService::lookup(const std::string& mac_address) const {
         result["error"] = e.what();
     }
 
-    auto end          = std::chrono::high_resolution_clock::now();
+    auto end = std::chrono::high_resolution_clock::now();
     double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
     return LookupResult(result, cache_hit, latency_ms);
 }

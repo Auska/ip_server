@@ -8,10 +8,16 @@
 
 namespace ip_server {
 
+namespace {
+constexpr size_t MAX_LATENCIES = 1000;
+}
+
 Metrics::Metrics()
     : total_requests_(0),
       cache_hits_(0),
       cache_misses_(0),
+      cache_evictions_(0),
+      total_errors_(0),
       start_time_(std::chrono::steady_clock::now()),
       city_db_open_(false),
       asn_db_open_(false),
@@ -20,7 +26,6 @@ Metrics::Metrics()
 }
 
 void Metrics::record_request(bool cache_hit, double latency_ms) {
-    // Update counters
     total_requests_++;
     if (cache_hit) {
         cache_hits_++;
@@ -28,46 +33,52 @@ void Metrics::record_request(bool cache_hit, double latency_ms) {
         cache_misses_++;
     }
 
-    // Record latency
     std::lock_guard<std::mutex> lock(mutex_);
     latencies_.push_back(latency_ms);
     if (latencies_.size() > MAX_LATENCIES) {
         latencies_.pop_front();
     }
 
-    // Record timestamp for QPS calculation
     auto now = std::chrono::steady_clock::now();
     request_timestamps_.push_back({now, total_requests_.load()});
 
-    // Keep only last 60 seconds of timestamps
     auto cutoff = now - std::chrono::seconds(60);
     while (!request_timestamps_.empty() && request_timestamps_.front().first < cutoff) {
         request_timestamps_.pop_front();
     }
 }
 
+void Metrics::record_error() {
+    total_errors_++;
+}
+
+void Metrics::record_cache_eviction() {
+    cache_evictions_++;
+}
+
 Metrics::Stats Metrics::get_stats() const {
     Stats stats;
 
-    // Basic counters
     stats.total_requests = total_requests_.load();
-    stats.cache_hits     = cache_hits_.load();
-    stats.cache_misses   = cache_misses_.load();
+    stats.cache_hits = cache_hits_.load();
+    stats.cache_misses = cache_misses_.load();
+    stats.cache_evictions = cache_evictions_.load();
+    stats.total_errors = total_errors_.load();
 
-    // Cache hit rate
     if (stats.total_requests > 0) {
         stats.cache_hit_rate =
             (static_cast<double>(stats.cache_hits) / stats.total_requests) * 100.0;
+        stats.error_rate =
+            (static_cast<double>(stats.total_errors) / stats.total_requests) * 100.0;
     } else {
         stats.cache_hit_rate = 0.0;
+        stats.error_rate = 0.0;
     }
 
-    // Database status
     stats.city_db_open = city_db_open_.load();
-    stats.asn_db_open  = asn_db_open_.load();
-    stats.oui_db_open  = oui_db_open_.load();
+    stats.asn_db_open = asn_db_open_.load();
+    stats.oui_db_open = oui_db_open_.load();
 
-    // Latency statistics
     {
         std::lock_guard<std::mutex> lock(mutex_);
         if (!latencies_.empty()) {
@@ -84,11 +95,12 @@ Metrics::Stats Metrics::get_stats() const {
         }
     }
 
-    // QPS
     stats.current_qps = calculate_qps();
 
-    // Memory usage (not yet implemented)
     stats.memory_usage_mb = 0;
+
+    auto now = std::chrono::steady_clock::now();
+    stats.uptime_seconds = std::chrono::duration_cast<std::chrono::seconds>(now - start_time_).count();
 
     return stats;
 }
@@ -97,8 +109,10 @@ void Metrics::reset() {
     std::lock_guard<std::mutex> lock(mutex_);
 
     total_requests_ = 0;
-    cache_hits_     = 0;
-    cache_misses_   = 0;
+    cache_hits_ = 0;
+    cache_misses_ = 0;
+    cache_evictions_ = 0;
+    total_errors_ = 0;
     latencies_.clear();
     request_timestamps_.clear();
     start_time_ = std::chrono::steady_clock::now();
