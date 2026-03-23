@@ -43,14 +43,28 @@ ip_local/
 ## 构建命令
 
 ```bash
-# Debug 模式
+# 首次构建（Debug 模式）
 mkdir build && cd build && cmake .. && cmake --build . -j$(nproc)
 
-# Release 模式（-O3 + LTO）
+# 增量构建（build 目录已存在时）
+cd build && cmake --build . -j$(nproc)
+
+# Release 模式（-O3 + LTO + strip 符号）
 cmake .. -DCMAKE_BUILD_TYPE=Release && cmake --build . -j$(nproc)
 
-# 运行测试
-./tests/ip_server_tests 或 ctest --output-on-failure
+# 构建 Benchmark（默认关闭）
+cmake .. -DBUILD_BENCHMARKS=ON && cmake --build . -j$(nproc)
+
+# 运行全部测试
+ctest --output-on-failure
+# 或
+./build/bin/ip_server_tests
+
+# 运行单个测试套件
+./build/bin/ip_server_tests --gtest_filter=RateLimiterTest.*
+
+# 运行单个测试用例
+./build/bin/ip_server_tests --gtest_filter=RateLimiterTest.AllowedRequests
 ```
 
 ## 运行服务
@@ -87,18 +101,58 @@ cmake .. -DCMAKE_BUILD_TYPE=Release && cmake --build . -j$(nproc)
 - **函数**: camelCase（如 `lookup`）
 - **成员变量**: 尾部下划线（如 `city_db_`）
 - **常量**: UPPER_CASE 或 namespace constants
+- **资源管理**: 贯穿 RAII 模式（数据库句柄、配置锁、SQLite 等）
+- **所有权**: 不可拷贝类型强制移动语义（`LookupResult`、数据库类、密码生成器）
+
+## 架构概览
+
+```
+main()
+  |
+  +-- ConfigParser::parse()              # 命令行/配置文件解析
+  +-- Logger::instance().set_config()     # 日志初始化
+  +-- XDGPaths::instance().ensure_directories()  # XDG 目录创建
+  |
+  +-- Application（构造函数组装组件）
+        |
+        +-- IPGeoService(city_db + asn_db + IPCache)
+        |     +-- CityDatabase : MaxMindDatabase
+        |     +-- ASNDatabase  : MaxMindDatabase
+        |     +-- IPCache (8 分片, 100MB)
+        |
+        +-- MACLookupService(oui_db + IPCache)
+        |     +-- OUIDatabase (SQLite3)
+        |     +-- IPCache (8 分片, 50MB)
+        |
+        +-- IPGeoHTTPServer
+              +-- RateLimiter (滑动窗口 + O(1) LRU 驱逐)
+              +-- APIAuth (SHA-256 哈希存储密钥)
+              +-- Metrics (QPS, P50/P95/P99, 缓存统计)
+              +-- PasswordGenerator (多熵源)
+              +-- httplib::Server (线程池)
+              +-- cleanup jthread (300s 间隔清理速率记录)
+```
+
+- HTTP Server 通过 `std::function` 回调（`set_lookup_handler` / `set_mac_lookup_handler`）与 Service 解耦
+- 缓存内置于 Service 层，HTTP 层无感知
+- 请求中间件管线顺序: CORS -> 认证(Bearer) -> 真实 IP 提取(仅可信代理) -> 速率限制 -> 业务处理
+- 批量查询策略: <=10 个顺序执行, >10 个用 `std::async` 并行执行
+- 优雅关闭: 原子标志 `shutdown_requested_` + 100ms 轮询
 
 ## 依赖库
 
-| 库 | 版本 | 用途 |
-|---|------|------|
-| libmaxminddb | 1.12.2 | MaxMind 数据库 |
-| spdlog | 1.17.0 | 日志系统 |
-| nlohmann/json | 3.12.0 | JSON 处理 |
-| httplib | 0.28.0 | HTTP 服务器 |
-| SQLite3 | 3.51.0+0 | OUI 数据库 |
-| OpenSSL | - | API Key 哈希 |
-| Google Test | - | 单元测试 |
+大部分依赖以源码形式内置在 `external/` 目录，通过 CMake `add_subdirectory` 构建，无需手动安装。仅 OpenSSL 需要系统提供。
+
+| 库 | 版本 | 构建方式 | 用途 |
+|---|------|---------|------|
+| libmaxminddb | 1.12.2 | `external/` 源码 | MaxMind 数据库 |
+| spdlog | 1.17.0 | `external/` 源码 | 日志系统 |
+| nlohmann/json | 3.12.0 | `external/` 源码 | JSON 处理 |
+| httplib | 0.28.0 | `external/` 源码 | HTTP 服务器 |
+| cxxopts | 3.3.1 | `external/` 源码 | 命令行参数解析 |
+| SQLite3 | 3.51.0+0 | `external/` 源码 | OUI 数据库 |
+| OpenSSL | - | 系统包管理器 | API Key SHA-256 哈希 |
+| Google Test | - | `external/` 源码 | 单元测试 |
 
 ## 性能指标
 
@@ -116,11 +170,18 @@ cmake .. -DCMAKE_BUILD_TYPE=Release && cmake --build . -j$(nproc)
 
 ## 缓存特性
 
-- **分片**: 8 分片减少锁竞争
-- **读写锁**: `std::shared_mutex` 提高读并发
+- **分片**: 8 分片（`std::hash(key) % shard_count`），减少锁竞争
+- **数据结构**: 经典 LRU（`unordered_map` + 双向链表）
+- **锁**: `std::shared_mutex`，惰性过期（get 时检查 TTL）
 - **差异化 TTL**: IP 1h, ASN 24h, MAC 7d, 负缓存 5min
-- **内存限制**: 默认 100MB，内存感知驱逐
-- **布隆过滤器**: 防止缓存穿透
+- **内存限制**: IP 服务默认 100MB, MAC 服务默认 50MB，内存感知驱逐
+- **热力图**: `IPCache` 追踪每个 key 访问计数，支持 top-N 热点查询
+
+## 测试组织
+
+- **框架**: Google Test，9 个测试套件（test_config / test_database / test_mac_database / test_http_server / test_rate_limiter / test_auth / test_logger / test_password_generator / benchmark_performance）
+- **测试数据**: 测试链接了全部项目源码，可直接实例化内部类，无需 mock
+- **数据文件**: MaxMind (.mmdb) 和 OUI (.db) 数据库文件需提前放入 XDG 数据目录或通过命令行参数指定路径
 
 ## 相关文档
 
