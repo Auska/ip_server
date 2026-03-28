@@ -28,15 +28,15 @@ class XDGPaths {
     static std::filesystem::path database_dir();
 
     // Get default database file paths
-    std::filesystem::path city_db_path() const;
-    std::filesystem::path asn_db_path() const;
-    std::filesystem::path oui_db_path() const;
+    static std::filesystem::path city_db_path() ;
+    static std::filesystem::path asn_db_path() ;
+    static std::filesystem::path oui_db_path() ;
 
     // Get default log file path
     static std::filesystem::path log_file_path();
 
     // Ensure directories exist
-    void ensure_directories() const;
+    static void ensure_directories() ;
 
    private:
     XDGPaths();

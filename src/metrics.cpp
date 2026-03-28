@@ -40,7 +40,7 @@ void Metrics::record_request(bool cache_hit, double latency_ms) {
     }
 
     auto now = std::chrono::steady_clock::now();
-    request_timestamps_.push_back({now, total_requests_.load()});
+    request_timestamps_.emplace_back(now, total_requests_.load());
 
     auto cutoff = now - std::chrono::seconds(60);
     while (!request_timestamps_.empty() && request_timestamps_.front().first < cutoff) {
@@ -138,9 +138,9 @@ double Metrics::calculate_percentile(double percentile) const {
     }
 
     std::vector<double> sorted_latencies(latencies_.begin(), latencies_.end());
-    std::sort(sorted_latencies.begin(), sorted_latencies.end());
+    std::ranges::sort(sorted_latencies);
 
-    size_t const index = static_cast<size_t>(percentile * (sorted_latencies.size() - 1));
+    auto const index = static_cast<size_t>(percentile * (sorted_latencies.size() - 1));
     return sorted_latencies[index];
 }
 

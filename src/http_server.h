@@ -33,7 +33,7 @@ class IPGeoHTTPServer {
    public:
     using LookupHandler = std::function<LookupResult(const std::string&)>;
 
-    explicit IPGeoHTTPServer(const std::string& host, uint16_t port,
+    explicit IPGeoHTTPServer(std::string  host, uint16_t port,
                              int thread_pool_size = constants::DEFAULT_THREAD_POOL_SIZE,
                              bool enable_rate_limiter = true,
                              int max_requests_per_minute = constants::DEFAULT_MAX_REQUESTS_PER_MINUTE,

@@ -40,7 +40,7 @@ class CustomLevelFormatter : public spdlog::custom_flag_formatter {
         dest.append(level_name, level_name + std::strlen(level_name));
     }
 
-    std::unique_ptr<custom_flag_formatter> clone() const override {
+    [[nodiscard]] std::unique_ptr<custom_flag_formatter> clone() const override {
         return spdlog::details::make_unique<CustomLevelFormatter>();
     }
 };

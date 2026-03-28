@@ -192,7 +192,7 @@ IPGeoService::IPGeoService(const std::string& city_db_path, const std::string& a
 
     LOG_INFO("IPGeoService initialized with cache size: " + std::to_string(cache_size)
              + ", shards: " + std::to_string(shard_count)
-             + ", max memory: " + std::to_string(max_memory_bytes / (1024 * 1024)) + "MB");
+             + ", max memory: " + std::to_string(max_memory_bytes / static_cast<size_t>(1024 * 1024)) + "MB");
 }
 
 LookupResult IPGeoService::lookup(const std::string& ip_address) const {
@@ -293,7 +293,7 @@ MACLookupService::MACLookupService(const std::string& oui_db_path, size_t cache_
 
     LOG_INFO("MACLookupService initialized with cache size: " + std::to_string(cache_size)
              + ", shards: " + std::to_string(shard_count)
-             + ", max memory: " + std::to_string(max_memory_bytes / (1024 * 1024)) + "MB");
+             + ", max memory: " + std::to_string(max_memory_bytes / static_cast<size_t>(1024 * 1024)) + "MB");
 }
 
 LookupResult MACLookupService::lookup(const std::string& mac_address) const {

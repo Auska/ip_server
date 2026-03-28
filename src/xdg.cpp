@@ -96,15 +96,15 @@ std::filesystem::path XDGPaths::database_dir() {
     return app_data_dir() / "databases";
 }
 
-std::filesystem::path XDGPaths::city_db_path() const {
+std::filesystem::path XDGPaths::city_db_path() {
     return database_dir() / "GeoLite2-City.mmdb";
 }
 
-std::filesystem::path XDGPaths::asn_db_path() const {
+std::filesystem::path XDGPaths::asn_db_path() {
     return database_dir() / "GeoLite2-ASN.mmdb";
 }
 
-std::filesystem::path XDGPaths::oui_db_path() const {
+std::filesystem::path XDGPaths::oui_db_path() {
     return database_dir() / "master_oui.db";
 }
 
@@ -121,7 +121,7 @@ std::filesystem::path XDGPaths::log_file_path() {
     return log_dir / "ip_server.log";
 }
 
-void XDGPaths::ensure_directories() const {
+void XDGPaths::ensure_directories() {
     std::error_code ec;
 
     std::filesystem::create_directories(app_config_dir(), ec);

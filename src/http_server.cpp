@@ -1,10 +1,13 @@
 #include "http_server.h"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <future>
 #include <regex>
 #include <stdexcept>
+#include <utility>
+#include <utility>
 #include <vector>
 
 #include "auth.h"
@@ -37,13 +40,13 @@ bool is_valid_mac_format(const std::string& mac) {
 
 }  // namespace
 
-IPGeoHTTPServer::IPGeoHTTPServer(const std::string& host, uint16_t port, int thread_pool_size,
+IPGeoHTTPServer::IPGeoHTTPServer(std::string  host, uint16_t port, int thread_pool_size,
                                  bool enable_rate_limiter, int max_requests_per_minute,
                                  int max_batch_size, bool enable_api_auth,
                                  const std::string& api_keys_file,
                                  const std::string& default_api_key,
                                  const std::vector<std::string>& trusted_proxies)
-    : host_(host),
+    : host_(std::move(host)),
       port_(port),
       thread_pool_size_(thread_pool_size),
       enable_rate_limiter_(enable_rate_limiter),
@@ -117,7 +120,7 @@ bool IPGeoHTTPServer::authenticate_request(const httplib::Request& req, httplib:
     }
 
     std::string const prefix = "Bearer ";
-    if (auth_header.substr(0, prefix.length()) != prefix) {
+    if (!auth_header.starts_with(prefix)) {
         send_error_response(res, 401, "Unauthorized",
                             "Invalid Authorization header format. Expected: Bearer <api_key>");
         res.set_header("WWW-Authenticate", "Bearer");
@@ -165,7 +168,7 @@ bool IPGeoHTTPServer::is_trusted_proxy(const std::string& ip) const {
     if (trusted_proxies_.empty()) {
         return true;
     }
-    return std::find(trusted_proxies_.begin(), trusted_proxies_.end(), ip) != trusted_proxies_.end();
+    return std::ranges::find(trusted_proxies_, ip) != trusted_proxies_.end();
 }
 
 std::string IPGeoHTTPServer::get_real_client_ip(const httplib::Request& req) const {
@@ -382,7 +385,7 @@ void IPGeoHTTPServer::setup_routes() {
                 handler = lookup_handler_;
 
                 size_t const batch_size = body["ips"].size();
-                if (batch_size > static_cast<size_t>(max_batch_size_)) {
+                if (std::cmp_greater(batch_size, max_batch_size_)) {
                     nlohmann::json error;
                     error["error"] = "Batch size exceeds maximum limit";
                     error["max_batch_size"] = max_batch_size_;
@@ -410,7 +413,7 @@ void IPGeoHTTPServer::setup_routes() {
                 handler = mac_lookup_handler_;
 
                 size_t const batch_size = body["macs"].size();
-                if (batch_size > static_cast<size_t>(max_batch_size_)) {
+                if (std::cmp_greater(batch_size, max_batch_size_)) {
                     nlohmann::json error;
                     error["error"] = "Batch size exceeds maximum limit";
                     error["max_batch_size"] = max_batch_size_;
@@ -529,7 +532,7 @@ void IPGeoHTTPServer::setup_routes() {
             }
 
             auto start_time = std::chrono::high_resolution_clock::now();
-            auto result = password_generator_->generate(config);
+            auto result = ip_server::PasswordGenerator::generate(config);
             auto end_time = std::chrono::high_resolution_clock::now();
             auto latency_ms =
                 std::chrono::duration<double, std::milli>(end_time - start_time).count();
@@ -626,7 +629,7 @@ void IPGeoHTTPServer::setup_routes() {
             }
 
             auto start_time = std::chrono::high_resolution_clock::now();
-            auto results = password_generator_->generate_batch(config, count);
+            auto results = ip_server::PasswordGenerator::generate_batch(config, count);
             auto end_time = std::chrono::high_resolution_clock::now();
             auto latency_ms =
                 std::chrono::duration<double, std::milli>(end_time - start_time).count();

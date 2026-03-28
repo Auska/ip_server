@@ -1,5 +1,6 @@
 #include "config.h"
 
+#include <cstddef>
 #include <fstream>
 #include <iostream>
 
@@ -19,7 +20,7 @@ void apply_xdg_defaults(ServerConfig& config) {
     config.city_db_path  = xdg.city_db_path().string();
     config.asn_db_path   = xdg.asn_db_path().string();
     config.oui_db_path   = xdg.oui_db_path().string();
-    config.config_file   = xdg.config_file();
+    config.config_file   = ip_server::XDGPaths::config_file();
     config.log_file_path = ip_server::XDGPaths::log_file_path().string();
 }
 
@@ -187,7 +188,7 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
             config.enable_file_logging =
                 parse_bool_string(result["enable-file-logging"].as<std::string>());
             if (config.enable_file_logging && config.log_file_path == "logs/ip_server.log") {
-                config.log_file_path = XDGPaths::instance().log_file_path().string();
+                config.log_file_path = ip_server::XDGPaths::log_file_path().string();
             }
         }
         if (result.contains("log-file")) {
@@ -243,7 +244,7 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
         LOG_INFO("  Log File: " + config.log_file_path);
         LOG_INFO("  Log Rotation: " + config.log_rotation_type);
         if (config.log_rotation_type == "size" || config.log_rotation_type == "both") {
-            LOG_INFO("  Max File Size: " + std::to_string(config.log_max_file_size / (1024 * 1024))
+            LOG_INFO("  Max File Size: " + std::to_string(config.log_max_file_size / static_cast<size_t>(1024 * 1024))
                      + " MB");
         }
         if (config.log_rotation_type == "time" || config.log_rotation_type == "both") {
@@ -317,10 +318,10 @@ void ConfigParser::validate(const ServerConfig& config) {
                 "Invalid log rotation type: must be none, size, time, or both");
         }
 
-        if (config.log_max_file_size < 1024 * 1024
-            || config.log_max_file_size > 1024 * 1024 * 1024) {
+        if (config.log_max_file_size < static_cast<size_t>(1024 * 1024)
+            || config.log_max_file_size > static_cast<size_t>(1024 * 1024 * 1024)) {
             LOG_ERROR("Log max file size must be between 1 MB and 1 GB, got: "
-                      + std::to_string(config.log_max_file_size / (1024 * 1024)) + " MB");
+                      + std::to_string(config.log_max_file_size / static_cast<size_t>(1024 * 1024)) + " MB");
             throw std::runtime_error("Invalid log max file size: must be between 1 MB and 1 GB");
         }
 
@@ -449,7 +450,7 @@ bool ConfigParser::save_to_file(const ServerConfig& config,
         j["log_file"]            = config.log_file_path;
         j["log_enable_stdout"]   = config.log_enable_stdout;
         j["log_rotation"]        = config.log_rotation_type;
-        j["log_max_file_size"]   = config.log_max_file_size / (1024 * 1024);  // Convert to MB
+        j["log_max_file_size"]   = config.log_max_file_size / (static_cast<size_t>(1024 * 1024));  // Convert to MB
         j["log_rotation_interval_minutes"] = config.log_rotation_interval_minutes;
         j["log_max_backup_files"]          = config.log_max_backup_files;
         j["log_level"]                     = config.log_level;
