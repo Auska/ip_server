@@ -25,7 +25,7 @@ void RateLimiter::evict_lru() {
 }
 
 bool RateLimiter::is_allowed(const std::string& ip_address) {
-    std::lock_guard<std::mutex> const lock(mutex_);
+    std::scoped_lock const lock(mutex_);
 
     total_requests_++;
 
@@ -68,7 +68,7 @@ bool RateLimiter::is_allowed(const std::string& ip_address) {
 }
 
 int RateLimiter::get_remaining(const std::string& ip_address) const {
-    std::lock_guard<std::mutex> const lock(mutex_);
+    std::scoped_lock const lock(mutex_);
 
     auto it = ip_records_.find(ip_address);
     if (it == ip_records_.end()) {
@@ -88,7 +88,7 @@ int RateLimiter::get_remaining(const std::string& ip_address) const {
 }
 
 void RateLimiter::cleanup() {
-    std::lock_guard<std::mutex> const lock(mutex_);
+    std::scoped_lock const lock(mutex_);
 
     for (auto& [ip, record] : ip_records_) {
         cleanup_old_timestamps(record);
@@ -128,7 +128,7 @@ size_t RateLimiter::estimate_memory_usage() const {
 }
 
 RateLimiter::MemoryStats RateLimiter::get_memory_stats() const {
-    std::lock_guard<std::mutex> const lock(mutex_);
+    std::scoped_lock const lock(mutex_);
 
     MemoryStats stats;
     stats.ip_record_count = ip_records_.size();
@@ -147,7 +147,7 @@ RateLimiter::MemoryStats RateLimiter::get_memory_stats() const {
 }
 
 void RateLimiter::reset_stats() {
-    std::lock_guard<std::mutex> const lock(mutex_);
+    std::scoped_lock const lock(mutex_);
 
     total_requests_ = 0;
     total_rate_limited_ = 0;

@@ -31,7 +31,7 @@ MaxMindDatabase& MaxMindDatabase::operator=(MaxMindDatabase&& other) noexcept {
 }
 
 bool MaxMindDatabase::open(const std::string& db_path) {
-    std::lock_guard<std::mutex> const lock(open_close_mutex_);
+    std::scoped_lock const lock(open_close_mutex_);
 
     if (is_open_.load(std::memory_order_acquire)) {
         close();
@@ -49,7 +49,7 @@ bool MaxMindDatabase::open(const std::string& db_path) {
 }
 
 void MaxMindDatabase::close() {
-    std::lock_guard<std::mutex> const lock(open_close_mutex_);
+    std::scoped_lock const lock(open_close_mutex_);
 
     if (is_open_.load(std::memory_order_acquire)) {
         MMDB_close(&mmdb_);

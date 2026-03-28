@@ -49,7 +49,7 @@ void APIAuth::add_key(const std::string& key) {
         return;
     }
 
-    std::lock_guard<std::mutex> const lock(mutex_);
+    std::scoped_lock const lock(mutex_);
     std::string const key_hash = hash_key(key);
     std::string const key_id   = generate_key_id(key_hash);
 
@@ -62,7 +62,7 @@ void APIAuth::add_key(const std::string& key) {
 }
 
 void APIAuth::remove_key(const std::string& key) {
-    std::lock_guard<std::mutex> const lock(mutex_);
+    std::scoped_lock const lock(mutex_);
     std::string const key_hash = hash_key(key);
     std::string const key_id   = generate_key_id(key_hash);
 
@@ -82,7 +82,7 @@ bool APIAuth::is_valid(const std::string& key) const {
     }
 
     std::string const key_hash = hash_key(key);
-    std::lock_guard<std::mutex> const lock(mutex_);
+    std::scoped_lock const lock(mutex_);
     return api_key_hashes_.contains(key_hash);
 }
 
@@ -93,7 +93,7 @@ bool APIAuth::load_keys_from_file(const std::string& filepath) {
         return false;
     }
 
-    std::lock_guard<std::mutex> const lock(mutex_);
+    std::scoped_lock const lock(mutex_);
     api_key_hashes_.clear();
     key_id_map_.clear();
 
@@ -125,7 +125,7 @@ bool APIAuth::load_keys_from_file(const std::string& filepath) {
 }
 
 size_t APIAuth::key_count() const {
-    std::lock_guard<std::mutex> const lock(mutex_);
+    std::scoped_lock const lock(mutex_);
     return api_key_hashes_.size();
 }
 

@@ -46,7 +46,7 @@ OUIDatabase& OUIDatabase::operator=(OUIDatabase&& other) noexcept {
 }
 
 bool OUIDatabase::open(const std::string& db_path) {
-    std::lock_guard<std::mutex> const lock(open_close_mutex_);
+    std::scoped_lock const lock(open_close_mutex_);
 
     if (is_open_.load(std::memory_order_acquire)) {
         close();
@@ -77,7 +77,7 @@ bool OUIDatabase::open(const std::string& db_path) {
 }
 
 void OUIDatabase::close() {
-    std::lock_guard<std::mutex> const lock(open_close_mutex_);
+    std::scoped_lock const lock(open_close_mutex_);
 
     if (is_open_.load(std::memory_order_acquire) && (db_ != nullptr)) {
         sqlite3_close(db_);
@@ -125,7 +125,7 @@ nlohmann::json OUIDatabase::lookup(const std::string& mac_address) const {
 
     std::string const oui = extract_oui(normalized);
 
-    std::lock_guard<std::mutex> const lock(query_mutex_);
+    std::scoped_lock const lock(query_mutex_);
 
     const char* sql =
         "SELECT oui, manufacturer, registry, short_name, "
