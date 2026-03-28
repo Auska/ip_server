@@ -16,10 +16,9 @@ bool parse_bool_string(const std::string& value) {
 }
 
 void apply_xdg_defaults(ServerConfig& config) {
-    auto& xdg            = XDGPaths::instance();
-    config.city_db_path  = xdg.city_db_path().string();
-    config.asn_db_path   = xdg.asn_db_path().string();
-    config.oui_db_path   = xdg.oui_db_path().string();
+    config.city_db_path  = ip_server::XDGPaths::city_db_path().string();
+    config.asn_db_path   = ip_server::XDGPaths::asn_db_path().string();
+    config.oui_db_path   = ip_server::XDGPaths::oui_db_path().string();
     config.config_file   = ip_server::XDGPaths::config_file();
     config.log_file_path = ip_server::XDGPaths::log_file_path().string();
 }

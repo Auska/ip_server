@@ -112,7 +112,7 @@ int main(int argc, char* argv[]) {
             Logger::instance().set_level(LogLevel::ERROR);
         }
 
-        XDGPaths::instance().ensure_directories();
+        ip_server::XDGPaths::ensure_directories();
 
         if (!config.config_file.empty() && !std::filesystem::exists(config.config_file)) {
             LOG_INFO("Creating default config file: " + config.config_file.string());
