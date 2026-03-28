@@ -31,7 +31,7 @@ std::filesystem::path XDGPaths::get_home() {
     }
 
     // Fallback to getpwuid
-    struct passwd* pw = getpwuid(getuid());
+    struct passwd const* pw = getpwuid(getuid());
     if (pw != nullptr) {
         return pw->pw_dir;
     }
@@ -111,7 +111,7 @@ std::filesystem::path XDGPaths::oui_db_path() const {
 std::filesystem::path XDGPaths::log_file_path() const {
     // Use XDG state home for logs (or data home as fallback)
     std::filesystem::path log_dir;
-    std::string state_path = get_env("XDG_STATE_HOME", "");
+    std::string const state_path = get_env("XDG_STATE_HOME", "");
     if (!state_path.empty()) {
         log_dir = std::filesystem::path(state_path) / APP_NAME / "logs";
     } else {
@@ -145,7 +145,7 @@ void XDGPaths::ensure_directories() const {
     }
 
     // Create log directory
-    std::filesystem::path log_dir = log_file_path().parent_path();
+    std::filesystem::path const log_dir = log_file_path().parent_path();
     std::filesystem::create_directories(log_dir, ec);
     if (ec) {
         LOG_WARNING("Failed to create log directory: " + ec.message());

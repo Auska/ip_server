@@ -116,7 +116,7 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
         if (!config.config_file.empty() && std::filesystem::exists(config.config_file)) {
             // Check if config file is empty
             std::ifstream check_file(config.config_file);
-            bool is_empty = check_file.peek() == std::ifstream::traits_type::eof();
+            bool const is_empty = check_file.peek() == std::ifstream::traits_type::eof();
             check_file.close();
 
             if (is_empty) {

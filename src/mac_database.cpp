@@ -46,7 +46,7 @@ OUIDatabase& OUIDatabase::operator=(OUIDatabase&& other) noexcept {
 }
 
 bool OUIDatabase::open(const std::string& db_path) {
-    std::lock_guard<std::mutex> lock(open_close_mutex_);
+    std::lock_guard<std::mutex> const lock(open_close_mutex_);
 
     if (is_open_.load(std::memory_order_acquire)) {
         close();
@@ -77,7 +77,7 @@ bool OUIDatabase::open(const std::string& db_path) {
 }
 
 void OUIDatabase::close() {
-    std::lock_guard<std::mutex> lock(open_close_mutex_);
+    std::lock_guard<std::mutex> const lock(open_close_mutex_);
 
     if (is_open_.load(std::memory_order_acquire) && (db_ != nullptr)) {
         sqlite3_close(db_);
@@ -91,7 +91,7 @@ std::string OUIDatabase::normalize_mac_address(const std::string& mac_address) {
     std::string normalized;
     normalized.reserve(mac_address.size());
 
-    for (char c : mac_address) {
+    for (char const c : mac_address) {
         if (std::isxdigit(c) != 0) {
             normalized += std::toupper(c);
         }
@@ -102,7 +102,7 @@ std::string OUIDatabase::normalize_mac_address(const std::string& mac_address) {
 
 std::string OUIDatabase::extract_oui(const std::string& normalized_mac) {
     if (normalized_mac.size() >= 6) {
-        std::string oui = normalized_mac.substr(0, 6);
+        std::string const oui = normalized_mac.substr(0, 6);
         return oui.substr(0, 2) + ":" + oui.substr(2, 2) + ":" + oui.substr(4, 2);
     }
     return "";
@@ -116,16 +116,16 @@ nlohmann::json OUIDatabase::lookup(const std::string& mac_address) const {
         return result;
     }
 
-    std::string normalized = normalize_mac_address(mac_address);
+    std::string const normalized = normalize_mac_address(mac_address);
 
     if (normalized.size() != 12) {
         result["error"] = "Invalid MAC address format";
         return result;
     }
 
-    std::string oui = extract_oui(normalized);
+    std::string const oui = extract_oui(normalized);
 
-    std::lock_guard<std::mutex> lock(query_mutex_);
+    std::lock_guard<std::mutex> const lock(query_mutex_);
 
     const char* sql =
         "SELECT oui, manufacturer, registry, short_name, "
@@ -140,7 +140,7 @@ nlohmann::json OUIDatabase::lookup(const std::string& mac_address) const {
         return result;
     }
 
-    SQLiteStmtPtr stmt(raw_stmt);
+    SQLiteStmtPtr const stmt(raw_stmt);
 
     status = sqlite3_bind_text(stmt.get(), 1, oui.c_str(), -1, SQLITE_TRANSIENT);
     if (status != SQLITE_OK) {

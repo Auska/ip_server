@@ -52,7 +52,7 @@ class Application {
             metrics->set_oui_db_status(mac_service_.is_oui_db_open());
         }
 
-        bool result = http_server_.start(shutdown_requested_);
+        bool const result = http_server_.start(shutdown_requested_);
 
         if (shutdown_requested_.load()) {
             LOG_INFO("Performing graceful shutdown...");

@@ -33,7 +33,7 @@ void Metrics::record_request(bool cache_hit, double latency_ms) {
         cache_misses_++;
     }
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> const lock(mutex_);
     latencies_.push_back(latency_ms);
     if (latencies_.size() > MAX_LATENCIES) {
         latencies_.pop_front();
@@ -80,7 +80,7 @@ Metrics::Stats Metrics::get_stats() const {
     stats.oui_db_open = oui_db_open_.load();
 
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::lock_guard<std::mutex> const lock(mutex_);
         if (!latencies_.empty()) {
             stats.avg_latency_ms =
                 std::accumulate(latencies_.begin(), latencies_.end(), 0.0) / latencies_.size();
@@ -106,7 +106,7 @@ Metrics::Stats Metrics::get_stats() const {
 }
 
 void Metrics::reset() {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> const lock(mutex_);
 
     total_requests_ = 0;
     cache_hits_ = 0;
@@ -140,12 +140,12 @@ double Metrics::calculate_percentile(double percentile) const {
     std::vector<double> sorted_latencies(latencies_.begin(), latencies_.end());
     std::sort(sorted_latencies.begin(), sorted_latencies.end());
 
-    size_t index = static_cast<size_t>(percentile * (sorted_latencies.size() - 1));
+    size_t const index = static_cast<size_t>(percentile * (sorted_latencies.size() - 1));
     return sorted_latencies[index];
 }
 
 double Metrics::calculate_qps() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> const lock(mutex_);
 
     if (request_timestamps_.size() < 2) {
         return 0.0;
@@ -161,7 +161,7 @@ double Metrics::calculate_qps() const {
         return 0.0;
     }
 
-    uint64_t request_delta = newest.second - oldest.second;
+    uint64_t const request_delta = newest.second - oldest.second;
     return (static_cast<double>(request_delta) / duration) * 1000.0;
 }
 

@@ -116,7 +116,7 @@ bool IPGeoHTTPServer::authenticate_request(const httplib::Request& req, httplib:
         return false;
     }
 
-    std::string prefix = "Bearer ";
+    std::string const prefix = "Bearer ";
     if (auth_header.substr(0, prefix.length()) != prefix) {
         send_error_response(res, 401, "Unauthorized",
                             "Invalid Authorization header format. Expected: Bearer <api_key>");
@@ -125,7 +125,7 @@ bool IPGeoHTTPServer::authenticate_request(const httplib::Request& req, httplib:
         return false;
     }
 
-    std::string api_key = auth_header.substr(prefix.length());
+    std::string const api_key = auth_header.substr(prefix.length());
     if (!api_auth_->is_valid(api_key)) {
         send_error_response(res, 401, "Unauthorized", "Invalid API key");
         LOG_WARNING("Unauthorized request: invalid API key from " + req.remote_addr);
@@ -172,11 +172,11 @@ std::string IPGeoHTTPServer::get_real_client_ip(const httplib::Request& req) con
     if (is_trusted_proxy(req.remote_addr)) {
         auto xff = req.get_header_value("X-Forwarded-For");
         if (!xff.empty()) {
-            size_t comma_pos = xff.find(',');
+            size_t const comma_pos = xff.find(',');
             if (comma_pos != std::string::npos) {
                 std::string first_ip = xff.substr(0, comma_pos);
-                size_t start = first_ip.find_first_not_of(" \t");
-                size_t end = first_ip.find_last_not_of(" \t");
+                size_t const start   = first_ip.find_first_not_of(" \t");
+                size_t const end     = first_ip.find_last_not_of(" \t");
                 if (start != std::string::npos && end != std::string::npos) {
                     return first_ip.substr(start, end - start + 1);
                 }
@@ -321,7 +321,7 @@ void IPGeoHTTPServer::setup_routes() {
             error["error"] = e.what();
             res.set_content(error.dump(), "application/json");
             metrics_->record_error();
-            std::string query_param = mac_param.empty() ? ip_param : mac_param;
+            std::string const query_param = mac_param.empty() ? ip_param : mac_param;
             LOG_ERROR(std::string("Error processing lookup for ") + query_param + ": " + e.what());
         }
     });
@@ -351,8 +351,8 @@ void IPGeoHTTPServer::setup_routes() {
         try {
             auto body = nlohmann::json::parse(req.body);
 
-            bool has_ips = body.contains("ips") && body["ips"].is_array();
-            bool has_macs = body.contains("macs") && body["macs"].is_array();
+            bool const has_ips  = body.contains("ips") && body["ips"].is_array();
+            bool const has_macs = body.contains("macs") && body["macs"].is_array();
 
             if (!has_ips && !has_macs) {
                 send_error_response(res, 400, "Bad Request",
@@ -381,7 +381,7 @@ void IPGeoHTTPServer::setup_routes() {
                 }
                 handler = lookup_handler_;
 
-                size_t batch_size = body["ips"].size();
+                size_t const batch_size = body["ips"].size();
                 if (batch_size > static_cast<size_t>(max_batch_size_)) {
                     nlohmann::json error;
                     error["error"] = "Batch size exceeds maximum limit";
@@ -409,7 +409,7 @@ void IPGeoHTTPServer::setup_routes() {
                 }
                 handler = mac_lookup_handler_;
 
-                size_t batch_size = body["macs"].size();
+                size_t const batch_size = body["macs"].size();
                 if (batch_size > static_cast<size_t>(max_batch_size_)) {
                     nlohmann::json error;
                     error["error"] = "Batch size exceeds maximum limit";

@@ -1,13 +1,33 @@
 ---
+# 1. 启用的检查类别
+# 使用通配符启用整类检查，然后针对具体规则进行微调
 Checks: >
   -*,
   bugprone-*,
-  -bugprone-suspicious-include,
   performance-*,
-  -performance-unnecessary-value-param,
   readability-*,
-  -readability-magic-numbers,
-  -readability-identifier-length
+  modernize-*,
+  cppcoreguidelines-*,
+  misc-*,
+  portability-*,
+  -modernize-use-trailing-return-type,
+  -readability-identifier-length,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -misc-include-cleaner
 
+# 2. 将警告视为错误 (可选，用于 CI/CD)
+# WarningsAsErrors: '*'
+
+# 3. 头文件过滤
 HeaderFilterRegex: ''
-FormatStyle: none
+
+# 4. 自动格式化
+FormatStyle: file
+
+# 5. 具体检查项的参数调整
+CheckOptions:
+  - key: readability-identifier-naming.LineLength
+    value: '120'
+  - key: modernize-loop-convert.MinConfidence
+    value: 'reasonable'

@@ -32,13 +32,13 @@ MaxMindDatabase& MaxMindDatabase::operator=(MaxMindDatabase&& other) noexcept {
 }
 
 bool MaxMindDatabase::open(const std::string& db_path) {
-    std::lock_guard<std::mutex> lock(open_close_mutex_);
+    std::lock_guard<std::mutex> const lock(open_close_mutex_);
 
     if (is_open_.load(std::memory_order_acquire)) {
         close();
     }
 
-    int status = MMDB_open(db_path.c_str(), MMDB_MODE_MMAP, &mmdb_);
+    int const status = MMDB_open(db_path.c_str(), MMDB_MODE_MMAP, &mmdb_);
     if (status != MMDB_SUCCESS) {
         LOG_ERROR("Failed to open MaxMind DB '" + db_path + "': " + MMDB_strerror(status));
         return false;
@@ -50,7 +50,7 @@ bool MaxMindDatabase::open(const std::string& db_path) {
 }
 
 void MaxMindDatabase::close() {
-    std::lock_guard<std::mutex> lock(open_close_mutex_);
+    std::lock_guard<std::mutex> const lock(open_close_mutex_);
 
     if (is_open_.load(std::memory_order_acquire)) {
         MMDB_close(&mmdb_);
@@ -206,7 +206,8 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
             LOG_DEBUG("Cache hit for IP: " + ip_address);
             cache_hit = true;
             auto end = std::chrono::high_resolution_clock::now();
-            double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
+            double const latency_ms =
+                std::chrono::duration<double, std::milli>(end - start).count();
             return LookupResult(cached.value(), true, latency_ms);
         }
     }
@@ -222,12 +223,13 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
         if (city_result.contains("error")) {
             result["error"] = city_result["error"];
             auto end = std::chrono::high_resolution_clock::now();
-            double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
+            double const latency_ms =
+                std::chrono::duration<double, std::milli>(end - start).count();
             return LookupResult(result, false, latency_ms);
         }
 
-        bool city_found = city_result.value("found", false);
-        bool asn_found = asn_result.value("found", false);
+        bool const city_found = city_result.value("found", false);
+        bool const asn_found  = asn_result.value("found", false);
 
         if (!city_found && !asn_found) {
             if (cache_enabled_) {
@@ -235,7 +237,8 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
                 LOG_DEBUG("Cached negative result for IP: " + ip_address);
             }
             auto end = std::chrono::high_resolution_clock::now();
-            double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
+            double const latency_ms =
+                std::chrono::duration<double, std::milli>(end - start).count();
             return LookupResult(result, false, latency_ms);
         }
 
@@ -278,7 +281,7 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
     }
 
     auto end = std::chrono::high_resolution_clock::now();
-    double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
+    double const latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
     return LookupResult(result, cache_hit, latency_ms);
 }
 
@@ -304,7 +307,8 @@ LookupResult MACLookupService::lookup(const std::string& mac_address) const {
             LOG_DEBUG("Cache hit for MAC: " + mac_address);
             cache_hit = true;
             auto end = std::chrono::high_resolution_clock::now();
-            double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
+            double const latency_ms =
+                std::chrono::duration<double, std::milli>(end - start).count();
             return LookupResult(cached.value(), true, latency_ms);
         }
     }
@@ -329,7 +333,7 @@ LookupResult MACLookupService::lookup(const std::string& mac_address) const {
     }
 
     auto end = std::chrono::high_resolution_clock::now();
-    double latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
+    double const latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
     return LookupResult(result, cache_hit, latency_ms);
 }
 

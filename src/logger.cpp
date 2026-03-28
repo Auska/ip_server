@@ -78,7 +78,7 @@ void Logger::setup_sinks() {
     // Add file sink based on rotation type
     if (config_.enable_file_logging) {
         // Create log directory if it doesn't exist
-        std::filesystem::path log_dir = config_.log_file_path.parent_path();
+        std::filesystem::path const log_dir = config_.log_file_path.parent_path();
         if (!log_dir.empty() && !std::filesystem::exists(log_dir)) {
             std::filesystem::create_directories(log_dir);
         }

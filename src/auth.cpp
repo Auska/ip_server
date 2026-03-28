@@ -17,7 +17,7 @@ std::string sha256_hash(const std::string& input) {
     SHA256(reinterpret_cast<const unsigned char*>(input.c_str()), input.size(), hash);
 
     std::stringstream ss;
-    for (unsigned char c : hash) {
+    for (unsigned char const c : hash) {
         ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(c);
     }
     return ss.str();
@@ -50,9 +50,9 @@ void APIAuth::add_key(const std::string& key) {
         return;
     }
 
-    std::lock_guard<std::mutex> lock(mutex_);
-    std::string key_hash = hash_key(key);
-    std::string key_id = generate_key_id(key_hash);
+    std::lock_guard<std::mutex> const lock(mutex_);
+    std::string const key_hash = hash_key(key);
+    std::string const key_id   = generate_key_id(key_hash);
 
     if (api_key_hashes_.insert(key_hash).second) {
         key_id_map_[key_hash] = key_id;
@@ -63,9 +63,9 @@ void APIAuth::add_key(const std::string& key) {
 }
 
 void APIAuth::remove_key(const std::string& key) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    std::string key_hash = hash_key(key);
-    std::string key_id = generate_key_id(key_hash);
+    std::lock_guard<std::mutex> const lock(mutex_);
+    std::string const key_hash = hash_key(key);
+    std::string const key_id   = generate_key_id(key_hash);
 
     if (api_key_hashes_.erase(key_hash) > 0) {
         key_id_map_.erase(key_hash);
@@ -82,8 +82,8 @@ bool APIAuth::is_valid(const std::string& key) const {
         return false;
     }
 
-    std::string key_hash = hash_key(key);
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::string const key_hash = hash_key(key);
+    std::lock_guard<std::mutex> const lock(mutex_);
     return api_key_hashes_.contains(key_hash);
 }
 
@@ -94,7 +94,7 @@ bool APIAuth::load_keys_from_file(const std::string& filepath) {
         return false;
     }
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> const lock(mutex_);
     api_key_hashes_.clear();
     key_id_map_.clear();
 
@@ -105,13 +105,13 @@ bool APIAuth::load_keys_from_file(const std::string& filepath) {
             continue;
         }
 
-        size_t start = line.find_first_not_of(" \t\r\n");
-        size_t end = line.find_last_not_of(" \t\r\n");
+        size_t const start = line.find_first_not_of(" \t\r\n");
+        size_t const end   = line.find_last_not_of(" \t\r\n");
 
         if (start != std::string::npos && end != std::string::npos) {
-            std::string key = line.substr(start, end - start + 1);
-            std::string key_hash = hash_key(key);
-            std::string key_id = generate_key_id(key_hash);
+            std::string const key      = line.substr(start, end - start + 1);
+            std::string const key_hash = hash_key(key);
+            std::string const key_id   = generate_key_id(key_hash);
 
             if (api_key_hashes_.insert(key_hash).second) {
                 key_id_map_[key_hash] = key_id;
@@ -126,7 +126,7 @@ bool APIAuth::load_keys_from_file(const std::string& filepath) {
 }
 
 size_t APIAuth::key_count() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> const lock(mutex_);
     return api_key_hashes_.size();
 }
 
