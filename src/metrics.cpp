@@ -57,7 +57,7 @@ void Metrics::record_cache_eviction() {
 }
 
 Metrics::Stats Metrics::get_stats() const {
-    Stats stats;
+    Stats stats{};
 
     stats.total_requests = total_requests_.load();
     stats.cache_hits = cache_hits_.load();

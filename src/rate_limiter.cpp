@@ -130,7 +130,7 @@ size_t RateLimiter::estimate_memory_usage() const {
 RateLimiter::MemoryStats RateLimiter::get_memory_stats() const {
     std::scoped_lock const lock(mutex_);
 
-    MemoryStats stats;
+    MemoryStats stats{};
     stats.ip_record_count = ip_records_.size();
     stats.total_timestamps = 0;
     stats.estimated_memory_bytes = 0;

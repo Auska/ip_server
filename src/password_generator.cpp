@@ -14,7 +14,7 @@ namespace {
 std::mt19937_64::result_type generate_secure_seed() {
     std::random_device rd;
     std::seed_seq seq{rd(), rd(), rd(), rd(), rd(), rd(), rd(), rd()};
-    std::mt19937_64::result_type seed;
+    std::mt19937_64::result_type seed = 0;
     seq.generate(&seed, &seed + 1);
     return seed;
 }

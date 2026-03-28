@@ -95,15 +95,15 @@ nlohmann::json MaxMindDatabase::perform_lookup(const std::string& ip_address, in
 }
 
 nlohmann::json MaxMindDatabase::lookup(const std::string& ip_address) const {
-    int gai_error;
-    int mmdb_error;
+    int gai_error  = 0;
+    int mmdb_error = 0;
     MMDB_lookup_result_s result;
     return perform_lookup(ip_address, gai_error, mmdb_error, result);
 }
 
 nlohmann::json CityDatabase::lookup(const std::string& ip_address) const {
-    int gai_error;
-    int mmdb_error;
+    int gai_error  = 0;
+    int mmdb_error = 0;
     MMDB_lookup_result_s lookup_result;
     nlohmann::json result = perform_lookup(ip_address, gai_error, mmdb_error, lookup_result);
 
@@ -112,7 +112,7 @@ nlohmann::json CityDatabase::lookup(const std::string& ip_address) const {
     }
 
     MMDB_entry_data_s entry_data;
-    int status;
+    int status = 0;
 
     status = MMDB_get_value(&lookup_result.entry, &entry_data, "country", "names", "en", nullptr);
     if (status == MMDB_SUCCESS && entry_data.has_data) {
@@ -153,8 +153,8 @@ nlohmann::json CityDatabase::lookup(const std::string& ip_address) const {
 }
 
 nlohmann::json ASNDatabase::lookup(const std::string& ip_address) const {
-    int gai_error;
-    int mmdb_error;
+    int gai_error  = 0;
+    int mmdb_error = 0;
     MMDB_lookup_result_s lookup_result;
     nlohmann::json result = perform_lookup(ip_address, gai_error, mmdb_error, lookup_result);
 
@@ -163,7 +163,7 @@ nlohmann::json ASNDatabase::lookup(const std::string& ip_address) const {
     }
 
     MMDB_entry_data_s entry_data;
-    int status;
+    int status = 0;
 
     status = MMDB_get_value(&lookup_result.entry, &entry_data, "autonomous_system_organization",
                             nullptr);

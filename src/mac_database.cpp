@@ -155,7 +155,7 @@ nlohmann::json OUIDatabase::lookup(const std::string& mac_address) const {
         result["oui"] = oui;
         result["found"] = true;
 
-        const char* col;
+        const char* col = nullptr;
 
         col = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 1));
         if (col != nullptr) { result["manufacturer"] = col;
