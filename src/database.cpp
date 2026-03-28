@@ -1,7 +1,6 @@
 #include "database.h"
 
 #include <chrono>
-#include <cstring>
 #include <stdexcept>
 
 #include "logger.h"

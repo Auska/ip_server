@@ -3,7 +3,6 @@
 #include <fstream>
 #include <sstream>
 
-#include <openssl/evp.h>
 #include <openssl/sha.h>
 
 #include "logger.h"

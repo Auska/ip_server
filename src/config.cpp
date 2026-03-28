@@ -2,7 +2,6 @@
 
 #include <fstream>
 #include <iostream>
-#include <print>
 
 #include "logger.h"
 #include "xdg.h"
