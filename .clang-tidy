@@ -15,7 +15,8 @@ Checks: >
   -readability-magic-numbers,
   -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
-  -misc-include-cleaner
+  -misc-include-cleaner,
+  -bugprone-narrowing-conversions
 
 # 2. 将警告视为错误 (可选，用于 CI/CD)
 # WarningsAsErrors: '*'
