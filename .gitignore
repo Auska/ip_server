@@ -12,6 +12,7 @@ CMakeFiles/
 cmake_install.cmake
 Makefile
 !CMakeLists.txt
+compile_commands.json
 
 # XMake
 .xmake
