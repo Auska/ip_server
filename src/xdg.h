@@ -10,10 +10,10 @@ class XDGPaths {
     static XDGPaths& instance();
 
     // Get XDG base directories
-    std::filesystem::path config_home() const;
-    std::filesystem::path data_home() const;
-    std::filesystem::path cache_home() const;
-    std::filesystem::path state_home() const;
+    static std::filesystem::path config_home() ;
+    static std::filesystem::path data_home() ;
+    static std::filesystem::path cache_home() ;
+    static std::filesystem::path state_home() ;
 
     // Get application-specific paths
     std::filesystem::path app_config_dir() const;

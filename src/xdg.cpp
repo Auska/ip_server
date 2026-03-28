@@ -40,7 +40,7 @@ std::filesystem::path XDGPaths::get_home() {
     return "/tmp";
 }
 
-std::filesystem::path XDGPaths::config_home() const {
+std::filesystem::path XDGPaths::config_home() {
     std::string path = get_env("XDG_CONFIG_HOME", "");
     if (!path.empty()) {
         return path;
@@ -48,7 +48,7 @@ std::filesystem::path XDGPaths::config_home() const {
     return get_home() / ".config";
 }
 
-std::filesystem::path XDGPaths::data_home() const {
+std::filesystem::path XDGPaths::data_home() {
     std::string path = get_env("XDG_DATA_HOME", "");
     if (!path.empty()) {
         return path;
@@ -56,7 +56,7 @@ std::filesystem::path XDGPaths::data_home() const {
     return get_home() / ".local" / "share";
 }
 
-std::filesystem::path XDGPaths::cache_home() const {
+std::filesystem::path XDGPaths::cache_home() {
     std::string path = get_env("XDG_CACHE_HOME", "");
     if (!path.empty()) {
         return path;
@@ -64,7 +64,7 @@ std::filesystem::path XDGPaths::cache_home() const {
     return get_home() / ".cache";
 }
 
-std::filesystem::path XDGPaths::state_home() const {
+std::filesystem::path XDGPaths::state_home() {
     std::string path = get_env("XDG_STATE_HOME", "");
     if (!path.empty()) {
         return path;

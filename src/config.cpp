@@ -92,7 +92,7 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
         auto result = options.parse(argc, argv);
 
         // Check for help
-        if (result.count("help") != 0u) {
+        if (result.contains("help")) {
             std::cout << options.help() << '\n';
             std::exit(0);
         }
@@ -108,7 +108,7 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
         LOG_INFO("  Log File: " + config.log_file_path);
 
         // Check if config file is specified
-        if (result.count("config") != 0u) {
+        if (result.contains("config")) {
             config.config_file = result["config"].as<std::string>();
         }
 
@@ -144,74 +144,74 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
         }
 
         // Parse command line arguments (override config file)
-        if (result.count("host") != 0u) {
+        if (result.contains("host")) {
             config.host = result["host"].as<std::string>();
         }
-        if (result.count("port") != 0u) {
+        if (result.contains("port")) {
             config.port = result["port"].as<uint16_t>();
         }
-        if (result.count("threads") != 0u) {
+        if (result.contains("threads")) {
             config.thread_pool_size = result["threads"].as<int>();
         }
-        if (result.count("cache-size") != 0u) {
+        if (result.contains("cache-size")) {
             config.cache_size = result["cache-size"].as<size_t>();
         }
-        if (result.count("city-db") != 0u) {
+        if (result.contains("city-db")) {
             config.city_db_path = result["city-db"].as<std::string>();
         }
-        if (result.count("asn-db") != 0u) {
+        if (result.contains("asn-db")) {
             config.asn_db_path = result["asn-db"].as<std::string>();
         }
-        if (result.count("oui-db") != 0u) {
+        if (result.contains("oui-db")) {
             config.oui_db_path = result["oui-db"].as<std::string>();
         }
-        if (result.count("enable-rate-limiter") != 0u) {
+        if (result.contains("enable-rate-limiter")) {
             config.enable_rate_limiter =
                 parse_bool_string(result["enable-rate-limiter"].as<std::string>());
         }
-        if (result.count("max-requests-per-minute") != 0u) {
+        if (result.contains("max-requests-per-minute")) {
             config.max_requests_per_minute = result["max-requests-per-minute"].as<int>();
         }
-        if (result.count("max-batch-size") != 0u) {
+        if (result.contains("max-batch-size")) {
             config.max_batch_size = result["max-batch-size"].as<int>();
         }
-        if (result.count("enable-api-auth") != 0u) {
+        if (result.contains("enable-api-auth")) {
             config.enable_api_auth = parse_bool_string(result["enable-api-auth"].as<std::string>());
         }
-        if (result.count("api-keys-file") != 0u) {
+        if (result.contains("api-keys-file")) {
             config.api_keys_file = result["api-keys-file"].as<std::string>();
         }
-        if (result.count("default-api-key") != 0u) {
+        if (result.contains("default-api-key")) {
             config.default_api_key = result["default-api-key"].as<std::string>();
         }
-        if (result.count("enable-file-logging") != 0u) {
+        if (result.contains("enable-file-logging")) {
             config.enable_file_logging =
                 parse_bool_string(result["enable-file-logging"].as<std::string>());
             if (config.enable_file_logging && config.log_file_path == "logs/ip_server.log") {
                 config.log_file_path = XDGPaths::instance().log_file_path().string();
             }
         }
-        if (result.count("log-file") != 0u) {
+        if (result.contains("log-file")) {
             config.log_file_path       = result["log-file"].as<std::string>();
             config.enable_file_logging = true;
         }
-        if (result.count("log-enable-stdout") != 0u) {
+        if (result.contains("log-enable-stdout")) {
             config.log_enable_stdout =
                 parse_bool_string(result["log-enable-stdout"].as<std::string>());
         }
-        if (result.count("log-rotation") != 0u) {
+        if (result.contains("log-rotation")) {
             config.log_rotation_type = result["log-rotation"].as<std::string>();
         }
-        if (result.count("log-max-size") != 0u) {
+        if (result.contains("log-max-size")) {
             config.log_max_file_size = result["log-max-size"].as<size_t>() * 1024 * 1024;
         }
-        if (result.count("log-rotation-interval") != 0u) {
+        if (result.contains("log-rotation-interval")) {
             config.log_rotation_interval_minutes = result["log-rotation-interval"].as<int>();
         }
-        if (result.count("log-max-backups") != 0u) {
+        if (result.contains("log-max-backups")) {
             config.log_max_backup_files = result["log-max-backups"].as<int>();
         }
-        if (result.count("log-level") != 0u) {
+        if (result.contains("log-level")) {
             config.log_level = result["log-level"].as<std::string>();
         }
 

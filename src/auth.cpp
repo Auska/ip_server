@@ -84,7 +84,7 @@ bool APIAuth::is_valid(const std::string& key) const {
 
     std::string key_hash = hash_key(key);
     std::lock_guard<std::mutex> lock(mutex_);
-    return api_key_hashes_.find(key_hash) != api_key_hashes_.end();
+    return api_key_hashes_.contains(key_hash);
 }
 
 bool APIAuth::load_keys_from_file(const std::string& filepath) {
