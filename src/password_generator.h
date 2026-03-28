@@ -33,7 +33,7 @@ class PasswordGenerator {
     PasswordGenerator& operator=(PasswordGenerator&&) noexcept = default;
 
     static PasswordResult generate(const PasswordConfig& config);
-    std::vector<PasswordResult> generate_batch(const PasswordConfig& config, int count);
+    static std::vector<PasswordResult> generate_batch(const PasswordConfig& config, int count);
 
     static bool validate_config(const PasswordConfig& config, std::string& error_message);
 

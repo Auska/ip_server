@@ -16,10 +16,10 @@ class XDGPaths {
     static std::filesystem::path state_home() ;
 
     // Get application-specific paths
-    std::filesystem::path app_config_dir() const;
-    std::filesystem::path app_data_dir() const;
-    std::filesystem::path app_cache_dir() const;
-    std::filesystem::path app_state_dir() const;
+    static std::filesystem::path app_config_dir();
+    static std::filesystem::path app_data_dir();
+    static std::filesystem::path app_cache_dir();
+    static std::filesystem::path app_state_dir();
 
     // Get default config file path
     std::filesystem::path config_file() const;
@@ -33,7 +33,7 @@ class XDGPaths {
     std::filesystem::path oui_db_path() const;
 
     // Get default log file path
-    std::filesystem::path log_file_path() const;
+    static std::filesystem::path log_file_path();
 
     // Ensure directories exist
     void ensure_directories() const;

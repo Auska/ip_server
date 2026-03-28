@@ -72,19 +72,19 @@ std::filesystem::path XDGPaths::state_home() {
     return get_home() / ".local" / "state";
 }
 
-std::filesystem::path XDGPaths::app_config_dir() const {
+std::filesystem::path XDGPaths::app_config_dir() {
     return config_home() / APP_NAME;
 }
 
-std::filesystem::path XDGPaths::app_data_dir() const {
+std::filesystem::path XDGPaths::app_data_dir() {
     return data_home() / APP_NAME;
 }
 
-std::filesystem::path XDGPaths::app_cache_dir() const {
+std::filesystem::path XDGPaths::app_cache_dir() {
     return cache_home() / APP_NAME;
 }
 
-std::filesystem::path XDGPaths::app_state_dir() const {
+std::filesystem::path XDGPaths::app_state_dir() {
     return state_home() / APP_NAME;
 }
 
@@ -108,7 +108,7 @@ std::filesystem::path XDGPaths::oui_db_path() const {
     return database_dir() / "master_oui.db";
 }
 
-std::filesystem::path XDGPaths::log_file_path() const {
+std::filesystem::path XDGPaths::log_file_path() {
     // Use XDG state home for logs (or data home as fallback)
     std::filesystem::path log_dir;
     std::string const state_path = get_env("XDG_STATE_HOME", "");
