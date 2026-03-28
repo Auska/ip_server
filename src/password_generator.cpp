@@ -206,7 +206,8 @@ std::string PasswordGenerator::get_strength_rating(double entropy) {
         return "weak";
     } if (entropy < 60.0) {
         return "fair";
-    } else if (entropy < 80.0) {
+    }
+    if (entropy < 80.0) {
         return "strong";
     } else {
         return "very_strong";

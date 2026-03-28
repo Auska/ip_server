@@ -22,10 +22,10 @@ class XDGPaths {
     static std::filesystem::path app_state_dir();
 
     // Get default config file path
-    std::filesystem::path config_file() const;
+    static std::filesystem::path config_file();
 
     // Get default database directory
-    std::filesystem::path database_dir() const;
+    static std::filesystem::path database_dir();
 
     // Get default database file paths
     std::filesystem::path city_db_path() const;

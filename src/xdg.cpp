@@ -88,11 +88,11 @@ std::filesystem::path XDGPaths::app_state_dir() {
     return state_home() / APP_NAME;
 }
 
-std::filesystem::path XDGPaths::config_file() const {
+std::filesystem::path XDGPaths::config_file() {
     return app_config_dir() / "config.json";
 }
 
-std::filesystem::path XDGPaths::database_dir() const {
+std::filesystem::path XDGPaths::database_dir() {
     return app_data_dir() / "databases";
 }
 

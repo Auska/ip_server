@@ -20,7 +20,7 @@ void apply_xdg_defaults(ServerConfig& config) {
     config.asn_db_path   = xdg.asn_db_path().string();
     config.oui_db_path   = xdg.oui_db_path().string();
     config.config_file   = xdg.config_file();
-    config.log_file_path = xdg.log_file_path().string();
+    config.log_file_path = ip_server::XDGPaths::log_file_path().string();
 }
 
 }  // namespace
