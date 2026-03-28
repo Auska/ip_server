@@ -12,6 +12,7 @@ Checks: >
   portability-*,
   -modernize-use-trailing-return-type,
   -readability-identifier-length,
+  -readability-magic-numbers,
   -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
   -misc-include-cleaner
