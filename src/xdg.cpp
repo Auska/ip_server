@@ -19,20 +19,20 @@ XDGPaths::XDGPaths() {
     LOG_INFO("XDG paths initialized");
 }
 
-std::string XDGPaths::get_env(const char* name, const std::string& default_value) const {
+std::string XDGPaths::get_env(const char* name, const std::string& default_value) {
     const char* value = std::getenv(name);
-    return value ? value : default_value;
+    return (value != nullptr) ? value : default_value;
 }
 
-std::filesystem::path XDGPaths::get_home() const {
+std::filesystem::path XDGPaths::get_home() {
     const char* home = std::getenv("HOME");
-    if (home) {
+    if (home != nullptr) {
         return home;
     }
 
     // Fallback to getpwuid
     struct passwd* pw = getpwuid(getuid());
-    if (pw) {
+    if (pw != nullptr) {
         return pw->pw_dir;
     }
 

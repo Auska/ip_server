@@ -46,7 +46,7 @@ class Application {
             }
         });
 
-        if (auto metrics = http_server_.get_metrics()) {
+        if (auto *metrics = http_server_.get_metrics()) {
             metrics->set_city_db_status(geo_service_.is_city_db_open());
             metrics->set_asn_db_status(geo_service_.is_asn_db_open());
             metrics->set_oui_db_status(mac_service_.is_oui_db_open());

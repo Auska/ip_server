@@ -14,7 +14,7 @@ namespace {
 
 struct SQLiteStmtDeleter {
     void operator()(sqlite3_stmt* stmt) const {
-        if (stmt) {
+        if (stmt != nullptr) {
             sqlite3_finalize(stmt);
         }
     }
@@ -57,7 +57,7 @@ bool OUIDatabase::open(const std::string& db_path) {
 
     if (status != SQLITE_OK) {
         LOG_ERROR("Failed to open OUI database '" + db_path + "': " + sqlite3_errmsg(db_));
-        if (db_) {
+        if (db_ != nullptr) {
             sqlite3_close(db_);
             db_ = nullptr;
         }
@@ -79,7 +79,7 @@ bool OUIDatabase::open(const std::string& db_path) {
 void OUIDatabase::close() {
     std::lock_guard<std::mutex> lock(open_close_mutex_);
 
-    if (is_open_.load(std::memory_order_acquire) && db_) {
+    if (is_open_.load(std::memory_order_acquire) && (db_ != nullptr)) {
         sqlite3_close(db_);
         db_ = nullptr;
         is_open_.store(false, std::memory_order_release);
@@ -92,7 +92,7 @@ std::string OUIDatabase::normalize_mac_address(const std::string& mac_address) {
     normalized.reserve(mac_address.size());
 
     for (char c : mac_address) {
-        if (std::isxdigit(c)) {
+        if (std::isxdigit(c) != 0) {
             normalized += std::toupper(c);
         }
     }
@@ -158,25 +158,32 @@ nlohmann::json OUIDatabase::lookup(const std::string& mac_address) const {
         const char* col;
 
         col = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 1));
-        if (col) result["manufacturer"] = col;
+        if (col != nullptr) { result["manufacturer"] = col;
+}
 
         col = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 2));
-        if (col) result["registry"] = col;
+        if (col != nullptr) { result["registry"] = col;
+}
 
         col = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 3));
-        if (col) result["short_name"] = col;
+        if (col != nullptr) { result["short_name"] = col;
+}
 
         col = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 4));
-        if (col) result["device_type"] = col;
+        if (col != nullptr) { result["device_type"] = col;
+}
 
         col = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 5));
-        if (col) result["registered_date"] = col;
+        if (col != nullptr) { result["registered_date"] = col;
+}
 
         col = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 6));
-        if (col) result["address"] = col;
+        if (col != nullptr) { result["address"] = col;
+}
 
         col = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 7));
-        if (col) result["sources"] = col;
+        if (col != nullptr) { result["sources"] = col;
+}
 
     } else if (status == SQLITE_DONE) {
         result["mac"] = mac_address;

@@ -109,7 +109,8 @@ PasswordResult PasswordGenerator::generate(const PasswordConfig& config) {
 
     std::uniform_int_distribution<size_t> pos_dist(0, config.length - 1);
     for (const auto& char_set : required_chars) {
-        if (char_set.empty()) continue;
+        if (char_set.empty()) { continue;
+}
         std::uniform_int_distribution<size_t> char_dist(0, char_set.size() - 1);
         size_t pos = pos_dist(gen);
         password[pos] = char_set[char_dist(gen)];
@@ -146,7 +147,7 @@ std::vector<PasswordResult> PasswordGenerator::generate_batch(const PasswordConf
     return results;
 }
 
-std::string PasswordGenerator::build_character_pool(const PasswordConfig& config) const {
+std::string PasswordGenerator::build_character_pool(const PasswordConfig& config) {
     std::string pool;
 
     if (config.uppercase) {
@@ -201,7 +202,7 @@ double PasswordGenerator::calculate_entropy(const std::string& password, int poo
 std::string PasswordGenerator::get_strength_rating(double entropy) {
     if (entropy < 28.0) {
         return "very_weak";
-    } else if (entropy < 36.0) {
+    } if (entropy < 36.0) {
         return "weak";
     } else if (entropy < 60.0) {
         return "fair";

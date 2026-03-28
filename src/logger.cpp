@@ -8,7 +8,7 @@ namespace ip_server {
 // Custom formatter to map level names to match original logger
 class CustomLevelFormatter : public spdlog::custom_flag_formatter {
    public:
-    void format(const spdlog::details::log_msg& msg, const std::tm&,
+    void format(const spdlog::details::log_msg& msg, const std::tm& /*tm_time*/,
                 spdlog::memory_buf_t& dest) override {
         const char* level_name = "";
         switch (msg.level) {

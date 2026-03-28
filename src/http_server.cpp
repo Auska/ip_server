@@ -702,7 +702,7 @@ bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
 
     std::atomic<bool> server_running(true);
     std::thread server_thread([this, &server_running]() {
-        if (!server_.listen(host_.c_str(), port_)) {
+        if (!server_.listen(host_, port_)) {
             LOG_ERROR("Failed to start HTTP server");
             server_running.store(false);
         }

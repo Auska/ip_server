@@ -1,0 +1,13 @@
+---
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-suspicious-include,
+  performance-*,
+  -performance-unnecessary-value-param,
+  readability-*,
+  -readability-magic-numbers,
+  -readability-identifier-length
+
+HeaderFilterRegex: ''
+FormatStyle: none

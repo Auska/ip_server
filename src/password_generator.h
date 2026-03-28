@@ -38,7 +38,7 @@ class PasswordGenerator {
     static bool validate_config(const PasswordConfig& config, std::string& error_message);
 
    private:
-    std::string build_character_pool(const PasswordConfig& config) const;
+    static std::string build_character_pool(const PasswordConfig& config) ;
     static double calculate_entropy(const std::string& password, int pool_size);
     static std::string get_strength_rating(double entropy);
 

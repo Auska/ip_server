@@ -41,8 +41,8 @@ class XDGPaths {
    private:
     XDGPaths();
 
-    std::string get_env(const char* name, const std::string& default_value) const;
-    std::filesystem::path get_home() const;
+    static std::string get_env(const char* name, const std::string& default_value) ;
+    static std::filesystem::path get_home() ;
 
     static constexpr const char* APP_NAME = "ip-server";
 };
