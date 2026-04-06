@@ -20,6 +20,8 @@ include_directories(${GTEST_INCLUDE_DIRS})
 # Include project headers
 include_directories(
     ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/src/database
+    ${CMAKE_SOURCE_DIR}/src/service
     ${CMAKE_SOURCE_DIR}/external/include
     ${CMAKE_SOURCE_DIR}/external/libmaxminddb-1.12.2/include
 )
@@ -40,7 +42,11 @@ set(TEST_SOURCES
 # Add source files from src directory
 set(PROJECT_SOURCES
     ${CMAKE_SOURCE_DIR}/src/config.cpp
-    ${CMAKE_SOURCE_DIR}/src/database.cpp
+    ${CMAKE_SOURCE_DIR}/src/database/maxmind_database.cpp
+    ${CMAKE_SOURCE_DIR}/src/database/city_database.cpp
+    ${CMAKE_SOURCE_DIR}/src/database/asn_database.cpp
+    ${CMAKE_SOURCE_DIR}/src/service/ip_geo_service.cpp
+    ${CMAKE_SOURCE_DIR}/src/service/mac_lookup_service.cpp
     ${CMAKE_SOURCE_DIR}/src/mac_database.cpp
     ${CMAKE_SOURCE_DIR}/src/http_server.cpp
     ${CMAKE_SOURCE_DIR}/src/logger.cpp

@@ -4,7 +4,8 @@
 #include <memory>
 
 #include "config.h"
-#include "database.h"
+#include "service/ip_geo_service.h"
+#include "service/mac_lookup_service.h"
 #include "http_server.h"
 #include "logger.h"
 #include "metrics.h"

@@ -5,7 +5,8 @@
 #include <future>
 #include <thread>
 
-#include "database.h"
+#include "service/ip_geo_service.h"
+#include "service/mac_lookup_service.h"
 #include "types.h"
 
 using namespace ip_server;

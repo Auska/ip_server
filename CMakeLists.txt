@@ -43,6 +43,9 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/external/libmaxminddb-1.12.2/include
     ${CMAKE_SOURCE_DIR}/external/sqlite-autoconf-3510200
     ${CMAKE_SOURCE_DIR}/external/cxxopts-3.3.1/include
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/src/database
+    ${CMAKE_SOURCE_DIR}/src/service
 )
 
 # Find OpenSSL for API key hashing
@@ -101,7 +104,11 @@ add_subdirectory(external/cxxopts-3.3.1)
 set(SOURCES
     src/main.cpp
     src/config.cpp
-    src/database.cpp
+    src/database/maxmind_database.cpp
+    src/database/city_database.cpp
+    src/database/asn_database.cpp
+    src/service/ip_geo_service.cpp
+    src/service/mac_lookup_service.cpp
     src/mac_database.cpp
     src/http_server.cpp
     src/logger.cpp

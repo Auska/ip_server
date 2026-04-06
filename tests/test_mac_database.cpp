@@ -5,7 +5,7 @@
 #include <future>
 #include <thread>
 
-#include "database.h"
+#include "service/mac_lookup_service.h"
 #include "mac_database.h"
 
 using namespace ip_server;

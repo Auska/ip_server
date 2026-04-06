@@ -6,6 +6,7 @@
 #include <chrono>
 #include <list>
 #include <memory>
+#include <mutex>
 #include <nlohmann/json.hpp>
 #include <shared_mutex>
 #include <string>
