@@ -354,8 +354,11 @@ class IPCache {
         CacheHeatMap heat_map;
         heat_map.total_accesses = stats_.total_lookups;
 
-        std::vector<std::pair<std::string, uint64_t>> sorted_keys(key_access_counts_.begin(),
-                                                                  key_access_counts_.end());
+        std::vector<std::pair<std::string, uint64_t>> sorted_keys;
+        sorted_keys.reserve(key_access_counts_.size());
+        for (const auto& [key, count_ptr] : key_access_counts_) {
+            sorted_keys.emplace_back(key, count_ptr->load(std::memory_order_relaxed));
+        }
         std::partial_sort(sorted_keys.begin(),
                           sorted_keys.begin() + std::min(top_n, sorted_keys.size()),
                           sorted_keys.end(),
@@ -421,14 +424,19 @@ class IPCache {
     }
 
     void track_key_access(const std::string& key) {
-        key_access_counts_[key].fetch_add(1, std::memory_order_relaxed);
+        auto it = key_access_counts_.find(key);
+        if (it == key_access_counts_.end()) {
+            key_access_counts_.emplace(key, std::make_unique<std::atomic<uint64_t>>(1));
+        } else {
+            it->second->fetch_add(1, std::memory_order_relaxed);
+        }
     }
 
     std::vector<std::unique_ptr<CacheShard>> shards_;
     size_t shard_count_;
     size_t max_memory_bytes_;
     mutable CacheStats stats_;
-    mutable std::unordered_map<std::string, std::atomic<uint64_t>> key_access_counts_;
+    mutable std::unordered_map<std::string, std::unique_ptr<std::atomic<uint64_t>>> key_access_counts_;
 };
 
 }  // namespace ip_server

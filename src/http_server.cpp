@@ -445,7 +445,7 @@ void IPGeoHTTPServer::setup_routes() {
                 futures.reserve(query_list.size());
 
                 for (const auto& query_str : query_list) {
-                    futures.push_back(std::async(std::launch::async, [&handler, &query_str]() {
+                    futures.push_back(std::async(std::launch::async, [handler, query_str]() {
                         return handler(query_str);
                     }));
                 }
