@@ -24,7 +24,13 @@ ip_local/
 ├── src/                        # 源代码
 │   ├── main.cpp               # 主程序入口
 │   ├── config.h/cpp           # 配置管理
-│   ├── database.h/cpp         # 数据库抽象层（MaxMind 基类）
+│   ├── database/              # 数据库抽象层
+│   │   ├── maxmind_database.h/cpp  # MaxMind 数据库基类
+│   │   ├── city_database.h/cpp     # 城市地理位置数据库
+│   │   └── asn_database.h/cpp      # AS 自治系统数据库
+│   ├── service/               # 业务服务层
+│   │   ├── ip_geo_service.h/cpp    # IP 地理位置服务
+│   │   └── mac_lookup_service.h/cpp# MAC 查询服务
 │   ├── mac_database.h/cpp     # OUI 数据库（SQLite RAII）
 │   ├── http_server.h/cpp      # HTTP 服务器
 │   ├── logger.h/cpp           # 日志系统
