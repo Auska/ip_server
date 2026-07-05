@@ -33,61 +33,64 @@ ServerConfig ConfigParser::default_config() {
     return config;
 }
 
+cxxopts::Options ConfigParser::create_option_parser() {
+    cxxopts::Options options("ip_server", "IP Geolocation & AS Lookup Service");
+
+    options.add_options()(
+        "help,h", "Show this help message")(
+        "config", "Path to configuration file",
+        cxxopts::value<std::string>())(
+        "city-db", "Path to City MaxMind database",
+        cxxopts::value<std::string>())(
+        "asn-db", "Path to ASN MaxMind database",
+        cxxopts::value<std::string>())(
+        "oui-db", "Path to OUI database",
+        cxxopts::value<std::string>())(
+        "host", "Server host address",
+        cxxopts::value<std::string>()->default_value("0.0.0.0"))(
+        "port", "Server port",
+        cxxopts::value<uint16_t>()->default_value("8080"))(
+        "threads", "Thread pool size",
+        cxxopts::value<int>()->default_value("4"))(
+        "cache-size", "Cache size",
+        cxxopts::value<size_t>()->default_value("10000"))(
+        "enable-rate-limiter", "Enable rate limiting",
+        cxxopts::value<std::string>()->default_value("true"))(
+        "max-requests-per-minute", "Maximum requests per IP per minute",
+        cxxopts::value<int>()->default_value("100"))(
+        "max-batch-size", "Maximum batch size for batch lookup",
+        cxxopts::value<int>()->default_value("100"))(
+        "enable-api-auth", "Enable API authentication",
+        cxxopts::value<std::string>()->default_value("false"))(
+        "api-keys-file", "Path to file containing API keys",
+        cxxopts::value<std::string>())(
+        "default-api-key", "Default API key for testing",
+        cxxopts::value<std::string>())(
+        "enable-file-logging", "Enable file logging",
+        cxxopts::value<std::string>()->default_value("false"))(
+        "log-file", "Path to log file",
+        cxxopts::value<std::string>()->default_value("logs/ip_server.log"))(
+        "log-enable-stdout", "Enable stdout logging",
+        cxxopts::value<std::string>()->default_value("true"))(
+        "log-rotation", "Log rotation type: none, size, time, both",
+        cxxopts::value<std::string>()->default_value("size"))(
+        "log-max-size", "Maximum log file size in MB",
+        cxxopts::value<size_t>()->default_value("10"))(
+        "log-rotation-interval", "Time interval in minutes for time-based rotation",
+        cxxopts::value<int>()->default_value("1440"))(
+        "log-max-backups", "Maximum number of backup log files",
+        cxxopts::value<int>()->default_value("5"))(
+        "log-level", "Log level: trace, debug, info, warn, error, critical, off",
+        cxxopts::value<std::string>()->default_value("info"));
+
+    return options;
+}
+
 ServerConfig ConfigParser::parse(int argc, char* argv[]) {
     ServerConfig config = default_config();
 
     try {
-        cxxopts::Options options("ip_server", "IP Geolocation & AS Lookup Service");
-
-        // Positional options
-        options.add_options()("help,h", "Show this help message")("config",
-                                                                  "Path to configuration file",
-                                                                  cxxopts::value<std::string>())(
-            "city-db", "Path to City MaxMind database",
-            cxxopts::value<std::string>())("asn-db", "Path to ASN MaxMind database",
-                                           cxxopts::value<
-                                               std::string>())("oui-db", "Path to OUI database",
-                                                               cxxopts::value<std::string>())(
-            "host", "Server host address",
-            cxxopts::value<std::string>()->default_value(
-                "0.0.0.0"))("port", "Server port",
-                            cxxopts::value<uint16_t>()->default_value(
-                                "8080"))("threads", "Thread pool size",
-                                         cxxopts::value<int>()->default_value(
-                                             "4"))("cache-size", "Cache size",
-                                                   cxxopts::value<size_t>()->default_value(
-                                                       "10000"))(
-            "enable-rate-limiter", "Enable rate limiting",
-            cxxopts::value<std::string>()->default_value(
-                "true"))("max-requests-per-minute", "Maximum requests per IP per minute",
-                         cxxopts::value<int>()->default_value(
-                             "100"))("max-batch-size", "Maximum batch size for batch lookup",
-                                     cxxopts::value<int>()->default_value(
-                                         "100"))("enable-api-auth", "Enable API authentication",
-                                                 cxxopts::value<std::string>()->default_value(
-                                                     "false"))("api-keys-file",
-                                                               "Path to file containing API keys",
-                                                               cxxopts::value<std::string>())(
-            "default-api-key", "Default API key for testing",
-            cxxopts::value<std::string>())("enable-file-logging", "Enable file logging",
-                                           cxxopts::value<std::string>()->default_value(
-                                               "false"))("log-file", "Path to log file",
-                                                         cxxopts::value<std::string>()
-                                                             ->default_value("logs/ip_server.log"))(
-            "log-enable-stdout", "Enable stdout logging",
-            cxxopts::value<std::string>()->default_value(
-                "true"))("log-rotation", "Log rotation type: none, size, time, both",
-                         cxxopts::value<std::string>()->default_value(
-                             "size"))("log-max-size", "Maximum log file size in MB",
-                                      cxxopts::value<size_t>()->default_value(
-                                          "10"))("log-rotation-interval",
-                                                 "Time interval in minutes for time-based rotation",
-                                                 cxxopts::value<int>()->default_value("1440"))(
-            "log-max-backups", "Maximum number of backup log files",
-            cxxopts::value<int>()->default_value(
-                "5"))("log-level", "Log level: trace, debug, info, warn, error, critical, off",
-                      cxxopts::value<std::string>()->default_value("info"));
-
+        auto options = create_option_parser();
         auto result = options.parse(argc, argv);
 
         // Check for help
@@ -142,118 +145,14 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
             }
         }
 
-        // Parse command line arguments (override config file)
-        if (result.contains("host")) {
-            config.host = result["host"].as<std::string>();
-        }
-        if (result.contains("port")) {
-            config.port = result["port"].as<uint16_t>();
-        }
-        if (result.contains("threads")) {
-            config.thread_pool_size = result["threads"].as<int>();
-        }
-        if (result.contains("cache-size")) {
-            config.cache_size = result["cache-size"].as<size_t>();
-        }
-        if (result.contains("city-db")) {
-            config.city_db_path = result["city-db"].as<std::string>();
-        }
-        if (result.contains("asn-db")) {
-            config.asn_db_path = result["asn-db"].as<std::string>();
-        }
-        if (result.contains("oui-db")) {
-            config.oui_db_path = result["oui-db"].as<std::string>();
-        }
-        if (result.contains("enable-rate-limiter")) {
-            config.enable_rate_limiter =
-                parse_bool_string(result["enable-rate-limiter"].as<std::string>());
-        }
-        if (result.contains("max-requests-per-minute")) {
-            config.max_requests_per_minute = result["max-requests-per-minute"].as<int>();
-        }
-        if (result.contains("max-batch-size")) {
-            config.max_batch_size = result["max-batch-size"].as<int>();
-        }
-        if (result.contains("enable-api-auth")) {
-            config.enable_api_auth = parse_bool_string(result["enable-api-auth"].as<std::string>());
-        }
-        if (result.contains("api-keys-file")) {
-            config.api_keys_file = result["api-keys-file"].as<std::string>();
-        }
-        if (result.contains("default-api-key")) {
-            config.default_api_key = result["default-api-key"].as<std::string>();
-        }
-        if (result.contains("enable-file-logging")) {
-            config.enable_file_logging =
-                parse_bool_string(result["enable-file-logging"].as<std::string>());
-            if (config.enable_file_logging && config.log_file_path == "logs/ip_server.log") {
-                config.log_file_path = ip_server::XDGPaths::log_file_path().string();
-            }
-        }
-        if (result.contains("log-file")) {
-            config.log_file_path       = result["log-file"].as<std::string>();
-            config.enable_file_logging = true;
-        }
-        if (result.contains("log-enable-stdout")) {
-            config.log_enable_stdout =
-                parse_bool_string(result["log-enable-stdout"].as<std::string>());
-        }
-        if (result.contains("log-rotation")) {
-            config.log_rotation_type = result["log-rotation"].as<std::string>();
-        }
-        if (result.contains("log-max-size")) {
-            config.log_max_file_size = result["log-max-size"].as<size_t>() * 1024 * 1024;
-        }
-        if (result.contains("log-rotation-interval")) {
-            config.log_rotation_interval_minutes = result["log-rotation-interval"].as<int>();
-        }
-        if (result.contains("log-max-backups")) {
-            config.log_max_backup_files = result["log-max-backups"].as<int>();
-        }
-        if (result.contains("log-level")) {
-            config.log_level = result["log-level"].as<std::string>();
-        }
+        apply_cli_overrides(result, config);
 
     } catch (const cxxopts::exceptions::exception& e) {
         std::cerr << "Error parsing options: " << e.what() << '\n';
         throw std::runtime_error(std::string("Failed to parse command line options: ") + e.what());
     }
 
-    LOG_INFO("Configuration loaded:");
-    LOG_INFO("  Host: " + config.host);
-    LOG_INFO("  Port: " + std::to_string(config.port));
-    LOG_INFO("  City DB: " + config.city_db_path);
-    LOG_INFO("  ASN DB: " + config.asn_db_path);
-    LOG_INFO("  OUI DB: " + config.oui_db_path);
-    LOG_INFO("  Threads: " + std::to_string(config.thread_pool_size));
-    LOG_INFO("  Rate Limiter: " + std::string(config.enable_rate_limiter ? "enabled" : "disabled"));
-    if (config.enable_rate_limiter) {
-        LOG_INFO("  Max Requests/Min: " + std::to_string(config.max_requests_per_minute));
-    }
-    LOG_INFO("  Max Batch Size: " + std::to_string(config.max_batch_size));
-    LOG_INFO("  API Auth: " + std::string(config.enable_api_auth ? "enabled" : "disabled"));
-    if (config.enable_api_auth) {
-        LOG_INFO("  API Keys File: " + config.api_keys_file);
-        if (!config.default_api_key.empty()) {
-            LOG_INFO("  Default API Key: " + config.default_api_key.substr(0, 8) + "...");
-        }
-    }
-    LOG_INFO("  File Logging: " + std::string(config.enable_file_logging ? "enabled" : "disabled"));
-    if (config.enable_file_logging) {
-        LOG_INFO("  Log File: " + config.log_file_path);
-        LOG_INFO("  Log Rotation: " + config.log_rotation_type);
-        if (config.log_rotation_type == "size" || config.log_rotation_type == "both") {
-            LOG_INFO("  Max File Size: " + std::to_string(config.log_max_file_size / static_cast<size_t>(1024 * 1024))
-                     + " MB");
-        }
-        if (config.log_rotation_type == "time" || config.log_rotation_type == "both") {
-            LOG_INFO("  Rotation Interval: " + std::to_string(config.log_rotation_interval_minutes)
-                     + " minutes");
-        }
-        LOG_INFO("  Max Backup Files: " + std::to_string(config.log_max_backup_files));
-    }
-    LOG_INFO("  Stdout Logging: " + std::string(config.log_enable_stdout ? "enabled" : "disabled"));
-    LOG_INFO("  Log Level: " + config.log_level);
+    log_config(config);
 
     // Validate configuration
     validate(config);
@@ -470,6 +369,112 @@ bool ConfigParser::save_to_file(const ServerConfig& config,
         LOG_ERROR("Failed to save configuration: " + std::string(e.what()));
         return false;
     }
+}
+
+void ConfigParser::apply_cli_overrides(const cxxopts::ParseResult& result, ServerConfig& config) {
+    if (result.contains("host")) {
+        config.host = result["host"].as<std::string>();
+    }
+    if (result.contains("port")) {
+        config.port = result["port"].as<uint16_t>();
+    }
+    if (result.contains("threads")) {
+        config.thread_pool_size = result["threads"].as<int>();
+    }
+    if (result.contains("cache-size")) {
+        config.cache_size = result["cache-size"].as<size_t>();
+    }
+    if (result.contains("city-db")) {
+        config.city_db_path = result["city-db"].as<std::string>();
+    }
+    if (result.contains("asn-db")) {
+        config.asn_db_path = result["asn-db"].as<std::string>();
+    }
+    if (result.contains("oui-db")) {
+        config.oui_db_path = result["oui-db"].as<std::string>();
+    }
+    if (result.contains("enable-rate-limiter")) {
+        config.enable_rate_limiter = parse_bool_string(result["enable-rate-limiter"].as<std::string>());
+    }
+    if (result.contains("max-requests-per-minute")) {
+        config.max_requests_per_minute = result["max-requests-per-minute"].as<int>();
+    }
+    if (result.contains("max-batch-size")) {
+        config.max_batch_size = result["max-batch-size"].as<int>();
+    }
+    if (result.contains("enable-api-auth")) {
+        config.enable_api_auth = parse_bool_string(result["enable-api-auth"].as<std::string>());
+    }
+    if (result.contains("api-keys-file")) {
+        config.api_keys_file = result["api-keys-file"].as<std::string>();
+    }
+    if (result.contains("default-api-key")) {
+        config.default_api_key = result["default-api-key"].as<std::string>();
+    }
+    if (result.contains("enable-file-logging")) {
+        config.enable_file_logging = parse_bool_string(result["enable-file-logging"].as<std::string>());
+        if (config.enable_file_logging && config.log_file_path == "logs/ip_server.log") {
+            config.log_file_path = ip_server::XDGPaths::log_file_path().string();
+        }
+    }
+    if (result.contains("log-file")) {
+        config.log_file_path       = result["log-file"].as<std::string>();
+        config.enable_file_logging = true;
+    }
+    if (result.contains("log-enable-stdout")) {
+        config.log_enable_stdout = parse_bool_string(result["log-enable-stdout"].as<std::string>());
+    }
+    if (result.contains("log-rotation")) {
+        config.log_rotation_type = result["log-rotation"].as<std::string>();
+    }
+    if (result.contains("log-max-size")) {
+        config.log_max_file_size = result["log-max-size"].as<size_t>() * 1024 * 1024;
+    }
+    if (result.contains("log-rotation-interval")) {
+        config.log_rotation_interval_minutes = result["log-rotation-interval"].as<int>();
+    }
+    if (result.contains("log-max-backups")) {
+        config.log_max_backup_files = result["log-max-backups"].as<int>();
+    }
+    if (result.contains("log-level")) {
+        config.log_level = result["log-level"].as<std::string>();
+    }
+}
+
+void ConfigParser::log_config(const ServerConfig& config) {
+    LOG_INFO("Configuration loaded:");
+    LOG_INFO("  Host: " + config.host);
+    LOG_INFO("  Port: " + std::to_string(config.port));
+    LOG_INFO("  City DB: " + config.city_db_path);
+    LOG_INFO("  ASN DB: " + config.asn_db_path);
+    LOG_INFO("  OUI DB: " + config.oui_db_path);
+    LOG_INFO("  Threads: " + std::to_string(config.thread_pool_size));
+    LOG_INFO("  Rate Limiter: " + std::string(config.enable_rate_limiter ? "enabled" : "disabled"));
+    if (config.enable_rate_limiter) {
+        LOG_INFO("  Max Requests/Min: " + std::to_string(config.max_requests_per_minute));
+    }
+    LOG_INFO("  Max Batch Size: " + std::to_string(config.max_batch_size));
+    LOG_INFO("  API Auth: " + std::string(config.enable_api_auth ? "enabled" : "disabled"));
+    if (config.enable_api_auth) {
+        LOG_INFO("  API Keys File: " + config.api_keys_file);
+        if (!config.default_api_key.empty()) {
+            LOG_INFO("  Default API Key: " + config.default_api_key.substr(0, 8) + "...");
+        }
+    }
+    LOG_INFO("  File Logging: " + std::string(config.enable_file_logging ? "enabled" : "disabled"));
+    if (config.enable_file_logging) {
+        LOG_INFO("  Log File: " + config.log_file_path);
+        LOG_INFO("  Log Rotation: " + config.log_rotation_type);
+        if (config.log_rotation_type == "size" || config.log_rotation_type == "both") {
+            LOG_INFO("  Max File Size: " + std::to_string(config.log_max_file_size / static_cast<size_t>(1024 * 1024)) + " MB");
+        }
+        if (config.log_rotation_type == "time" || config.log_rotation_type == "both") {
+            LOG_INFO("  Rotation Interval: " + std::to_string(config.log_rotation_interval_minutes) + " minutes");
+        }
+        LOG_INFO("  Max Backup Files: " + std::to_string(config.log_max_backup_files));
+    }
+    LOG_INFO("  Stdout Logging: " + std::string(config.log_enable_stdout ? "enabled" : "disabled"));
+    LOG_INFO("  Log Level: " + config.log_level);
 }
 
 }  // namespace ip_server

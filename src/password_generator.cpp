@@ -50,67 +50,25 @@ PasswordResult PasswordGenerator::generate(const PasswordConfig& config) {
         throw std::runtime_error(error_message);
     }
 
-    std::string pool = build_character_pool(config);
-    if (pool.empty()) {
+    auto sets = build_character_sets(config);
+    if (sets.pool.empty()) {
         throw std::runtime_error("Character pool is empty");
     }
 
     thread_local std::mt19937_64 gen(generate_secure_seed());
 
-    std::uniform_int_distribution<size_t> dist(0, pool.size() - 1);
+    std::uniform_int_distribution<size_t> dist(0, sets.pool.size() - 1);
 
     std::string password;
     password.reserve(config.length);
 
     for (int i = 0; i < config.length; ++i) {
-        password += pool[dist(gen)];
-    }
-
-    std::vector<std::string> required_chars;
-    if (config.uppercase) {
-        std::string upper_set = UPPERCASE;
-        if (config.exclude_similar) {
-            for (char const c : std::string_view(CONFUSING_UPPER)) {
-                upper_set.erase(std::ranges::remove(upper_set, c).begin(),
-                                upper_set.end());
-            }
-        }
-        if (!upper_set.empty()) {
-            required_chars.push_back(upper_set);
-        }
-    }
-    if (config.lowercase) {
-        std::string lower_set = LOWERCASE;
-        if (config.exclude_similar) {
-            for (char const c : std::string_view(CONFUSING_LOWER)) {
-                lower_set.erase(std::ranges::remove(lower_set, c).begin(),
-                                lower_set.end());
-            }
-        }
-        if (!lower_set.empty()) {
-            required_chars.push_back(lower_set);
-        }
-    }
-    if (config.digits) {
-        std::string digit_set = DIGITS;
-        if (config.exclude_similar) {
-            for (char const c : std::string_view(CONFUSING_DIGITS)) {
-                digit_set.erase(std::ranges::remove(digit_set, c).begin(),
-                                digit_set.end());
-            }
-        }
-        if (!digit_set.empty()) {
-            required_chars.push_back(digit_set);
-        }
-    }
-    if (config.symbols && !std::string(SYMBOLS).empty()) {
-        required_chars.emplace_back(SYMBOLS);
+        password += sets.pool[dist(gen)];
     }
 
     std::uniform_int_distribution<size_t> pos_dist(0, config.length - 1);
-    for (const auto& char_set : required_chars) {
-        if (char_set.empty()) { continue;
-}
+    for (const auto& char_set : sets.required_chars) {
+        if (char_set.empty()) { continue; }
         std::uniform_int_distribution<size_t> char_dist(0, char_set.size() - 1);
         size_t const pos = pos_dist(gen);
         password[pos] = char_set[char_dist(gen)];
@@ -121,7 +79,7 @@ PasswordResult PasswordGenerator::generate(const PasswordConfig& config) {
     PasswordResult result;
     result.password = password;
     result.length = static_cast<int>(password.length());
-    result.entropy = calculate_entropy(password, static_cast<int>(pool.size()));
+    result.entropy = calculate_entropy(password, static_cast<int>(sets.pool.size()));
     result.strength = get_strength_rating(result.entropy);
 
     return result;
@@ -147,47 +105,33 @@ std::vector<PasswordResult> PasswordGenerator::generate_batch(const PasswordConf
     return results;
 }
 
+PasswordGenerator::CharacterSets PasswordGenerator::build_character_sets(const PasswordConfig& config) {
+    CharacterSets sets;
+
+    auto add_set = [&](const char* chars, const char* confusable, bool enabled) {
+        if (!enabled) { return; }
+        std::string filtered(chars);
+        if (config.exclude_similar && confusable) {
+            for (char const c : std::string_view(confusable)) {
+                filtered.erase(std::ranges::remove(filtered, c).begin(), filtered.end());
+            }
+        }
+        sets.pool += filtered;
+        if (!filtered.empty()) {
+            sets.required_chars.push_back(std::move(filtered));
+        }
+    };
+
+    add_set(UPPERCASE, CONFUSING_UPPER, config.uppercase);
+    add_set(LOWERCASE, CONFUSING_LOWER, config.lowercase);
+    add_set(DIGITS, CONFUSING_DIGITS, config.digits);
+    add_set(SYMBOLS, nullptr, config.symbols);
+
+    return sets;
+}
+
 std::string PasswordGenerator::build_character_pool(const PasswordConfig& config) {
-    std::string pool;
-
-    if (config.uppercase) {
-        std::string upper_set = UPPERCASE;
-        if (config.exclude_similar) {
-            for (char const c : std::string_view(CONFUSING_UPPER)) {
-                upper_set.erase(std::ranges::remove(upper_set, c).begin(),
-                                upper_set.end());
-            }
-        }
-        pool += upper_set;
-    }
-
-    if (config.lowercase) {
-        std::string lower_set = LOWERCASE;
-        if (config.exclude_similar) {
-            for (char const c : std::string_view(CONFUSING_LOWER)) {
-                lower_set.erase(std::ranges::remove(lower_set, c).begin(),
-                                lower_set.end());
-            }
-        }
-        pool += lower_set;
-    }
-
-    if (config.digits) {
-        std::string digit_set = DIGITS;
-        if (config.exclude_similar) {
-            for (char const c : std::string_view(CONFUSING_DIGITS)) {
-                digit_set.erase(std::ranges::remove(digit_set, c).begin(),
-                                digit_set.end());
-            }
-        }
-        pool += digit_set;
-    }
-
-    if (config.symbols) {
-        pool += SYMBOLS;
-    }
-
-    return pool;
+    return build_character_sets(config).pool;
 }
 
 double PasswordGenerator::calculate_entropy(const std::string& password, int pool_size) {
@@ -202,15 +146,17 @@ double PasswordGenerator::calculate_entropy(const std::string& password, int poo
 std::string PasswordGenerator::get_strength_rating(double entropy) {
     if (entropy < 28.0) {
         return "very_weak";
-    } if (entropy < 36.0) {
+    }
+    if (entropy < 36.0) {
         return "weak";
-    } if (entropy < 60.0) {
+    }
+    if (entropy < 60.0) {
         return "fair";
     }
     if (entropy < 80.0) {
         return "strong";
-    }         return "very_strong";
-   
+    }
+    return "very_strong";
 }
 
 }  // namespace ip_server

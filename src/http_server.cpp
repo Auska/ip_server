@@ -152,6 +152,31 @@ void IPGeoHTTPServer::send_json_response(httplib::Response& res, const nlohmann:
     res.set_content(data.dump(), "application/json");
 }
 
+auto IPGeoHTTPServer::prepare_request(const httplib::Request& req, httplib::Response& res) -> std::optional<std::string> {
+    if (!authenticate_request(req, res)) {
+        return std::nullopt;
+    }
+
+    auto client_ip = get_real_client_ip(req);
+    if (client_ip.empty()) {
+        send_error_response(res, 400, "Bad Request", "Unable to determine source IP address");
+        LOG_WARNING("Request: unable to determine source IP");
+        return std::nullopt;
+    }
+
+    if (enable_rate_limiter_ && !rate_limiter_->is_allowed(client_ip)) {
+        nlohmann::json error;
+        error["error"] = "Rate limit exceeded";
+        error["remaining"] = rate_limiter_->get_remaining(client_ip);
+        send_json_response(res, error, 429);
+        res.set_header("Retry-After", "60");
+        LOG_WARNING("Rate limit exceeded for IP: " + client_ip);
+        return std::nullopt;
+    }
+
+    return client_ip;
+}
+
 void IPGeoHTTPServer::setup_cors() {
     server_.set_pre_routing_handler([](const httplib::Request&, httplib::Response& res) {
         res.set_header("Access-Control-Allow-Origin", "*");
@@ -241,24 +266,8 @@ void IPGeoHTTPServer::setup_routes() {
     });
 
     server_.Get("/lookup", [this](const httplib::Request& req, httplib::Response& res) {
-        if (!authenticate_request(req, res)) {
-            return;
-        }
-
-        auto client_ip = get_real_client_ip(req);
-        if (client_ip.empty()) {
-            send_error_response(res, 400, "Bad Request", "Unable to determine source IP address");
-            LOG_WARNING("Lookup request: unable to determine source IP");
-            return;
-        }
-
-        if (enable_rate_limiter_ && !rate_limiter_->is_allowed(client_ip)) {
-            nlohmann::json error;
-            error["error"] = "Rate limit exceeded";
-            error["remaining"] = rate_limiter_->get_remaining(client_ip);
-            send_json_response(res, error, 429);
-            res.set_header("Retry-After", "60");
-            LOG_WARNING("Rate limit exceeded for IP: " + client_ip);
+        auto client_ip = prepare_request(req, res);
+        if (!client_ip) {
             return;
         }
 
@@ -266,7 +275,7 @@ void IPGeoHTTPServer::setup_routes() {
         auto ip_param = req.get_param_value("ip");
 
         if (mac_param.empty() && ip_param.empty()) {
-            ip_param = client_ip;
+            ip_param = *client_ip;
             LOG_DEBUG("Lookup request using source IP: " + ip_param);
         }
 
@@ -329,24 +338,8 @@ void IPGeoHTTPServer::setup_routes() {
     });
 
     server_.Post("/lookup", [this](const httplib::Request& req, httplib::Response& res) {
-        if (!authenticate_request(req, res)) {
-            return;
-        }
-
-        auto client_ip = get_real_client_ip(req);
-        if (client_ip.empty()) {
-            send_error_response(res, 400, "Bad Request", "Unable to determine source IP address");
-            LOG_WARNING("Batch lookup request: unable to determine source IP");
-            return;
-        }
-
-        if (enable_rate_limiter_ && !rate_limiter_->is_allowed(client_ip)) {
-            nlohmann::json error;
-            error["error"] = "Rate limit exceeded";
-            error["remaining"] = rate_limiter_->get_remaining(client_ip);
-            send_json_response(res, error, 429);
-            res.set_header("Retry-After", "60");
-            LOG_WARNING("Rate limit exceeded for IP: " + client_ip);
+        auto client_ip = prepare_request(req, res);
+        if (!client_ip) {
             return;
         }
 
@@ -472,22 +465,8 @@ void IPGeoHTTPServer::setup_routes() {
     });
 
     server_.Get("/password/generate", [this](const httplib::Request& req, httplib::Response& res) {
-        if (!authenticate_request(req, res)) {
-            return;
-        }
-
-        auto client_ip = get_real_client_ip(req);
-        if (client_ip.empty()) {
-            send_error_response(res, 400, "Bad Request", "Unable to determine source IP address");
-            return;
-        }
-
-        if (enable_rate_limiter_ && !rate_limiter_->is_allowed(client_ip)) {
-            nlohmann::json error;
-            error["error"] = "Rate limit exceeded";
-            error["remaining"] = rate_limiter_->get_remaining(client_ip);
-            send_json_response(res, error, 429);
-            res.set_header("Retry-After", "60");
+        auto client_ip = prepare_request(req, res);
+        if (!client_ip) {
             return;
         }
 
@@ -557,22 +536,8 @@ void IPGeoHTTPServer::setup_routes() {
     });
 
     server_.Post("/password/generate", [this](const httplib::Request& req, httplib::Response& res) {
-        if (!authenticate_request(req, res)) {
-            return;
-        }
-
-        auto client_ip = get_real_client_ip(req);
-        if (client_ip.empty()) {
-            send_error_response(res, 400, "Bad Request", "Unable to determine source IP address");
-            return;
-        }
-
-        if (enable_rate_limiter_ && !rate_limiter_->is_allowed(client_ip)) {
-            nlohmann::json error;
-            error["error"] = "Rate limit exceeded";
-            error["remaining"] = rate_limiter_->get_remaining(client_ip);
-            send_json_response(res, error, 429);
-            res.set_header("Retry-After", "60");
+        auto client_ip = prepare_request(req, res);
+        if (!client_ip) {
             return;
         }
 

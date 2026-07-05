@@ -1,7 +1,5 @@
 #include <atomic>
 #include <csignal>
-#include <iostream>
-#include <memory>
 
 #include "config.h"
 #include "service/ip_geo_service.h"
@@ -103,14 +101,16 @@ int main(int argc, char* argv[]) {
 
         Logger::instance().set_config(log_config);
 
-        if (config.log_level == "debug") {
-            Logger::instance().set_level(LogLevel::DEBUG);
-        } else if (config.log_level == "info") {
-            Logger::instance().set_level(LogLevel::INFO);
-        } else if (config.log_level == "warning") {
-            Logger::instance().set_level(LogLevel::WARNING);
-        } else if (config.log_level == "error") {
-            Logger::instance().set_level(LogLevel::ERROR);
+        static const std::unordered_map<std::string, LogLevel> log_level_map = {
+            {"debug", LogLevel::DEBUG},
+            {"info", LogLevel::INFO},
+            {"warning", LogLevel::WARNING},
+            {"error", LogLevel::ERROR},
+        };
+
+        auto it = log_level_map.find(config.log_level);
+        if (it != log_level_map.end()) {
+            Logger::instance().set_level(it->second);
         }
 
         ip_server::XDGPaths::ensure_directories();

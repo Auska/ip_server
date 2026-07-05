@@ -117,6 +117,20 @@ struct CacheStats {
         negative_misses = 0;
         avg_entry_size = 0.0;
     }
+
+    CacheStats& operator+=(const CacheStats& o) {
+        total_lookups += o.total_lookups;
+        hits += o.hits;
+        misses += o.misses;
+        evictions += o.evictions;
+        expired_entries += o.expired_entries;
+        concurrent_accesses += o.concurrent_accesses;
+        memory_usage_bytes += o.memory_usage_bytes;
+        negative_hits += o.negative_hits;
+        negative_misses += o.negative_misses;
+        avg_entry_size = (avg_entry_size + o.avg_entry_size) / 2.0;
+        return *this;
+    }
 };
 
 class CacheShard {
@@ -126,15 +140,15 @@ class CacheShard {
                         size_t max_memory_bytes = cache_constants::DEFAULT_SHARD_MEMORY)
         : max_size_(max_size), default_ttl_(default_ttl), max_memory_bytes_(max_memory_bytes) {}
 
-    std::optional<nlohmann::json> get(const std::string& key, CacheStats& stats) {
+    std::optional<nlohmann::json> get(const std::string& key) {
         std::unique_lock<std::shared_mutex> lock(mutex_);
 
-        stats.total_lookups++;
-        stats.concurrent_accesses++;
+        stats_.total_lookups++;
+        stats_.concurrent_accesses++;
 
         auto it = cache_map_.find(key);
         if (it == cache_map_.end()) {
-            stats.misses++;
+            stats_.misses++;
             return std::nullopt;
         }
 
@@ -146,26 +160,26 @@ class CacheShard {
             negative_cache_.erase(key);
             memory_usage_bytes_ -= entry_size;
             cache_map_.erase(it);
-            stats.expired_entries++;
-            stats.misses++;
+            stats_.expired_entries++;
+            stats_.misses++;
             return std::nullopt;
         }
 
         cache_list_.splice(cache_list_.begin(), cache_list_, it->second.list_it);
-        stats.hits++;
+        stats_.hits++;
         if (it->second.data_type == CacheDataType::NEGATIVE) {
-            stats.negative_hits++;
+            stats_.negative_hits++;
         }
         return it->second.result;
     }
 
-    void put(std::string key, nlohmann::json result, CacheStats& stats,
+    void put(std::string key, nlohmann::json result,
              CacheDataType data_type = CacheDataType::IP_GEOLOCATION) {
         std::unique_lock<std::shared_mutex> lock(mutex_);
 
         size_t entry_size = estimate_entry_size(key, result);
-        stats.avg_entry_size =
-            (stats.avg_entry_size * (cache_map_.size()) + entry_size) / (cache_map_.size() + 1);
+        stats_.avg_entry_size =
+            (stats_.avg_entry_size * (cache_map_.size()) + entry_size) / (cache_map_.size() + 1);
 
         auto it = cache_map_.find(key);
         if (it != cache_map_.end()) {
@@ -179,7 +193,7 @@ class CacheShard {
             return;
         }
 
-        evict_if_needed(entry_size, stats);
+        evict_if_needed(entry_size, stats_);
 
         cache_list_.push_front(key);
         CacheEntry entry{std::move(result), std::chrono::system_clock::now(), cache_list_.begin(),
@@ -193,7 +207,7 @@ class CacheShard {
 
         if (cache_map_.size() > max_size_) {
             auto oldest = cache_list_.back();
-            evict_entry(oldest, stats);
+            evict_entry(oldest, stats_);
         }
     }
 
@@ -215,6 +229,11 @@ class CacheShard {
         return memory_usage_bytes_;
     }
 
+    CacheStats get_local_stats() const {
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        return stats_;
+    }
+
     size_t max_size() const { return max_size_; }
     size_t max_memory_bytes() const { return max_memory_bytes_; }
 
@@ -233,7 +252,18 @@ class CacheShard {
     };
 
     size_t estimate_entry_size(const std::string& key, const nlohmann::json& result) const {
-        return key.size() * 2 + cache_constants::ESTIMATED_JSON_OVERHEAD + result.dump().size() / 2;
+        size_t json_size = cache_constants::ESTIMATED_JSON_OVERHEAD;
+        if (result.is_object()) {
+            for (auto it = result.begin(); it != result.end(); ++it) {
+                json_size += it.key().size() + 4;
+                if (it.value().is_string()) {
+                    json_size += it.value().get<std::string>().size() + 2;
+                }
+            }
+        } else if (result.is_string()) {
+            json_size += result.get<std::string>().size();
+        }
+        return key.size() * 2 + json_size;
     }
 
     std::chrono::seconds get_ttl_for_type(CacheDataType type) const {
@@ -271,6 +301,7 @@ class CacheShard {
     std::chrono::seconds default_ttl_;
     size_t max_memory_bytes_;
     size_t memory_usage_bytes_{0};
+    CacheStats stats_;
 };
 
 struct ShardStats {
@@ -309,25 +340,29 @@ class IPCache {
     std::optional<nlohmann::json> get(const std::string& key) {
         size_t shard_index = get_shard_index(key);
         track_key_access(key);
-        return shards_[shard_index]->get(key, stats_);
+        return shards_[shard_index]->get(key);
     }
 
     void put(std::string key, nlohmann::json result,
              CacheDataType data_type = CacheDataType::IP_GEOLOCATION) {
         size_t shard_index = get_shard_index(key);
-        shards_[shard_index]->put(std::move(key), std::move(result), stats_, data_type);
+        shards_[shard_index]->put(std::move(key), std::move(result), data_type);
     }
 
     void clear() {
         for (auto& shard : shards_) {
             shard->clear();
         }
-        stats_.reset();
         key_access_counts_.clear();
+        key_access_lru_.clear();
+        key_access_lru_it_.clear();
     }
 
     CacheStats get_stats() const {
-        CacheStats combined = stats_;
+        CacheStats combined;
+        for (const auto& shard : shards_) {
+            combined += shard->get_local_stats();
+        }
         combined.memory_usage_bytes = get_total_memory_usage();
         return combined;
     }
@@ -352,7 +387,7 @@ class IPCache {
 
     CacheHeatMap get_heat_map(size_t top_n = 10) const {
         CacheHeatMap heat_map;
-        heat_map.total_accesses = stats_.total_lookups;
+        heat_map.total_accesses = get_stats().total_lookups;
 
         std::vector<std::pair<std::string, uint64_t>> sorted_keys;
         sorted_keys.reserve(key_access_counts_.size());
@@ -426,16 +461,28 @@ class IPCache {
     void track_key_access(const std::string& key) {
         auto it = key_access_counts_.find(key);
         if (it == key_access_counts_.end()) {
+            if (key_access_counts_.size() >= MAX_TRACKED_KEYS) {
+                auto oldest = key_access_lru_.back();
+                key_access_counts_.erase(oldest);
+                key_access_lru_.pop_back();
+            }
+            key_access_lru_.push_front(key);
             key_access_counts_.emplace(key, std::make_unique<std::atomic<uint64_t>>(1));
         } else {
             it->second->fetch_add(1, std::memory_order_relaxed);
+            auto lru_it = key_access_lru_it_.find(key);
+            if (lru_it != key_access_lru_it_.end()) {
+                key_access_lru_.splice(key_access_lru_.begin(), key_access_lru_, lru_it->second);
+            }
         }
     }
 
     std::vector<std::unique_ptr<CacheShard>> shards_;
     size_t shard_count_;
     size_t max_memory_bytes_;
-    mutable CacheStats stats_;
+    static constexpr size_t MAX_TRACKED_KEYS = 100000;
+    mutable std::list<std::string> key_access_lru_;
+    mutable std::unordered_map<std::string, std::list<std::string>::iterator> key_access_lru_it_;
     mutable std::unordered_map<std::string, std::unique_ptr<std::atomic<uint64_t>>> key_access_counts_;
 };
 

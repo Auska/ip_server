@@ -30,13 +30,6 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
     endif()
 endif()
 
-# Apply -O3 -DNDEBUG -flto to all C/C++ targets in Release mode
-if(CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT MSVC)
-    function(apply_release_lto target)
-        target_compile_options(${target} PRIVATE -O3 -DNDEBUG -flto)
-    endfunction()
-endif()
-
 # Include directories
 include_directories(
     ${CMAKE_SOURCE_DIR}/external/include

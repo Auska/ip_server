@@ -42,6 +42,11 @@ class ConfigParser {
     static ServerConfig load_from_file(const std::filesystem::path& config_file);
     static bool save_to_file(const ServerConfig& config, const std::filesystem::path& config_file);
     static void validate(const ServerConfig& config);
+
+   private:
+    static cxxopts::Options create_option_parser();
+    static void apply_cli_overrides(const cxxopts::ParseResult& result, ServerConfig& config);
+    static void log_config(const ServerConfig& config);
 };
 
 }  // namespace ip_server

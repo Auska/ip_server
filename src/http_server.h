@@ -5,6 +5,7 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
+#include <optional>
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <string>
@@ -63,6 +64,8 @@ class IPGeoHTTPServer {
     static void send_error_response(httplib::Response& res, int status, const std::string& error,
                              const std::string& message);
     static void send_json_response(httplib::Response& res, const nlohmann::json& data, int status = 200);
+
+    [[nodiscard]] std::optional<std::string> prepare_request(const httplib::Request& req, httplib::Response& res);
 
     std::string get_real_client_ip(const httplib::Request& req) const;
     bool is_trusted_proxy(const std::string& ip) const;
