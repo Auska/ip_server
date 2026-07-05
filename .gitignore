@@ -1,5 +1,8 @@
 # Build directories
 build/
+
+# Project cache
+.cache/
 *.o
 *.a
 *.so
