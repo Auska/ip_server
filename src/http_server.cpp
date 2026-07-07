@@ -283,409 +283,368 @@ std::string IPGeoHTTPServer::get_real_client_ip(const httplib::Request& req) con
 }
 
 void IPGeoHTTPServer::setup_routes() {
-    server_.Get("/", [](const httplib::Request&, httplib::Response& res) {
-        nlohmann::json info;
-        info["service"] = "IP Geolocation & AS Lookup Service";
-        info["version"] = "2.0.0";
-        info["endpoints"] = nlohmann::json::array({"/", "/lookup", "/health"});
-        info["description"] =
-            "Use /lookup with 'ip=' or 'mac=' parameter for single queries, or "
-            "'ips'/'macs' array for batch queries";
-        res.set_content(info.dump(), "application/json");
-    });
-
-    server_.Get("/health", [this](const httplib::Request&, httplib::Response& res) {
-        auto stats = metrics_->get_stats();
-
-        nlohmann::json health;
-        health["status"] = "ok";
-        health["timestamp"] = std::time(nullptr);
-
-        health["databases"] = {{"city", {{"open", stats.city_db_open}}},
-                               {"asn", {{"open", stats.asn_db_open}}},
-                               {"oui", {{"open", stats.oui_db_open}}}};
-
-        health["metrics"] = {{"total_requests", stats.total_requests},
-                             {"qps", round(stats.current_qps * 100) / 100},
-                             {"avg_latency_ms", round(stats.avg_latency_ms * 1000) / 1000},
-                             {"p50_latency_ms", round(stats.p50_latency_ms * 1000) / 1000},
-                             {"p95_latency_ms", round(stats.p95_latency_ms * 1000) / 1000},
-                             {"p99_latency_ms", round(stats.p99_latency_ms * 1000) / 1000}};
-
-        health["cache"] = {{"hits", stats.cache_hits},
-                           {"misses", stats.cache_misses},
-                           {"hit_rate_percent", round(stats.cache_hit_rate * 100) / 100},
-                           {"evictions", stats.cache_evictions}};
-
-        health["errors"] = {{"total", stats.total_errors},
-                            {"rate_percent", round(stats.error_rate * 100) / 100}};
-
-        health["system"] = {{"memory_usage_mb", stats.memory_usage_mb},
-                            {"uptime_seconds", stats.uptime_seconds}};
-
-        res.set_content(health.dump(), "application/json");
-    });
-
-    server_.Get("/lookup", [this](const httplib::Request& req, httplib::Response& res) {
-        auto client_ip = prepare_request(req, res);
-        if (!client_ip) {
-            return;
-        }
-
-        auto mac_param = req.get_param_value("mac");
-        auto ip_param = req.get_param_value("ip");
-
-        if (mac_param.empty() && ip_param.empty()) {
-            ip_param = *client_ip;
-            LOG_DEBUG("Lookup request using source IP: " + ip_param);
-        }
-
-        if (!mac_param.empty() && !ip_param.empty()) {
-            send_error_response(res, 400, "Bad Request",
-                                "Cannot specify both 'ip' and 'mac' parameters simultaneously");
-            LOG_WARNING("Lookup request: both ip and mac parameters provided");
-            return;
-        }
-
-        try {
-            if (!mac_param.empty()) {
-                if (!is_valid_mac_format(mac_param)) {
-                    send_error_response(res, 400, "Bad Request", "Invalid MAC address format");
-                    return;
-                }
-
-                if (!mac_lookup_handler_) {
-                    send_error_response(res, 500, "Internal Server Error",
-                                        "MAC lookup handler not configured");
-                    LOG_WARNING("MAC lookup requested but handler not set");
-                    return;
-                }
-
-                LOG_DEBUG("MAC lookup request for: " + mac_param);
-                auto result = mac_lookup_handler_(mac_param);
-
-                metrics_->record_request(result.cache_hit, result.latency_ms);
-
-                res.set_content(result.data.dump(), "application/json");
-            } else {
-                if (!is_valid_ip_format(ip_param)) {
-                    send_error_response(res, 400, "Bad Request", "Invalid IP address format");
-                    return;
-                }
-
-                if (!lookup_handler_) {
-                    send_error_response(res, 500, "Internal Server Error",
-                                        "IP lookup handler not configured");
-                    LOG_WARNING("IP lookup requested but handler not set");
-                    return;
-                }
-
-                LOG_DEBUG("IP lookup request for: " + ip_param);
-                auto result = lookup_handler_(ip_param);
-
-                metrics_->record_request(result.cache_hit, result.latency_ms);
-
-                res.set_content(result.data.dump(), "application/json");
-            }
-        } catch (const std::exception& e) {
-            res.status = 500;
-            nlohmann::json error;
-            error["error"] = e.what();
-            res.set_content(error.dump(), "application/json");
-            metrics_->record_error();
-            std::string const query_param = mac_param.empty() ? ip_param : mac_param;
-            LOG_ERROR(std::string("Error processing lookup for ") + query_param + ": " + e.what());
-        }
-    });
-
-    server_.Post("/lookup", [this](const httplib::Request& req, httplib::Response& res) {
-        auto client_ip = prepare_request(req, res);
-        if (!client_ip) {
-            return;
-        }
-
-        try {
-            auto body = nlohmann::json::parse(req.body);
-
-            bool const has_ips  = body.contains("ips") && body["ips"].is_array();
-            bool const has_macs = body.contains("macs") && body["macs"].is_array();
-
-            if (!has_ips && !has_macs) {
-                send_error_response(res, 400, "Bad Request",
-                                    "Missing or invalid 'ips' or 'macs' array in request body");
-                LOG_WARNING("Batch lookup request missing 'ips' or 'macs' array");
-                return;
-            }
-
-            if (has_ips && has_macs) {
-                send_error_response(res, 400, "Bad Request",
-                                    "Cannot specify both 'ips' and 'macs' in the same request");
-                LOG_WARNING("Batch lookup request: both ips and macs provided");
-                return;
-            }
-
-            std::vector<std::string> query_list;
-            std::string query_type;
-            LookupHandler handler;
-
-            if (has_ips) {
-                query_type = "IP";
-                if (!lookup_handler_) {
-                    send_error_response(res, 500, "Internal Server Error",
-                                        "IP lookup handler not configured");
-                    return;
-                }
-                handler = lookup_handler_;
-
-                size_t const batch_size = body["ips"].size();
-                if (std::cmp_greater(batch_size, max_batch_size_)) {
-                    nlohmann::json error;
-                    error["error"] = "Batch size exceeds maximum limit";
-                    error["max_batch_size"] = max_batch_size_;
-                    error["requested_size"] = batch_size;
-                    send_json_response(res, error, 400);
-                    return;
-                }
-
-                query_list.reserve(batch_size);
-                for (const auto& ip : body["ips"]) {
-                    if (ip.is_string()) {
-                        std::string ip_str = ip.get<std::string>();
-                        if (is_valid_ip_format(ip_str)) {
-                            query_list.push_back(std::move(ip_str));
-                        }
-                    }
-                }
-            } else {
-                query_type = "MAC";
-                if (!mac_lookup_handler_) {
-                    send_error_response(res, 500, "Internal Server Error",
-                                        "MAC lookup handler not configured");
-                    return;
-                }
-                handler = mac_lookup_handler_;
-
-                size_t const batch_size = body["macs"].size();
-                if (std::cmp_greater(batch_size, max_batch_size_)) {
-                    nlohmann::json error;
-                    error["error"] = "Batch size exceeds maximum limit";
-                    error["max_batch_size"] = max_batch_size_;
-                    error["requested_size"] = batch_size;
-                    send_json_response(res, error, 400);
-                    return;
-                }
-
-                query_list.reserve(batch_size);
-                for (const auto& mac : body["macs"]) {
-                    if (mac.is_string()) {
-                        std::string mac_str = mac.get<std::string>();
-                        if (is_valid_mac_format(mac_str)) {
-                            query_list.push_back(std::move(mac_str));
-                        }
-                    }
-                }
-            }
-
-            nlohmann::json results = nlohmann::json::array();
-
-            if (query_list.size() <= 10) {
-                for (const auto& query_str : query_list) {
-                    auto result = handler(query_str);
-                    metrics_->record_request(result.cache_hit, result.latency_ms);
-                    results.push_back(std::move(result.data));
-                }
-            } else {
-                std::vector<std::future<LookupResult>> futures;
-                futures.reserve(query_list.size());
-
-                for (const auto& query_str : query_list) {
-                    futures.push_back(std::async(std::launch::async, [handler, query_str]() {
-                        return handler(query_str);
-                    }));
-                }
-
-                for (auto& future : futures) {
-                    auto result = future.get();
-                    metrics_->record_request(result.cache_hit, result.latency_ms);
-                    results.push_back(std::move(result.data));
-                }
-            }
-
-            LOG_INFO("Batch lookup completed for " + std::to_string(results.size()) + " "
-                     + query_type + "s");
-            res.set_content(results.dump(), "application/json");
-
-        } catch (const nlohmann::json::exception& e) {
-            send_error_response(res, 400, "Bad Request", "Invalid JSON: " + std::string(e.what()));
-            LOG_WARNING("Invalid JSON in batch lookup request: " + std::string(e.what()));
-        } catch (const std::exception& e) {
-            send_error_response(res, 500, "Internal Server Error", e.what());
-            metrics_->record_error();
-            LOG_ERROR(std::string("Error processing batch lookup: ") + e.what());
-        }
-    });
-
-    server_.Get("/password/generate", [this](const httplib::Request& req, httplib::Response& res) {
-        auto client_ip = prepare_request(req, res);
-        if (!client_ip) {
-            return;
-        }
-
-        try {
-            PasswordConfig config;
-
-            auto length_param = req.get_param_value("length");
-            if (!length_param.empty()) {
-                config.length = std::stoi(length_param);
-            }
-
-            auto uppercase_param = req.get_param_value("uppercase");
-            if (!uppercase_param.empty()) {
-                config.uppercase = (uppercase_param == "true" || uppercase_param == "1");
-            }
-
-            auto lowercase_param = req.get_param_value("lowercase");
-            if (!lowercase_param.empty()) {
-                config.lowercase = (lowercase_param == "true" || lowercase_param == "1");
-            }
-
-            auto digits_param = req.get_param_value("digits");
-            if (!digits_param.empty()) {
-                config.digits = (digits_param == "true" || digits_param == "1");
-            }
-
-            auto symbols_param = req.get_param_value("symbols");
-            if (!symbols_param.empty()) {
-                config.symbols = (symbols_param == "true" || symbols_param == "1");
-            }
-
-            auto exclude_similar_param = req.get_param_value("exclude_similar");
-            if (!exclude_similar_param.empty()) {
-                config.exclude_similar = (exclude_similar_param == "true" || exclude_similar_param == "1");
-            }
-
-            std::string error_message;
-            if (!PasswordGenerator::validate_config(config, error_message)) {
-                send_error_response(res, 400, "Bad Request", error_message);
-                return;
-            }
-
-            auto start_time = std::chrono::high_resolution_clock::now();
-            auto result = ip_server::PasswordGenerator::generate(config);
-            auto end_time = std::chrono::high_resolution_clock::now();
-            auto latency_ms =
-                std::chrono::duration<double, std::milli>(end_time - start_time).count();
-
-            metrics_->record_request(false, latency_ms);
-
-            nlohmann::json response;
-            response["password"] = result.password;
-            response["length"] = result.length;
-            response["entropy"] = result.entropy;
-            response["strength"] = result.strength;
-
-            send_json_response(res, response, 200);
-
-        } catch (const std::invalid_argument& e) {
-            send_error_response(res, 400, "Bad Request",
-                                "Invalid parameter value: " + std::string(e.what()));
-        } catch (const std::exception& e) {
-            send_error_response(res, 500, "Internal Server Error", e.what());
-            metrics_->record_error();
-            LOG_ERROR("Error generating password: " + std::string(e.what()));
-        }
-    });
-
-    server_.Post("/password/generate", [this](const httplib::Request& req, httplib::Response& res) {
-        auto client_ip = prepare_request(req, res);
-        if (!client_ip) {
-            return;
-        }
-
-        try {
-            auto body = nlohmann::json::parse(req.body);
-
-            PasswordConfig config;
-
-            if (body.contains("length") && body["length"].is_number_integer()) {
-                config.length = body["length"].get<int>();
-            }
-
-            if (body.contains("uppercase") && body["uppercase"].is_boolean()) {
-                config.uppercase = body["uppercase"].get<bool>();
-            }
-
-            if (body.contains("lowercase") && body["lowercase"].is_boolean()) {
-                config.lowercase = body["lowercase"].get<bool>();
-            }
-
-            if (body.contains("digits") && body["digits"].is_boolean()) {
-                config.digits = body["digits"].get<bool>();
-            }
-
-            if (body.contains("symbols") && body["symbols"].is_boolean()) {
-                config.symbols = body["symbols"].get<bool>();
-            }
-
-            if (body.contains("exclude_similar") && body["exclude_similar"].is_boolean()) {
-                config.exclude_similar = body["exclude_similar"].get<bool>();
-            }
-
-            int count = 1;
-            if (body.contains("count") && body["count"].is_number_integer()) {
-                count = body["count"].get<int>();
-            }
-
-            if (count < 1) {
-                send_error_response(res, 400, "Bad Request", "Count must be at least 1");
-                return;
-            }
-
-            if (count > constants::MAX_PASSWORD_BATCH) {
-                send_error_response(res, 400, "Bad Request",
-                                    "Count cannot exceed " + std::to_string(constants::MAX_PASSWORD_BATCH));
-                return;
-            }
-
-            std::string error_message;
-            if (!PasswordGenerator::validate_config(config, error_message)) {
-                send_error_response(res, 400, "Bad Request", error_message);
-                return;
-            }
-
-            auto start_time = std::chrono::high_resolution_clock::now();
-            auto results = ip_server::PasswordGenerator::generate_batch(config, count);
-            auto end_time = std::chrono::high_resolution_clock::now();
-            auto latency_ms =
-                std::chrono::duration<double, std::milli>(end_time - start_time).count();
-
-            metrics_->record_request(false, latency_ms);
-
-            nlohmann::json response;
-            response["count"] = static_cast<int>(results.size());
-            response["passwords"] = nlohmann::json::array();
-
-            for (const auto& result : results) {
-                nlohmann::json password_json;
-                password_json["password"] = result.password;
-                password_json["length"] = result.length;
-                password_json["entropy"] = result.entropy;
-                password_json["strength"] = result.strength;
-                response["passwords"].push_back(password_json);
-            }
-
-            send_json_response(res, response, 200);
-
-        } catch (const nlohmann::json::exception& e) {
-            send_error_response(res, 400, "Bad Request", "Invalid JSON: " + std::string(e.what()));
-        } catch (const std::exception& e) {
-            send_error_response(res, 500, "Internal Server Error", e.what());
-            metrics_->record_error();
-            LOG_ERROR("Error generating batch passwords: " + std::string(e.what()));
-        }
-    });
-
+    server_.Get("/", [this](const httplib::Request& req, httplib::Response& res) { handle_root(req, res); });
+    server_.Get("/health", [this](const httplib::Request& req, httplib::Response& res) { handle_health(req, res); });
+    server_.Get("/lookup", [this](const httplib::Request& req, httplib::Response& res) { handle_lookup_get(req, res); });
+    server_.Post("/lookup", [this](const httplib::Request& req, httplib::Response& res) { handle_lookup_post(req, res); });
+    server_.Get("/password/generate", [this](const httplib::Request& req, httplib::Response& res) { handle_password_get(req, res); });
+    server_.Post("/password/generate", [this](const httplib::Request& req, httplib::Response& res) { handle_password_post(req, res); });
     LOG_INFO("HTTP routes configured");
+}
+
+void IPGeoHTTPServer::handle_root(const httplib::Request&, httplib::Response& res) {
+    nlohmann::json info;
+    info["service"] = "IP Geolocation & AS Lookup Service";
+    info["version"] = "2.0.0";
+    info["endpoints"] = nlohmann::json::array({"/", "/lookup", "/health"});
+    info["description"] =
+        "Use /lookup with 'ip=' or 'mac=' parameter for single queries, or "
+        "'ips'/'macs' array for batch queries";
+    res.set_content(info.dump(), "application/json");
+}
+
+void IPGeoHTTPServer::handle_health(const httplib::Request&, httplib::Response& res) {
+    auto stats = metrics_->get_stats();
+
+    nlohmann::json health;
+    health["status"] = "ok";
+    health["timestamp"] = std::time(nullptr);
+
+    health["databases"] = {{"city", {{"open", stats.city_db_open}}},
+                           {"asn", {{"open", stats.asn_db_open}}},
+                           {"oui", {{"open", stats.oui_db_open}}}};
+
+    health["metrics"] = {{"total_requests", stats.total_requests},
+                         {"qps", round(stats.current_qps * 100) / 100},
+                         {"avg_latency_ms", round(stats.avg_latency_ms * 1000) / 1000},
+                         {"p50_latency_ms", round(stats.p50_latency_ms * 1000) / 1000},
+                         {"p95_latency_ms", round(stats.p95_latency_ms * 1000) / 1000},
+                         {"p99_latency_ms", round(stats.p99_latency_ms * 1000) / 1000}};
+
+    health["cache"] = {{"hits", stats.cache_hits},
+                       {"misses", stats.cache_misses},
+                       {"hit_rate_percent", round(stats.cache_hit_rate * 100) / 100},
+                       {"evictions", stats.cache_evictions}};
+
+    health["errors"] = {{"total", stats.total_errors},
+                        {"rate_percent", round(stats.error_rate * 100) / 100}};
+
+    health["system"] = {{"memory_usage_mb", stats.memory_usage_mb},
+                        {"uptime_seconds", stats.uptime_seconds}};
+
+    res.set_content(health.dump(), "application/json");
+}
+
+void IPGeoHTTPServer::handle_lookup_get(const httplib::Request& req, httplib::Response& res) {
+    auto client_ip = prepare_request(req, res);
+    if (!client_ip) return;
+
+    auto mac_param = req.get_param_value("mac");
+    auto ip_param = req.get_param_value("ip");
+
+    if (mac_param.empty() && ip_param.empty()) {
+        ip_param = *client_ip;
+        LOG_DEBUG("Lookup request using source IP: " + ip_param);
+    }
+
+    if (!mac_param.empty() && !ip_param.empty()) {
+        send_error_response(res, 400, "Bad Request",
+                            "Cannot specify both 'ip' and 'mac' parameters simultaneously");
+        LOG_WARNING("Lookup request: both ip and mac parameters provided");
+        return;
+    }
+
+    try {
+        if (!mac_param.empty()) {
+            if (!is_valid_mac_format(mac_param)) {
+                send_error_response(res, 400, "Bad Request", "Invalid MAC address format");
+                return;
+            }
+            if (!mac_lookup_handler_) {
+                send_error_response(res, 500, "Internal Server Error", "MAC lookup handler not configured");
+                LOG_WARNING("MAC lookup requested but handler not set");
+                return;
+            }
+            LOG_DEBUG("MAC lookup request for: " + mac_param);
+            auto result = mac_lookup_handler_(mac_param);
+            metrics_->record_request(result.cache_hit, result.latency_ms);
+            res.set_content(result.data.dump(), "application/json");
+        } else {
+            if (!is_valid_ip_format(ip_param)) {
+                send_error_response(res, 400, "Bad Request", "Invalid IP address format");
+                return;
+            }
+            if (!lookup_handler_) {
+                send_error_response(res, 500, "Internal Server Error", "IP lookup handler not configured");
+                LOG_WARNING("IP lookup requested but handler not set");
+                return;
+            }
+            LOG_DEBUG("IP lookup request for: " + ip_param);
+            auto result = lookup_handler_(ip_param);
+            metrics_->record_request(result.cache_hit, result.latency_ms);
+            res.set_content(result.data.dump(), "application/json");
+        }
+    } catch (const std::exception& e) {
+        res.status = 500;
+        nlohmann::json error;
+        error["error"] = e.what();
+        res.set_content(error.dump(), "application/json");
+        metrics_->record_error();
+        std::string const query_param = mac_param.empty() ? ip_param : mac_param;
+        LOG_ERROR(std::string("Error processing lookup for ") + query_param + ": " + e.what());
+    }
+}
+
+void IPGeoHTTPServer::handle_lookup_post(const httplib::Request& req, httplib::Response& res) {
+    auto client_ip = prepare_request(req, res);
+    if (!client_ip) return;
+
+    try {
+        auto body = nlohmann::json::parse(req.body);
+
+        bool const has_ips  = body.contains("ips") && body["ips"].is_array();
+        bool const has_macs = body.contains("macs") && body["macs"].is_array();
+
+        if (!has_ips && !has_macs) {
+            send_error_response(res, 400, "Bad Request",
+                                "Missing or invalid 'ips' or 'macs' array in request body");
+            LOG_WARNING("Batch lookup request missing 'ips' or 'macs' array");
+            return;
+        }
+
+        if (has_ips && has_macs) {
+            send_error_response(res, 400, "Bad Request",
+                                "Cannot specify both 'ips' and 'macs' in the same request");
+            LOG_WARNING("Batch lookup request: both ips and macs provided");
+            return;
+        }
+
+        std::vector<std::string> query_list;
+        std::string query_type;
+        LookupHandler handler;
+
+        if (has_ips) {
+            query_type = "IP";
+            if (!lookup_handler_) {
+                send_error_response(res, 500, "Internal Server Error", "IP lookup handler not configured");
+                return;
+            }
+            handler = lookup_handler_;
+
+            size_t const batch_size = body["ips"].size();
+            if (std::cmp_greater(batch_size, max_batch_size_)) {
+                nlohmann::json error;
+                error["error"] = "Batch size exceeds maximum limit";
+                error["max_batch_size"] = max_batch_size_;
+                error["requested_size"] = batch_size;
+                send_json_response(res, error, 400);
+                return;
+            }
+
+            query_list.reserve(batch_size);
+            for (const auto& ip : body["ips"]) {
+                if (ip.is_string()) {
+                    std::string ip_str = ip.get<std::string>();
+                    if (is_valid_ip_format(ip_str)) {
+                        query_list.push_back(std::move(ip_str));
+                    }
+                }
+            }
+        } else {
+            query_type = "MAC";
+            if (!mac_lookup_handler_) {
+                send_error_response(res, 500, "Internal Server Error", "MAC lookup handler not configured");
+                return;
+            }
+            handler = mac_lookup_handler_;
+
+            size_t const batch_size = body["macs"].size();
+            if (std::cmp_greater(batch_size, max_batch_size_)) {
+                nlohmann::json error;
+                error["error"] = "Batch size exceeds maximum limit";
+                error["max_batch_size"] = max_batch_size_;
+                error["requested_size"] = batch_size;
+                send_json_response(res, error, 400);
+                return;
+            }
+
+            query_list.reserve(batch_size);
+            for (const auto& mac : body["macs"]) {
+                if (mac.is_string()) {
+                    std::string mac_str = mac.get<std::string>();
+                    if (is_valid_mac_format(mac_str)) {
+                        query_list.push_back(std::move(mac_str));
+                    }
+                }
+            }
+        }
+
+        nlohmann::json results = nlohmann::json::array();
+        results.get_ptr<nlohmann::json::array_t*>()->reserve(query_list.size());
+
+        if (query_list.size() <= 10) {
+            for (const auto& query_str : query_list) {
+                auto result = handler(query_str);
+                metrics_->record_request(result.cache_hit, result.latency_ms);
+                results.push_back(std::move(result.data));
+            }
+        } else {
+            std::vector<std::future<LookupResult>> futures;
+            futures.reserve(query_list.size());
+
+            for (const auto& query_str : query_list) {
+                futures.push_back(std::async(std::launch::async, [handler, query_str]() {
+                    return handler(query_str);
+                }));
+            }
+
+            for (auto& future : futures) {
+                auto result = future.get();
+                metrics_->record_request(result.cache_hit, result.latency_ms);
+                results.push_back(std::move(result.data));
+            }
+        }
+
+        LOG_INFO("Batch lookup completed for " + std::to_string(results.size()) + " " + query_type + "s");
+        res.set_content(results.dump(), "application/json");
+
+    } catch (const nlohmann::json::exception& e) {
+        send_error_response(res, 400, "Bad Request", "Invalid JSON: " + std::string(e.what()));
+        LOG_WARNING("Invalid JSON in batch lookup request: " + std::string(e.what()));
+    } catch (const std::exception& e) {
+        send_error_response(res, 500, "Internal Server Error", e.what());
+        metrics_->record_error();
+        LOG_ERROR(std::string("Error processing batch lookup: ") + e.what());
+    }
+}
+
+void IPGeoHTTPServer::handle_password_get(const httplib::Request& req, httplib::Response& res) {
+    auto client_ip = prepare_request(req, res);
+    if (!client_ip) return;
+
+    try {
+        PasswordConfig config;
+
+        auto length_param = req.get_param_value("length");
+        if (!length_param.empty()) config.length = std::stoi(length_param);
+
+        auto uppercase_param = req.get_param_value("uppercase");
+        if (!uppercase_param.empty()) config.uppercase = (uppercase_param == "true" || uppercase_param == "1");
+
+        auto lowercase_param = req.get_param_value("lowercase");
+        if (!lowercase_param.empty()) config.lowercase = (lowercase_param == "true" || lowercase_param == "1");
+
+        auto digits_param = req.get_param_value("digits");
+        if (!digits_param.empty()) config.digits = (digits_param == "true" || digits_param == "1");
+
+        auto symbols_param = req.get_param_value("symbols");
+        if (!symbols_param.empty()) config.symbols = (symbols_param == "true" || symbols_param == "1");
+
+        auto exclude_similar_param = req.get_param_value("exclude_similar");
+        if (!exclude_similar_param.empty()) config.exclude_similar = (exclude_similar_param == "true" || exclude_similar_param == "1");
+
+        std::string error_message;
+        if (!PasswordGenerator::validate_config(config, error_message)) {
+            send_error_response(res, 400, "Bad Request", error_message);
+            return;
+        }
+
+        auto start_time = std::chrono::high_resolution_clock::now();
+        auto result = ip_server::PasswordGenerator::generate(config);
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto latency_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
+
+        metrics_->record_request(false, latency_ms);
+
+        nlohmann::json response;
+        response["password"] = result.password;
+        response["length"] = result.length;
+        response["entropy"] = result.entropy;
+        response["strength"] = result.strength;
+
+        send_json_response(res, response, 200);
+
+    } catch (const std::invalid_argument& e) {
+        send_error_response(res, 400, "Bad Request", "Invalid parameter value: " + std::string(e.what()));
+    } catch (const std::exception& e) {
+        send_error_response(res, 500, "Internal Server Error", e.what());
+        metrics_->record_error();
+        LOG_ERROR("Error generating password: " + std::string(e.what()));
+    }
+}
+
+void IPGeoHTTPServer::handle_password_post(const httplib::Request& req, httplib::Response& res) {
+    auto client_ip = prepare_request(req, res);
+    if (!client_ip) return;
+
+    try {
+        auto body = nlohmann::json::parse(req.body);
+
+        PasswordConfig config;
+
+        if (body.contains("length") && body["length"].is_number_integer())
+            config.length = body["length"].get<int>();
+        if (body.contains("uppercase") && body["uppercase"].is_boolean())
+            config.uppercase = body["uppercase"].get<bool>();
+        if (body.contains("lowercase") && body["lowercase"].is_boolean())
+            config.lowercase = body["lowercase"].get<bool>();
+        if (body.contains("digits") && body["digits"].is_boolean())
+            config.digits = body["digits"].get<bool>();
+        if (body.contains("symbols") && body["symbols"].is_boolean())
+            config.symbols = body["symbols"].get<bool>();
+        if (body.contains("exclude_similar") && body["exclude_similar"].is_boolean())
+            config.exclude_similar = body["exclude_similar"].get<bool>();
+
+        int count = 1;
+        if (body.contains("count") && body["count"].is_number_integer())
+            count = body["count"].get<int>();
+
+        if (count < 1) {
+            send_error_response(res, 400, "Bad Request", "Count must be at least 1");
+            return;
+        }
+
+        if (count > constants::MAX_PASSWORD_BATCH) {
+            send_error_response(res, 400, "Bad Request",
+                                "Count cannot exceed " + std::to_string(constants::MAX_PASSWORD_BATCH));
+            return;
+        }
+
+        std::string error_message;
+        if (!PasswordGenerator::validate_config(config, error_message)) {
+            send_error_response(res, 400, "Bad Request", error_message);
+            return;
+        }
+
+        auto start_time = std::chrono::high_resolution_clock::now();
+        auto results = ip_server::PasswordGenerator::generate_batch(config, count);
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto latency_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
+
+        metrics_->record_request(false, latency_ms);
+
+        nlohmann::json response;
+        response["count"] = static_cast<int>(results.size());
+        response["passwords"] = nlohmann::json::array();
+
+        for (const auto& result : results) {
+            nlohmann::json password_json;
+            password_json["password"] = result.password;
+            password_json["length"] = result.length;
+            password_json["entropy"] = result.entropy;
+            password_json["strength"] = result.strength;
+            response["passwords"].push_back(password_json);
+        }
+
+        send_json_response(res, response, 200);
+
+    } catch (const nlohmann::json::exception& e) {
+        send_error_response(res, 400, "Bad Request", "Invalid JSON: " + std::string(e.what()));
+    } catch (const std::exception& e) {
+        send_error_response(res, 500, "Internal Server Error", e.what());
+        metrics_->record_error();
+        LOG_ERROR("Error generating batch passwords: " + std::string(e.what()));
+    }
 }
 
 bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {

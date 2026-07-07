@@ -65,6 +65,13 @@ class IPGeoHTTPServer {
                              const std::string& message);
     static void send_json_response(httplib::Response& res, const nlohmann::json& data, int status = 200);
 
+    void handle_root(const httplib::Request& req, httplib::Response& res);
+    void handle_health(const httplib::Request& req, httplib::Response& res);
+    void handle_lookup_get(const httplib::Request& req, httplib::Response& res);
+    void handle_lookup_post(const httplib::Request& req, httplib::Response& res);
+    void handle_password_get(const httplib::Request& req, httplib::Response& res);
+    void handle_password_post(const httplib::Request& req, httplib::Response& res);
+
     [[nodiscard]] std::optional<std::string> prepare_request(const httplib::Request& req, httplib::Response& res);
 
     std::string get_real_client_ip(const httplib::Request& req) const;

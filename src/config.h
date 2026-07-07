@@ -45,8 +45,10 @@ class ConfigParser {
 
    private:
     static cxxopts::Options create_option_parser();
+    static void from_json(ServerConfig& config, const nlohmann::json& j);
     static void apply_cli_overrides(const cxxopts::ParseResult& result, ServerConfig& config);
     static void log_config(const ServerConfig& config);
+    static ServerConfig handle_config_file(const std::filesystem::path& config_file);
 };
 
 }  // namespace ip_server

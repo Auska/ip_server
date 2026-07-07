@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cctype>
 #include <memory>
-#include <regex>
 #include <stdexcept>
 
 #include "logger.h"
@@ -155,35 +154,18 @@ nlohmann::json OUIDatabase::lookup(const std::string& mac_address) const {
         result["oui"] = oui;
         result["found"] = true;
 
-        const char* col = nullptr;
+        auto extract_col = [&](int col_idx, const char* key) {
+            const char* col = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), col_idx));
+            if (col != nullptr) result[key] = col;
+        };
 
-        col = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 1));
-        if (col != nullptr) { result["manufacturer"] = col;
-}
-
-        col = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 2));
-        if (col != nullptr) { result["registry"] = col;
-}
-
-        col = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 3));
-        if (col != nullptr) { result["short_name"] = col;
-}
-
-        col = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 4));
-        if (col != nullptr) { result["device_type"] = col;
-}
-
-        col = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 5));
-        if (col != nullptr) { result["registered_date"] = col;
-}
-
-        col = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 6));
-        if (col != nullptr) { result["address"] = col;
-}
-
-        col = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 7));
-        if (col != nullptr) { result["sources"] = col;
-}
+        extract_col(1, "manufacturer");
+        extract_col(2, "registry");
+        extract_col(3, "short_name");
+        extract_col(4, "device_type");
+        extract_col(5, "registered_date");
+        extract_col(6, "address");
+        extract_col(7, "sources");
 
     } else if (status == SQLITE_DONE) {
         result["mac"] = mac_address;

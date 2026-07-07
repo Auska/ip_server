@@ -10,34 +10,19 @@ class CustomLevelFormatter : public spdlog::custom_flag_formatter {
    public:
     void format(const spdlog::details::log_msg& msg, const std::tm& /*tm_time*/,
                 spdlog::memory_buf_t& dest) override {
-        const char* level_name = "";
-        switch (msg.level) {
-            case spdlog::level::trace:
-                level_name = "TRACE";
-                break;
-            case spdlog::level::debug:
-                level_name = "DEBUG";
-                break;
-            case spdlog::level::info:
-                level_name = "INFO ";
-                break;
-            case spdlog::level::warn:
-                level_name = "WARN ";
-                break;
-            case spdlog::level::err:
-                level_name = "ERROR";
-                break;
-            case spdlog::level::critical:
-                level_name = "CRITICAL";
-                break;
-            case spdlog::level::off:
-                level_name = "OFF";
-                break;
-            case spdlog::level::n_levels:
-                level_name = "UNKNOWN";
-                break;
-        }
-        dest.append(level_name, level_name + std::strlen(level_name));
+        static constexpr const char* level_names[] = {
+            "TRACE",    // trace
+            "DEBUG",    // debug
+            "INFO ",    // info
+            "WARN ",    // warn
+            "ERROR",    // err
+            "CRITICAL", // critical
+            "OFF",      // off
+            "UNKNOWN"   // n_levels
+        };
+        size_t idx = msg.level < 8 ? static_cast<size_t>(msg.level) : 7;
+        const char* level_name = level_names[idx];
+        dest.append(level_name, level_name + std::char_traits<char>::length(level_name));
     }
 
     [[nodiscard]] std::unique_ptr<custom_flag_formatter> clone() const override {
@@ -64,20 +49,19 @@ Logger::~Logger() {
 void Logger::setup_sinks() {
     std::vector<spdlog::sink_ptr> sinks;
 
-    // Create pattern formatter with custom level flag
-    auto formatter = std::make_unique<spdlog::pattern_formatter>();
-    formatter->add_flag<CustomLevelFormatter>('*').set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%*] %v");
+    auto make_formatter = [] {
+        auto fmt = std::make_unique<spdlog::pattern_formatter>();
+        fmt->add_flag<CustomLevelFormatter>('*').set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%*] %v");
+        return fmt;
+    };
 
-    // Add stdout sink
     if (config_.enable_stdout) {
         auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-        stdout_sink->set_formatter(formatter->clone());
+        stdout_sink->set_formatter(make_formatter());
         sinks.push_back(stdout_sink);
     }
 
-    // Add file sink based on rotation type
     if (config_.enable_file_logging) {
-        // Create log directory if it doesn't exist
         std::filesystem::path const log_dir = config_.log_file_path.parent_path();
         if (!log_dir.empty() && !std::filesystem::exists(log_dir)) {
             std::filesystem::create_directories(log_dir);
@@ -87,31 +71,22 @@ void Logger::setup_sinks() {
 
         if (config_.rotation_type == RotationType::SIZE
             || config_.rotation_type == RotationType::BOTH) {
-            // Use rotating file sink for size-based rotation
             file_sink =
                 std::make_shared<spdlog::sinks::rotating_file_sink_mt>(config_.log_file_path
                                                                            .string(),
                                                                        config_.max_file_size,
                                                                        config_.max_backup_files);
         } else if (config_.rotation_type == RotationType::TIME) {
-            // Use daily file sink for time-based rotation
             file_sink =
                 std::make_shared<spdlog::sinks::daily_file_sink_mt>(config_.log_file_path.string(),
-                                                                    0,  // Rotate at midnight
-                                                                    0   // No additional offset
-                );
+                                                                     0, 0);
         } else {
-            // No rotation, use rotating sink with large max size
             file_sink = std::make_shared<
                 spdlog::sinks::rotating_file_sink_mt>(config_.log_file_path.string(),
-                                                      std::numeric_limits<size_t>::
-                                                          max(),  // Very large size to effectively
-                                                                  // disable rotation
-                                                      0           // No backup files
-            );
+                                                      std::numeric_limits<size_t>::max(), 0);
         }
 
-        file_sink->set_formatter(formatter->clone());
+        file_sink->set_formatter(make_formatter());
         sinks.push_back(file_sink);
     }
 

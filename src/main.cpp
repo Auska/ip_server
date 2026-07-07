@@ -1,5 +1,7 @@
+#include <array>
 #include <atomic>
 #include <csignal>
+#include <string_view>
 
 #include "config.h"
 #include "service/ip_geo_service.h"
@@ -80,37 +82,41 @@ int main(int argc, char* argv[]) {
 
         auto config = ConfigParser::parse(argc, argv);
 
-        LogConfig log_config;
-        log_config.enable_file_logging = config.enable_file_logging;
-        log_config.log_file_path = config.log_file_path;
-        log_config.enable_stdout = config.log_enable_stdout;
+        {
+            LogConfig log_config;
+            log_config.enable_file_logging = config.enable_file_logging;
+            log_config.log_file_path = config.log_file_path;
+            log_config.enable_stdout = config.log_enable_stdout;
 
-        if (config.log_rotation_type == "size") {
-            log_config.rotation_type = RotationType::SIZE;
-        } else if (config.log_rotation_type == "time") {
-            log_config.rotation_type = RotationType::TIME;
-        } else if (config.log_rotation_type == "both") {
-            log_config.rotation_type = RotationType::BOTH;
-        } else {
-            log_config.rotation_type = RotationType::NONE;
+            if (config.log_rotation_type == "size")
+                log_config.rotation_type = RotationType::SIZE;
+            else if (config.log_rotation_type == "time")
+                log_config.rotation_type = RotationType::TIME;
+            else if (config.log_rotation_type == "both")
+                log_config.rotation_type = RotationType::BOTH;
+            else
+                log_config.rotation_type = RotationType::NONE;
+
+            log_config.max_file_size = config.log_max_file_size;
+            log_config.rotation_interval = std::chrono::minutes(config.log_rotation_interval_minutes);
+            log_config.max_backup_files = config.log_max_backup_files;
+
+            Logger::instance().set_config(log_config);
         }
 
-        log_config.max_file_size = config.log_max_file_size;
-        log_config.rotation_interval = std::chrono::minutes(config.log_rotation_interval_minutes);
-        log_config.max_backup_files = config.log_max_backup_files;
-
-        Logger::instance().set_config(log_config);
-
-        static const std::unordered_map<std::string, LogLevel> log_level_map = {
-            {"debug", LogLevel::DEBUG},
-            {"info", LogLevel::INFO},
-            {"warning", LogLevel::WARNING},
-            {"error", LogLevel::ERROR},
-        };
-
-        auto it = log_level_map.find(config.log_level);
-        if (it != log_level_map.end()) {
-            Logger::instance().set_level(it->second);
+        {
+            static constexpr auto levels = std::to_array<std::pair<std::string_view, LogLevel>>({
+                {"debug", LogLevel::DEBUG},
+                {"info", LogLevel::INFO},
+                {"warning", LogLevel::WARNING},
+                {"error", LogLevel::ERROR},
+            });
+            for (const auto& [name, level] : levels) {
+                if (name == config.log_level) {
+                    Logger::instance().set_level(level);
+                    break;
+                }
+            }
         }
 
         ip_server::XDGPaths::ensure_directories();

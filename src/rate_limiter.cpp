@@ -75,16 +75,10 @@ int RateLimiter::get_remaining(const std::string& ip_address) const {
         return max_requests_;
     }
 
-    auto now = std::chrono::steady_clock::now();
-    size_t count = 0;
+    auto& record = const_cast<IPRecord&>(it->second);
+    cleanup_old_timestamps(record);
 
-    for (const auto& timestamp : it->second.timestamps) {
-        if (now - timestamp <= window_) {
-            count++;
-        }
-    }
-
-    return std::max(0, max_requests_ - static_cast<int>(count));
+    return std::max(0, max_requests_ - static_cast<int>(record.timestamps.size()));
 }
 
 void RateLimiter::cleanup() {

@@ -23,14 +23,10 @@ using namespace ip_server;
 std::filesystem::path find_project_root() {
     std::filesystem::path current_path = std::filesystem::current_path();
 
-    auto path = current_path;
-    while (path.has_parent_path()) {
-        if (std::filesystem::exists(path / "CMakeLists.txt")
-            && std::filesystem::exists(path / "db")) {
-            return path;
-        }
-        path = path.parent_path();
-    }
+    if (std::filesystem::exists(current_path / "db"))
+        return current_path;
+    if (std::filesystem::exists(current_path / ".." / "db"))
+        return current_path / "..";
     return current_path;
 }
 

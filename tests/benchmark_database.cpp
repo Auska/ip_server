@@ -19,24 +19,12 @@ class DatabaseBenchmark : public benchmark::Fixture {
         std::filesystem::path current_path = std::filesystem::current_path();
         std::filesystem::path project_root;
 
-        // Try to find project root by looking for db directory
-        if (std::filesystem::exists(current_path / "db")) {
-            // Running from project root
+        if (std::filesystem::exists(current_path / "db"))
             project_root = current_path;
-        } else if (std::filesystem::exists(current_path / ".." / "db")) {
-            // Running from build directory
+        else if (std::filesystem::exists(current_path / ".." / "db"))
             project_root = current_path / "..";
-        } else {
-            // Try to find CMakeLists.txt to locate project root
-            auto path = current_path;
-            while (path.has_parent_path()
-                   && std::filesystem::exists(path / "CMakeLists.txt") == false) {
-                path = path.parent_path();
-            }
-            if (std::filesystem::exists(path / "db")) {
-                project_root = path;
-            }
-        }
+        else
+            project_root = current_path;
 
         city_db_path = project_root / "db" / "GeoLite2-City.mmdb";
         asn_db_path  = project_root / "db" / "GeoLite2-ASN.mmdb";
