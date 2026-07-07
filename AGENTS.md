@@ -12,7 +12,7 @@
 
 - **版本**: 2.0.0
 - **语言**: C++23
-- **构建系统**: CMake 3.20+
+- **构建系统**: xmake
 - **功能**: IP 地理位置、AS 信息、MAC 地址 OUI 查询、密码生成
 - **测试**: 216 个单元测试，覆盖率 > 90%
 - **性能**: Release 模式缓存命中 ~1.56μs（647k QPS）
@@ -41,52 +41,49 @@ ip_local/
 │   ├── metrics.h/cpp          # 性能指标
 │   └── xdg.h/cpp              # XDG 目录标准
 ├── tests/                      # 测试代码（9 个测试套件，216 个测试）
-├── external/                   # 第三方依赖
 ├── docs/                       # 文档
-└── CMakeLists.txt              # CMake 构建配置
+└── xmake.lua                   # xmake 构建配置
 ```
 
 ## 构建命令
 
 ```bash
-# 首次构建（Debug 模式）
-mkdir build && cd build && cmake .. && cmake --build . -j$(nproc)
+# 构建（默认 Release 模式）
+xmake build ip_server
 
-# 增量构建（build 目录已存在时）
-cd build && cmake --build . -j$(nproc)
+# Debug 模式
+xmake f -m debug && xmake build ip_server
 
-# Release 模式（-O3 + LTO + strip 符号）
-cmake .. -DCMAKE_BUILD_TYPE=Release && cmake --build . -j$(nproc)
+# 构建测试
+xmake build ip_server_tests
 
-# 构建 Benchmark（默认关闭）
-cmake .. -DBUILD_BENCHMARKS=ON && cmake --build . -j$(nproc)
+# 构建基准测试
+xmake build ip_server_benchmarks
 
 # 运行全部测试
-ctest --output-on-failure
-# 或
-./build/bin/ip_server_tests
+xmake run ip_server_tests
 
 # 运行单个测试套件
-./build/bin/ip_server_tests --gtest_filter=RateLimiterTest.*
+xmake run ip_server_tests --gtest_filter=RateLimiterTest.*
 
 # 运行单个测试用例
-./build/bin/ip_server_tests --gtest_filter=RateLimiterTest.AllowedRequests
+xmake run ip_server_tests --gtest_filter=RateLimiterTest.AllowedRequests
 ```
 
 ## 运行服务
 
 ```bash
 # 基本启动
-./build/bin/ip_server
+xmake run ip_server
 
 # 自定义配置
-./build/bin/ip_server --port 9000 --host 0.0.0.0
+xmake run ip_server --port 9000 --host 0.0.0.0
 
 # 启用认证（API Key SHA-256 哈希存储）
-./build/bin/ip_server --enable-api-auth true --api-keys-file /etc/ip_server/keys.txt
+xmake run ip_server --enable-api-auth true --api-keys-file /etc/ip_server/keys.txt
 
 # 配置可信代理（防止 X-Forwarded-For 欺骗）
-./build/bin/ip_server --trusted-proxies "127.0.0.1,::1,10.0.0.0/8"
+xmake run ip_server --trusted-proxies "127.0.0.1,::1,10.0.0.0/8"
 ```
 
 ## API 接口
@@ -147,18 +144,19 @@ main()
 
 ## 依赖库
 
-大部分依赖以源码形式内置在 `external/` 目录，通过 CMake `add_subdirectory` 构建，无需手动安装。仅 OpenSSL 需要系统提供。
+所有依赖通过 xmake `add_requires()` 从 xmake-repo 自动下载构建，无需手动安装。
 
-| 库 | 版本 | 构建方式 | 用途 |
-|---|------|---------|------|
-| libmaxminddb | 1.12.2 | `external/` 源码 | MaxMind 数据库 |
-| spdlog | 1.17.0 | `external/` 源码 | 日志系统 |
-| nlohmann/json | 3.12.0 | `external/` 源码 | JSON 处理 |
-| httplib | 0.28.0 | `external/` 源码 | HTTP 服务器 |
-| cxxopts | 3.3.1 | `external/` 源码 | 命令行参数解析 |
-| SQLite3 | 3.51.0+0 | `external/` 源码 | OUI 数据库 |
-| OpenSSL | - | 系统包管理器 | API Key SHA-256 哈希 |
-| Google Test | - | `external/` 源码 | 单元测试 |
+| 库 | xmake 包名 | 版本 | 用途 |
+|---|-----------|------|------|
+| libmaxminddb | `libmaxminddb` | 1.13.3 | MaxMind 数据库 |
+| spdlog | `spdlog` | v1.17.0 | 日志系统 |
+| nlohmann/json | `nlohmann_json` | v3.12.0 | JSON 处理 |
+| httplib | `cpp-httplib` | v0.48.0 | HTTP 服务器 |
+| cxxopts | `cxxopts` | v3.3.1 | 命令行参数解析 |
+| SQLite3 | `sqlite3` | 3.53.0 | OUI 数据库 |
+| OpenSSL | `openssl3` | 3.6.3 | API Key SHA-256 哈希 |
+| Google Test | `gtest` | v1.17.0 | 单元测试 |
+| Google Benchmark | `benchmark` | v1.9.5 | 性能基准测试 |
 
 ## 性能指标
 
