@@ -42,16 +42,22 @@ ip_local/
 │   └── xdg.h/cpp              # XDG 目录标准
 ├── tests/                      # 测试代码（9 个测试套件，216 个测试）
 ├── docs/                       # 文档
-└── xmake.lua                   # xmake 构建配置
+├── xmake.lua                   # xmake 构建配置
+└── build/                      # 构建输出
+    ├── bin/                    # 可执行文件
+    └── lib/                    # 静态库文件
 ```
 
 ## 构建命令
 
 ```bash
-# 构建（默认 Release 模式）
+# 构建（默认 Release 模式，含 LTO）
 xmake build ip_server
 
-# Debug 模式
+# Release 模式，禁用 LTO（增量编译快 20 倍，适合日常开发）
+xmake f --lto=n && xmake build ip_server
+
+# Debug 模式（自动禁用 LTO）
 xmake f -m debug && xmake build ip_server
 
 # 构建测试
@@ -59,6 +65,9 @@ xmake build ip_server_tests
 
 # 构建基准测试
 xmake build ip_server_benchmarks
+
+# 全部构建（含测试和基准）
+xmake build ip_server_core ip_server ip_server_tests ip_server_benchmarks
 
 # 运行全部测试
 xmake run ip_server_tests
@@ -136,6 +145,8 @@ main()
               +-- cleanup jthread (300s 间隔清理速率记录)
 ```
 
+- **构建结构**: 源码编译为 `ip_server_core` 静态库，`ip_server` / `ip_server_tests` / `ip_server_benchmarks` 链接该库，源文件仅编译一次而非三次
+- **LTO 选项**: `xmake f --lto=n` 可跳过 LTO 链接实现快速增量编译（~2.7s vs ~54s）
 - HTTP Server 通过 `std::function` 回调（`set_lookup_handler` / `set_mac_lookup_handler`）与 Service 解耦
 - 缓存内置于 Service 层，HTTP 层无感知
 - 请求中间件管线顺序: CORS -> 认证(Bearer) -> 真实 IP 提取(仅可信代理) -> 速率限制 -> 业务处理
