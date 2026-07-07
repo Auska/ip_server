@@ -1,7 +1,7 @@
 #include "auth.h"
 
+#include <array>
 #include <fstream>
-#include <sstream>
 
 #include <openssl/sha.h>
 
@@ -12,14 +12,16 @@ namespace ip_server {
 namespace {
 
 std::string sha256_hash(const std::string& input) {
-    unsigned char hash[SHA256_DIGEST_LENGTH];
-    SHA256(reinterpret_cast<const unsigned char*>(input.c_str()), input.size(), hash);
+    std::array<unsigned char, SHA256_DIGEST_LENGTH> hash;
+    SHA256(reinterpret_cast<const unsigned char*>(input.c_str()), input.size(), hash.data());
 
-    std::stringstream ss;
-    for (unsigned char const c : hash) {
-        ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(c);
+    static constexpr char hex[] = "0123456789abcdef";
+    std::string result(SHA256_DIGEST_LENGTH * 2, '\0');
+    for (size_t i = 0; i < SHA256_DIGEST_LENGTH; ++i) {
+        result[i * 2]     = hex[hash[i] >> 4];
+        result[i * 2 + 1] = hex[hash[i] & 0xf];
     }
-    return ss.str();
+    return result;
 }
 
 }  // namespace

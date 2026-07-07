@@ -11,13 +11,11 @@ namespace ip_server {
 
 namespace {
 
-std::mt19937_64::result_type generate_secure_seed() {
+thread_local std::mt19937_64 password_gen = [] {
     std::random_device rd;
     std::seed_seq seq{rd(), rd(), rd(), rd(), rd(), rd(), rd(), rd()};
-    std::mt19937_64::result_type seed = 0;
-    seq.generate(&seed, &seed + 1);
-    return seed;
-}
+    return std::mt19937_64(seq);
+}();
 
 }  // namespace
 
@@ -55,26 +53,24 @@ PasswordResult PasswordGenerator::generate(const PasswordConfig& config) {
         throw std::runtime_error("Character pool is empty");
     }
 
-    thread_local std::mt19937_64 gen(generate_secure_seed());
-
     std::uniform_int_distribution<size_t> dist(0, sets.pool.size() - 1);
 
     std::string password;
     password.reserve(config.length);
 
     for (int i = 0; i < config.length; ++i) {
-        password += sets.pool[dist(gen)];
+        password += sets.pool[dist(password_gen)];
     }
 
     std::uniform_int_distribution<size_t> pos_dist(0, config.length - 1);
     for (const auto& char_set : sets.required_chars) {
         if (char_set.empty()) { continue; }
         std::uniform_int_distribution<size_t> char_dist(0, char_set.size() - 1);
-        size_t const pos = pos_dist(gen);
-        password[pos] = char_set[char_dist(gen)];
+        size_t const pos = pos_dist(password_gen);
+        password[pos] = char_set[char_dist(password_gen)];
     }
 
-    std::shuffle(password.begin(), password.end(), gen);
+    std::shuffle(password.begin(), password.end(), password_gen);
 
     PasswordResult result;
     result.password = password;
@@ -113,7 +109,7 @@ PasswordGenerator::CharacterSets PasswordGenerator::build_character_sets(const P
         std::string filtered(chars);
         if (config.exclude_similar && confusable) {
             for (char const c : std::string_view(confusable)) {
-                filtered.erase(std::ranges::remove(filtered, c).begin(), filtered.end());
+                filtered.erase(std::remove(filtered.begin(), filtered.end(), c), filtered.end());
             }
         }
         sets.pool += filtered;

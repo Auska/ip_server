@@ -21,7 +21,6 @@ constexpr size_t DEFAULT_SHARD_MEMORY = 10 * 1024 * 1024;
 constexpr size_t DEFAULT_MAX_MEMORY = 100 * 1024 * 1024;
 constexpr size_t DEFAULT_BLOOM_BITS = 65536;
 constexpr size_t DEFAULT_BLOOM_HASHES = 3;
-constexpr size_t ESTIMATED_JSON_OVERHEAD = 200;
 }  // namespace cache_constants
 
 template <size_t Bits = cache_constants::DEFAULT_BLOOM_BITS,
@@ -31,16 +30,16 @@ class BloomFilter {
     BloomFilter() = default;
 
     void add(const std::string& key) {
+        size_t h = hash_function(key);
         for (size_t i = 0; i < HashCount; ++i) {
-            size_t hash = hash_function(key, i);
-            bits_[hash % Bits].test_and_set(std::memory_order_relaxed);
+            bits_[(h + i * 0x9e3779b9) % Bits].test_and_set(std::memory_order_relaxed);
         }
     }
 
     bool possibly_contains(const std::string& key) const {
+        size_t h = hash_function(key);
         for (size_t i = 0; i < HashCount; ++i) {
-            size_t hash = hash_function(key, i);
-            if (!bits_[hash % Bits].test(std::memory_order_relaxed)) {
+            if (!bits_[(h + i * 0x9e3779b9) % Bits].test(std::memory_order_relaxed)) {
                 return false;
             }
         }
@@ -66,15 +65,8 @@ class BloomFilter {
     }
 
    private:
-    size_t hash_function(const std::string& key, size_t seed) const {
-        size_t hash = std::hash<std::string>{}(key);
-        hash ^= seed * 0x9e3779b9;
-        hash ^= hash >> 16;
-        hash *= 0x85ebca6b;
-        hash ^= hash >> 13;
-        hash *= 0xc2b2ae35;
-        hash ^= hash >> 16;
-        return hash;
+    static size_t hash_function(const std::string& key) {
+        return std::hash<std::string>{}(key);
     }
 
     std::array<std::atomic_flag, Bits> bits_{};
@@ -252,18 +244,7 @@ class CacheShard {
     };
 
     size_t estimate_entry_size(const std::string& key, const nlohmann::json& result) const {
-        size_t json_size = cache_constants::ESTIMATED_JSON_OVERHEAD;
-        if (result.is_object()) {
-            for (auto it = result.begin(); it != result.end(); ++it) {
-                json_size += it.key().size() + 4;
-                if (it.value().is_string()) {
-                    json_size += it.value().get<std::string>().size() + 2;
-                }
-            }
-        } else if (result.is_string()) {
-            json_size += result.get<std::string>().size();
-        }
-        return key.size() * 2 + json_size;
+        return key.size() * 2 + result.dump().size();
     }
 
     std::chrono::seconds get_ttl_for_type(CacheDataType type) const {
@@ -324,8 +305,9 @@ class IPCache {
    public:
     explicit IPCache(size_t max_size = 10000, size_t shard_count = 8,
                      std::chrono::seconds default_ttl = std::chrono::seconds(3600),
-                     size_t max_memory_bytes = cache_constants::DEFAULT_MAX_MEMORY)
-        : shard_count_(shard_count), max_memory_bytes_(max_memory_bytes) {
+                     size_t max_memory_bytes = cache_constants::DEFAULT_MAX_MEMORY,
+                     bool enable_heatmap = true)
+        : shard_count_(shard_count), max_memory_bytes_(max_memory_bytes), enable_heatmap_(enable_heatmap) {
         size_t shard_size = (max_size + shard_count - 1) / shard_count;
         size_t shard_memory = (max_memory_bytes + shard_count - 1) / shard_count;
         shards_.reserve(shard_count);
@@ -459,6 +441,7 @@ class IPCache {
     }
 
     void track_key_access(const std::string& key) {
+        if (!enable_heatmap_) return;
         auto it = key_access_counts_.find(key);
         if (it == key_access_counts_.end()) {
             if (key_access_counts_.size() >= MAX_TRACKED_KEYS) {
@@ -480,6 +463,7 @@ class IPCache {
     std::vector<std::unique_ptr<CacheShard>> shards_;
     size_t shard_count_;
     size_t max_memory_bytes_;
+    bool enable_heatmap_;
     static constexpr size_t MAX_TRACKED_KEYS = 100000;
     mutable std::list<std::string> key_access_lru_;
     mutable std::unordered_map<std::string, std::list<std::string>::iterator> key_access_lru_it_;

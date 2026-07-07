@@ -10,7 +10,9 @@
 
 #include "auth.h"
 #include "cache.h"
-#include "database.h"
+#include "database/city_database.h"
+#include "database/asn_database.h"
+#include "service/ip_geo_service.h"
 #include "mac_database.h"
 #include "rate_limiter.h"
 #include "types.h"

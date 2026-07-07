@@ -3,8 +3,9 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <future>
-#include <regex>
+#include <mutex>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -19,22 +20,82 @@ namespace ip_server {
 
 namespace {
 
-bool is_valid_ip_format(const std::string& ip) {
-    static const std::regex ipv4_pattern(
-        R"(^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$)");
-    static const std::regex ipv6_pattern(
-        R"(^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$|^::$|^::1$|^([0-9a-fA-F]{0,4}:)+:.*$)");
-
-    if (std::regex_match(ip, ipv4_pattern)) {
-        return true;
+bool is_valid_ipv4(const std::string& ip) {
+    int octets = 0, val = 0, digits = 0;
+    for (char c : ip) {
+        if (c == '.') {
+            if (++octets > 3 || digits == 0) return false;
+            val = 0; digits = 0;
+        } else if (c >= '0' && c <= '9') {
+            val = val * 10 + (c - '0');
+            if (val > 255) return false;
+            digits++;
+        } else {
+            return false;
+        }
     }
-    return std::regex_match(ip, ipv6_pattern);
+    return octets == 3 && digits > 0;
+}
+
+bool is_valid_ipv6(const std::string& ip) {
+    if (ip.empty()) return false;
+    if (ip == "::" || ip == "::1") return true;
+
+    int groups = 0, digits = 0;
+    bool has_double_colon = false;
+
+    for (size_t i = 0; i < ip.size(); ++i) {
+        char c = ip[i];
+        if (c == ':') {
+            if (i + 1 < ip.size() && ip[i + 1] == ':') {
+                if (has_double_colon) return false;
+                has_double_colon = true;
+                ++i;
+                groups++;
+                digits = 0;
+            } else {
+                if (digits == 0 && !has_double_colon && groups > 0) return false;
+                groups++;
+                digits = 0;
+            }
+        } else if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+            if (++digits > 4) return false;
+        } else {
+            return false;
+        }
+    }
+
+    if (digits > 0) groups++;
+    return (has_double_colon && groups >= 2 && groups <= 8) ||
+           (!has_double_colon && groups == 8);
+}
+
+bool is_valid_ip_format(const std::string& ip) {
+    return is_valid_ipv4(ip) || is_valid_ipv6(ip);
 }
 
 bool is_valid_mac_format(const std::string& mac) {
-    static const std::regex mac_pattern(
-        R"(^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$|^[0-9A-Fa-f]{12}$)");
-    return std::regex_match(mac, mac_pattern);
+    if (mac.size() == 17) {
+        for (size_t i = 0; i < 17; ++i) {
+            if (i % 3 == 2) {
+                if (mac[i] != ':' && mac[i] != '-') return false;
+            } else {
+                if (!((mac[i] >= '0' && mac[i] <= '9') ||
+                      (mac[i] >= 'a' && mac[i] <= 'f') ||
+                      (mac[i] >= 'A' && mac[i] <= 'F'))) return false;
+            }
+        }
+        return true;
+    }
+    if (mac.size() == 12) {
+        for (char c : mac) {
+            if (!((c >= '0' && c <= '9') ||
+                  (c >= 'a' && c <= 'f') ||
+                  (c >= 'A' && c <= 'F'))) return false;
+        }
+        return true;
+    }
+    return false;
 }
 
 }  // namespace
@@ -668,31 +729,31 @@ bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
     }
 
     std::atomic<bool> server_running(true);
-    std::thread server_thread([this, &server_running]() {
-        if (!server_.listen(host_, port_)) {
-            LOG_ERROR("Failed to start HTTP server");
-            server_running.store(false);
-        }
+    std::mutex server_mutex;
+    std::condition_variable server_cv;
+    std::thread server_thread([this, &server_running, &server_cv]() {
+        server_.listen(host_, port_);
+        server_running.store(false);
+        server_cv.notify_all();
     });
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-    if (!server_running.load()) {
-        if (server_thread.joinable()) {
-            server_thread.join();
+    {
+        std::unique_lock lock(server_mutex);
+        if (!server_cv.wait_for(lock, std::chrono::milliseconds(500),
+                                 [&] { return !server_running.load(); })) {
+            LOG_DEBUG("Server started successfully");
+        } else {
+            if (server_thread.joinable()) {
+                server_thread.join();
+            }
+            return false;
         }
-        return false;
     }
 
-    auto start_time = std::chrono::steady_clock::now();
-    while (!shutdown_requested.load() && server_.is_running()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
-            std::chrono::steady_clock::now() - start_time);
-        if (elapsed.count() > constants::SHUTDOWN_TIMEOUT_SECONDS && !server_.is_running()) {
-            LOG_WARNING("Server shutdown timeout reached");
-            break;
+    {
+        std::unique_lock lock(server_mutex);
+        while (!shutdown_requested.load() && server_running.load()) {
+            server_cv.wait_for(lock, std::chrono::milliseconds(100));
         }
     }
 

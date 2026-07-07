@@ -4,7 +4,9 @@
 #include <string>
 #include <vector>
 
-#include "database.h"
+#include "database/city_database.h"
+#include "database/asn_database.h"
+#include "service/ip_geo_service.h"
 #include "types.h"
 
 using namespace ip_server;
