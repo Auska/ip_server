@@ -11,19 +11,19 @@
 #include <string>
 
 #include "types.h"
+#include "password_handler.h"
 
 namespace ip_server {
 
 class RateLimiter;
 class APIAuth;
 class Metrics;
-class PasswordGenerator;
+class PasswordHandler;
 
 namespace constants {
 constexpr int DEFAULT_THREAD_POOL_SIZE = 4;
 constexpr int DEFAULT_MAX_REQUESTS_PER_MINUTE = 100;
 constexpr int DEFAULT_MAX_BATCH_SIZE = 100;
-constexpr int MAX_PASSWORD_BATCH = 100;
 constexpr int CLEANUP_INTERVAL_SECONDS = 300;
 constexpr int SHUTDOWN_TIMEOUT_SECONDS = 30;
 constexpr size_t MAX_LATENCIES = 1000;
@@ -41,8 +41,7 @@ class IPGeoHTTPServer {
                              int max_batch_size = constants::DEFAULT_MAX_BATCH_SIZE,
                              bool enable_api_auth = false,
                              const std::string& api_keys_file = "",
-                             const std::string& default_api_key = "",
-                             const std::vector<std::string>& trusted_proxies = {});
+                             const std::string& default_api_key = "");
     ~IPGeoHTTPServer();
 
     IPGeoHTTPServer(const IPGeoHTTPServer&) = delete;
@@ -69,15 +68,14 @@ class IPGeoHTTPServer {
     void handle_health(const httplib::Request& req, httplib::Response& res);
     void handle_lookup_get(const httplib::Request& req, httplib::Response& res);
     void handle_lookup_post(const httplib::Request& req, httplib::Response& res);
-    void handle_password_get(const httplib::Request& req, httplib::Response& res);
-    void handle_password_post(const httplib::Request& req, httplib::Response& res);
 
     [[nodiscard]] std::optional<std::string> prepare_request(const httplib::Request& req, httplib::Response& res);
 
     std::string get_real_client_ip(const httplib::Request& req) const;
-    bool is_trusted_proxy(const std::string& ip) const;
 
     void cleanup_thread_func(std::atomic<bool>& shutdown_requested);
+    void log_startup_banner() const;
+    bool start_server_and_wait(std::atomic<bool>& shutdown_requested);
 
     std::string host_;
     uint16_t port_;
@@ -85,14 +83,13 @@ class IPGeoHTTPServer {
     bool enable_rate_limiter_;
     int max_batch_size_;
     bool enable_api_auth_;
-    std::vector<std::string> trusted_proxies_;
     httplib::Server server_;
     LookupHandler lookup_handler_;
     LookupHandler mac_lookup_handler_;
     std::unique_ptr<RateLimiter> rate_limiter_;
     std::unique_ptr<APIAuth> api_auth_;
     std::unique_ptr<Metrics> metrics_;
-    std::unique_ptr<PasswordGenerator> password_generator_;
+    PasswordHandler password_handler_;
     std::jthread cleanup_thread_;
     std::atomic<bool> cleanup_thread_running_;
 };

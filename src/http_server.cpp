@@ -13,109 +13,27 @@
 #include "auth.h"
 #include "logger.h"
 #include "metrics.h"
-#include "password_generator.h"
+#include "password_handler.h"
 #include "rate_limiter.h"
+#include "validation.h"
 
 namespace ip_server {
 
-namespace {
-
-bool is_valid_ipv4(const std::string& ip) {
-    int octets = 0, val = 0, digits = 0;
-    for (char c : ip) {
-        if (c == '.') {
-            if (++octets > 3 || digits == 0) return false;
-            val = 0; digits = 0;
-        } else if (c >= '0' && c <= '9') {
-            val = val * 10 + (c - '0');
-            if (val > 255) return false;
-            digits++;
-        } else {
-            return false;
-        }
-    }
-    return octets == 3 && digits > 0;
-}
-
-bool is_valid_ipv6(const std::string& ip) {
-    if (ip.empty()) return false;
-    if (ip == "::" || ip == "::1") return true;
-
-    int groups = 0, digits = 0;
-    bool has_double_colon = false;
-
-    for (size_t i = 0; i < ip.size(); ++i) {
-        char c = ip[i];
-        if (c == ':') {
-            if (i + 1 < ip.size() && ip[i + 1] == ':') {
-                if (has_double_colon) return false;
-                has_double_colon = true;
-                ++i;
-                groups++;
-                digits = 0;
-            } else {
-                if (digits == 0 && !has_double_colon && groups > 0) return false;
-                groups++;
-                digits = 0;
-            }
-        } else if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
-            if (++digits > 4) return false;
-        } else {
-            return false;
-        }
-    }
-
-    if (digits > 0) groups++;
-    return (has_double_colon && groups >= 2 && groups <= 8) ||
-           (!has_double_colon && groups == 8);
-}
-
-bool is_valid_ip_format(const std::string& ip) {
-    return is_valid_ipv4(ip) || is_valid_ipv6(ip);
-}
-
-bool is_valid_mac_format(const std::string& mac) {
-    if (mac.size() == 17) {
-        for (size_t i = 0; i < 17; ++i) {
-            if (i % 3 == 2) {
-                if (mac[i] != ':' && mac[i] != '-') return false;
-            } else {
-                if (!((mac[i] >= '0' && mac[i] <= '9') ||
-                      (mac[i] >= 'a' && mac[i] <= 'f') ||
-                      (mac[i] >= 'A' && mac[i] <= 'F'))) return false;
-            }
-        }
-        return true;
-    }
-    if (mac.size() == 12) {
-        for (char c : mac) {
-            if (!((c >= '0' && c <= '9') ||
-                  (c >= 'a' && c <= 'f') ||
-                  (c >= 'A' && c <= 'F'))) return false;
-        }
-        return true;
-    }
-    return false;
-}
-
-}  // namespace
 
 IPGeoHTTPServer::IPGeoHTTPServer(std::string  host, uint16_t port, int thread_pool_size,
                                  bool enable_rate_limiter, int max_requests_per_minute,
                                  int max_batch_size, bool enable_api_auth,
                                  const std::string& api_keys_file,
-                                 const std::string& default_api_key,
-                                 const std::vector<std::string>& trusted_proxies)
+                                 const std::string& default_api_key)
     : host_(std::move(host)),
       port_(port),
       thread_pool_size_(thread_pool_size),
       enable_rate_limiter_(enable_rate_limiter),
       max_batch_size_(max_batch_size),
       enable_api_auth_(enable_api_auth),
-      trusted_proxies_(trusted_proxies) {
+      password_handler_(nullptr) {
     metrics_ = std::make_unique<Metrics>();
-
-    password_generator_ = std::make_unique<PasswordGenerator>();
+    password_handler_ = PasswordHandler(metrics_.get());
 
     if (enable_rate_limiter_) {
         rate_limiter_ = std::make_unique<RateLimiter>(
@@ -127,12 +45,6 @@ IPGeoHTTPServer::IPGeoHTTPServer(std::string  host, uint16_t port, int thread_po
 
     if (enable_api_auth_) {
         api_auth_ = std::make_unique<APIAuth>(true);
-
-        if (!trusted_proxies_.empty()) {
-            api_auth_->set_trusted_proxies(trusted_proxies_);
-            LOG_INFO("Trusted proxies configured: " + std::to_string(trusted_proxies_.size())
-                     + " addresses");
-        }
 
         if (!api_keys_file.empty()) {
             if (api_auth_->load_keys_from_file(api_keys_file)) {
@@ -249,15 +161,9 @@ void IPGeoHTTPServer::setup_cors() {
     server_.Options(".*", [](const httplib::Request&, httplib::Response&) { return; });
 }
 
-bool IPGeoHTTPServer::is_trusted_proxy(const std::string& ip) const {
-    if (trusted_proxies_.empty()) {
-        return true;
-    }
-    return std::ranges::find(trusted_proxies_, ip) != trusted_proxies_.end();
-}
-
 std::string IPGeoHTTPServer::get_real_client_ip(const httplib::Request& req) const {
-    if (is_trusted_proxy(req.remote_addr)) {
+    bool is_trusted = !api_auth_ || api_auth_->is_trusted_proxy(req.remote_addr);
+    if (is_trusted) {
         auto xff = req.get_header_value("X-Forwarded-For");
         if (!xff.empty()) {
             size_t const comma_pos = xff.find(',');
@@ -287,8 +193,8 @@ void IPGeoHTTPServer::setup_routes() {
     server_.Get("/health", [this](const httplib::Request& req, httplib::Response& res) { handle_health(req, res); });
     server_.Get("/lookup", [this](const httplib::Request& req, httplib::Response& res) { handle_lookup_get(req, res); });
     server_.Post("/lookup", [this](const httplib::Request& req, httplib::Response& res) { handle_lookup_post(req, res); });
-    server_.Get("/password/generate", [this](const httplib::Request& req, httplib::Response& res) { handle_password_get(req, res); });
-    server_.Post("/password/generate", [this](const httplib::Request& req, httplib::Response& res) { handle_password_post(req, res); });
+    server_.Get("/password/generate", [this](const httplib::Request& req, httplib::Response& res) { password_handler_.handle_get(req, res); });
+    server_.Post("/password/generate", [this](const httplib::Request& req, httplib::Response& res) { password_handler_.handle_post(req, res); });
     LOG_INFO("HTTP routes configured");
 }
 
@@ -518,135 +424,6 @@ void IPGeoHTTPServer::handle_lookup_post(const httplib::Request& req, httplib::R
     }
 }
 
-void IPGeoHTTPServer::handle_password_get(const httplib::Request& req, httplib::Response& res) {
-    auto client_ip = prepare_request(req, res);
-    if (!client_ip) return;
-
-    try {
-        PasswordConfig config;
-
-        auto length_param = req.get_param_value("length");
-        if (!length_param.empty()) config.length = std::stoi(length_param);
-
-        auto uppercase_param = req.get_param_value("uppercase");
-        if (!uppercase_param.empty()) config.uppercase = (uppercase_param == "true" || uppercase_param == "1");
-
-        auto lowercase_param = req.get_param_value("lowercase");
-        if (!lowercase_param.empty()) config.lowercase = (lowercase_param == "true" || lowercase_param == "1");
-
-        auto digits_param = req.get_param_value("digits");
-        if (!digits_param.empty()) config.digits = (digits_param == "true" || digits_param == "1");
-
-        auto symbols_param = req.get_param_value("symbols");
-        if (!symbols_param.empty()) config.symbols = (symbols_param == "true" || symbols_param == "1");
-
-        auto exclude_similar_param = req.get_param_value("exclude_similar");
-        if (!exclude_similar_param.empty()) config.exclude_similar = (exclude_similar_param == "true" || exclude_similar_param == "1");
-
-        std::string error_message;
-        if (!PasswordGenerator::validate_config(config, error_message)) {
-            send_error_response(res, 400, "Bad Request", error_message);
-            return;
-        }
-
-        auto start_time = std::chrono::high_resolution_clock::now();
-        auto result = ip_server::PasswordGenerator::generate(config);
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto latency_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
-
-        metrics_->record_request(false, latency_ms);
-
-        nlohmann::json response;
-        response["password"] = result.password;
-        response["length"] = result.length;
-        response["entropy"] = result.entropy;
-        response["strength"] = result.strength;
-
-        send_json_response(res, response, 200);
-
-    } catch (const std::invalid_argument& e) {
-        send_error_response(res, 400, "Bad Request", "Invalid parameter value: " + std::string(e.what()));
-    } catch (const std::exception& e) {
-        send_error_response(res, 500, "Internal Server Error", e.what());
-        metrics_->record_error();
-        LOG_ERROR("Error generating password: " + std::string(e.what()));
-    }
-}
-
-void IPGeoHTTPServer::handle_password_post(const httplib::Request& req, httplib::Response& res) {
-    auto client_ip = prepare_request(req, res);
-    if (!client_ip) return;
-
-    try {
-        auto body = nlohmann::json::parse(req.body);
-
-        PasswordConfig config;
-
-        if (body.contains("length") && body["length"].is_number_integer())
-            config.length = body["length"].get<int>();
-        if (body.contains("uppercase") && body["uppercase"].is_boolean())
-            config.uppercase = body["uppercase"].get<bool>();
-        if (body.contains("lowercase") && body["lowercase"].is_boolean())
-            config.lowercase = body["lowercase"].get<bool>();
-        if (body.contains("digits") && body["digits"].is_boolean())
-            config.digits = body["digits"].get<bool>();
-        if (body.contains("symbols") && body["symbols"].is_boolean())
-            config.symbols = body["symbols"].get<bool>();
-        if (body.contains("exclude_similar") && body["exclude_similar"].is_boolean())
-            config.exclude_similar = body["exclude_similar"].get<bool>();
-
-        int count = 1;
-        if (body.contains("count") && body["count"].is_number_integer())
-            count = body["count"].get<int>();
-
-        if (count < 1) {
-            send_error_response(res, 400, "Bad Request", "Count must be at least 1");
-            return;
-        }
-
-        if (count > constants::MAX_PASSWORD_BATCH) {
-            send_error_response(res, 400, "Bad Request",
-                                "Count cannot exceed " + std::to_string(constants::MAX_PASSWORD_BATCH));
-            return;
-        }
-
-        std::string error_message;
-        if (!PasswordGenerator::validate_config(config, error_message)) {
-            send_error_response(res, 400, "Bad Request", error_message);
-            return;
-        }
-
-        auto start_time = std::chrono::high_resolution_clock::now();
-        auto results = ip_server::PasswordGenerator::generate_batch(config, count);
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto latency_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
-
-        metrics_->record_request(false, latency_ms);
-
-        nlohmann::json response;
-        response["count"] = static_cast<int>(results.size());
-        response["passwords"] = nlohmann::json::array();
-
-        for (const auto& result : results) {
-            nlohmann::json password_json;
-            password_json["password"] = result.password;
-            password_json["length"] = result.length;
-            password_json["entropy"] = result.entropy;
-            password_json["strength"] = result.strength;
-            response["passwords"].push_back(password_json);
-        }
-
-        send_json_response(res, response, 200);
-
-    } catch (const nlohmann::json::exception& e) {
-        send_error_response(res, 400, "Bad Request", "Invalid JSON: " + std::string(e.what()));
-    } catch (const std::exception& e) {
-        send_error_response(res, 500, "Internal Server Error", e.what());
-        metrics_->record_error();
-        LOG_ERROR("Error generating batch passwords: " + std::string(e.what()));
-    }
-}
-
 bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
     if (!lookup_handler_) {
         LOG_ERROR("Cannot start server: lookup handler not set");
@@ -659,9 +436,26 @@ bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
 
     setup_cors();
     setup_routes();
-
     server_.new_task_queue = [this] { return new httplib::ThreadPool(thread_pool_size_); };
+    log_startup_banner();
 
+    if (enable_rate_limiter_ && rate_limiter_) {
+        cleanup_thread_running_.store(true);
+        cleanup_thread_ = std::jthread(
+            [this, &shutdown_requested]() { cleanup_thread_func(shutdown_requested); });
+    }
+
+    bool const result = start_server_and_wait(shutdown_requested);
+
+    if (cleanup_thread_.joinable()) {
+        cleanup_thread_running_.store(false);
+        cleanup_thread_.request_stop();
+    }
+
+    return result;
+}
+
+void IPGeoHTTPServer::log_startup_banner() const {
     LOG_INFO("Starting HTTP server on " + host_ + ":" + std::to_string(port_));
     LOG_INFO("========================================");
     LOG_INFO("  IP Geolocation & AS Lookup Service");
@@ -680,13 +474,9 @@ bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
     LOG_INFO("");
     LOG_INFO("Press Ctrl+C to stop the server");
     LOG_INFO("========================================");
+}
 
-    if (enable_rate_limiter_ && rate_limiter_) {
-        cleanup_thread_running_.store(true);
-        cleanup_thread_ = std::jthread(
-            [this, &shutdown_requested]() { cleanup_thread_func(shutdown_requested); });
-    }
-
+bool IPGeoHTTPServer::start_server_and_wait(std::atomic<bool>& shutdown_requested) {
     std::atomic<bool> server_running(true);
     std::mutex server_mutex;
     std::condition_variable server_cv;
@@ -719,11 +509,6 @@ bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
     server_.stop();
     if (server_thread.joinable()) {
         server_thread.join();
-    }
-
-    if (cleanup_thread_.joinable()) {
-        cleanup_thread_running_.store(false);
-        cleanup_thread_.request_stop();
     }
 
     return true;
