@@ -22,6 +22,8 @@ class HTTPServerTest : public ::testing::Test {
             project_root = current_path.parent_path().parent_path();
         else if (current_path.filename() == "build")
             project_root = current_path.parent_path();
+        else if (current_path.filename() == "bin" && current_path.parent_path().filename() == "build")
+            project_root = current_path.parent_path().parent_path();
         else
             project_root = current_path;
 
