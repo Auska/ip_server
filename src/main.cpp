@@ -1,6 +1,7 @@
 #include <array>
 #include <atomic>
 #include <csignal>
+#include <cstring>
 #include <string_view>
 
 #include "config.h"
@@ -12,6 +13,22 @@
 #include "xdg.h"
 
 namespace ip_server {
+
+namespace {
+
+std::atomic<bool> g_shutdown_requested{false};
+std::atomic<const Logger*> g_signal_logger{nullptr};
+
+extern "C" void handle_signal(int sig) {
+    if (!g_shutdown_requested.exchange(true)) {
+        const char* name = (sig == SIGINT) ? "SIGINT" : "SIGTERM";
+        if (auto* logger = g_signal_logger.load(std::memory_order_acquire)) {
+            logger->signal_safe_log(name);
+        }
+    }
+}
+
+}  // namespace
 
 class Application {
    public:
@@ -33,19 +50,16 @@ class Application {
     bool run() {
         LOG_INFO("Application starting...");
 
-        shutdown_requested_.store(false);
+        g_shutdown_requested.store(false);
+        g_signal_logger.store(&Logger::instance(), std::memory_order_release);
 
-        std::signal(SIGINT, [](int) {
-            if (!shutdown_requested_.exchange(true)) {
-                LOG_INFO("Received SIGINT, shutting down gracefully...");
-            }
-        });
-
-        std::signal(SIGTERM, [](int) {
-            if (!shutdown_requested_.exchange(true)) {
-                LOG_INFO("Received SIGTERM, shutting down gracefully...");
-            }
-        });
+        struct sigaction sa{};
+        std::memset(&sa, 0, sizeof(sa));
+        sa.sa_handler = &handle_signal;
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags = SA_RESTART;
+        sigaction(SIGINT, &sa, nullptr);
+        sigaction(SIGTERM, &sa, nullptr);
 
         if (auto *metrics = http_server_.get_metrics()) {
             metrics->set_city_db_status(geo_service_.is_city_db_open());
@@ -53,9 +67,11 @@ class Application {
             metrics->set_oui_db_status(mac_service_.is_oui_db_open());
         }
 
-        bool const result = http_server_.start(shutdown_requested_);
+        // Use the global shutdown flag so the signal handler (C function pointer)
+        // can communicate with the server's wait loop.
+        bool const result = http_server_.start(g_shutdown_requested);
 
-        if (shutdown_requested_.load()) {
+        if (g_shutdown_requested.load()) {
             LOG_INFO("Performing graceful shutdown...");
             http_server_.stop();
             LOG_INFO("Application shutdown complete");
@@ -69,10 +85,7 @@ class Application {
     IPGeoService geo_service_;
     MACLookupService mac_service_;
     IPGeoHTTPServer http_server_;
-    static std::atomic<bool> shutdown_requested_;
 };
-
-std::atomic<bool> Application::shutdown_requested_(false);
 
 }  // namespace ip_server
 

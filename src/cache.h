@@ -89,6 +89,7 @@ struct CacheStats {
     uint64_t memory_usage_bytes{0};
     uint64_t negative_hits{0};
     uint64_t negative_misses{0};
+    uint64_t entry_count{0};
     double avg_entry_size{0.0};
 
     double hit_rate() const {
@@ -107,10 +108,20 @@ struct CacheStats {
         memory_usage_bytes = 0;
         negative_hits = 0;
         negative_misses = 0;
+        entry_count = 0;
         avg_entry_size = 0.0;
     }
 
     CacheStats& operator+=(const CacheStats& o) {
+        if (o.entry_count == 0) return *this;
+        if (entry_count == 0) {
+            *this = o;
+            return *this;
+        }
+        uint64_t const total = entry_count + o.entry_count;
+        avg_entry_size = (avg_entry_size * static_cast<double>(entry_count)
+                          + o.avg_entry_size * static_cast<double>(o.entry_count))
+                         / static_cast<double>(total);
         total_lookups += o.total_lookups;
         hits += o.hits;
         misses += o.misses;
@@ -120,7 +131,7 @@ struct CacheStats {
         memory_usage_bytes += o.memory_usage_bytes;
         negative_hits += o.negative_hits;
         negative_misses += o.negative_misses;
-        avg_entry_size = (avg_entry_size + o.avg_entry_size) / 2.0;
+        entry_count = total;
         return *this;
     }
 };
@@ -172,6 +183,7 @@ class CacheShard {
         size_t entry_size = estimate_entry_size(key, result);
         stats_.avg_entry_size =
             (stats_.avg_entry_size * (cache_map_.size()) + entry_size) / (cache_map_.size() + 1);
+        stats_.entry_count = cache_map_.size() + 1;
 
         auto it = cache_map_.find(key);
         if (it != cache_map_.end()) {
@@ -335,9 +347,12 @@ class IPCache {
         for (auto& shard : shards_) {
             shard->clear();
         }
-        key_access_counts_.clear();
-        key_access_lru_.clear();
-        key_access_lru_it_.clear();
+        {
+            std::lock_guard<std::mutex> lock(heatmap_mutex_);
+            key_access_counts_.clear();
+            key_access_lru_.clear();
+            key_access_lru_it_.clear();
+        }
     }
 
     CacheStats get_stats() const {
@@ -368,6 +383,7 @@ class IPCache {
     }
 
     CacheHeatMap get_heat_map(size_t top_n = 10) const {
+        std::lock_guard<std::mutex> lock(heatmap_mutex_);
         CacheHeatMap heat_map;
         heat_map.total_accesses = get_stats().total_lookups;
 
@@ -442,6 +458,7 @@ class IPCache {
 
     void track_key_access(const std::string& key) {
         if (!enable_heatmap_) return;
+        std::lock_guard<std::mutex> lock(heatmap_mutex_);
         auto it = key_access_counts_.find(key);
         if (it == key_access_counts_.end()) {
             if (key_access_counts_.size() >= MAX_TRACKED_KEYS) {
@@ -465,6 +482,7 @@ class IPCache {
     size_t max_memory_bytes_;
     bool enable_heatmap_;
     static constexpr size_t MAX_TRACKED_KEYS = 100000;
+    mutable std::mutex heatmap_mutex_;
     mutable std::list<std::string> key_access_lru_;
     mutable std::unordered_map<std::string, std::list<std::string>::iterator> key_access_lru_it_;
     mutable std::unordered_map<std::string, std::unique_ptr<std::atomic<uint64_t>>> key_access_counts_;

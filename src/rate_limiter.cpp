@@ -67,7 +67,7 @@ bool RateLimiter::is_allowed(const std::string& ip_address) {
     return false;
 }
 
-int RateLimiter::get_remaining(const std::string& ip_address) const {
+int RateLimiter::get_remaining(const std::string& ip_address) {
     std::scoped_lock const lock(mutex_);
 
     auto it = ip_records_.find(ip_address);
@@ -75,10 +75,9 @@ int RateLimiter::get_remaining(const std::string& ip_address) const {
         return max_requests_;
     }
 
-    auto& record = const_cast<IPRecord&>(it->second);
-    cleanup_old_timestamps(record);
+    cleanup_old_timestamps(it->second);
 
-    return std::max(0, max_requests_ - static_cast<int>(record.timestamps.size()));
+    return std::max(0, max_requests_ - static_cast<int>(it->second.timestamps.size()));
 }
 
 void RateLimiter::cleanup() {

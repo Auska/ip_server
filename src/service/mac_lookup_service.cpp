@@ -4,6 +4,7 @@
 #include <stdexcept>
 
 #include "../logger.h"
+#include "../types.h"
 
 namespace ip_server {
 
@@ -20,18 +21,14 @@ MACLookupService::MACLookupService(const std::string& oui_db_path, size_t cache_
 }
 
 LookupResult MACLookupService::lookup(const std::string& mac_address) const {
-    auto start = std::chrono::high_resolution_clock::now();
+    ScopedTimer timer;
     bool cache_hit = false;
 
     if (cache_enabled_) {
         auto cached = cache_.get(mac_address);
         if (cached.has_value()) {
             LOG_DEBUG("Cache hit for MAC: " + mac_address);
-            cache_hit = true;
-            auto end = std::chrono::high_resolution_clock::now();
-            double const latency_ms =
-                std::chrono::duration<double, std::milli>(end - start).count();
-            return LookupResult(cached.value(), true, latency_ms);
+            return LookupResult(cached.value(), true, timer.elapsed());
         }
     }
 
@@ -54,9 +51,7 @@ LookupResult MACLookupService::lookup(const std::string& mac_address) const {
         result["error"] = e.what();
     }
 
-    auto end = std::chrono::high_resolution_clock::now();
-    double const latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
-    return LookupResult(result, cache_hit, latency_ms);
+    return LookupResult(result, cache_hit, timer.elapsed());
 }
 
 }  // namespace ip_server

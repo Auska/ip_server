@@ -11,15 +11,10 @@ namespace ip_server {
 
 namespace {
 
-struct SQLiteStmtDeleter {
-    void operator()(sqlite3_stmt* stmt) const {
-        if (stmt != nullptr) {
-            sqlite3_finalize(stmt);
-        }
-    }
-};
-
-using SQLiteStmtPtr = std::unique_ptr<sqlite3_stmt, SQLiteStmtDeleter>;
+constexpr const char* OUI_LOOKUP_SQL =
+    "SELECT oui, manufacturer, registry, short_name, "
+    "device_type, registered_date, address, sources "
+    "FROM oui_registry WHERE oui = ?";
 
 }  // namespace
 
@@ -28,7 +23,9 @@ OUIDatabase::~OUIDatabase() {
 }
 
 OUIDatabase::OUIDatabase(OUIDatabase&& other) noexcept
-    : db_(other.db_), is_open_(other.is_open_.load(std::memory_order_acquire)) {
+    : db_(other.db_),
+      lookup_stmt_(std::move(other.lookup_stmt_)),
+      is_open_(other.is_open_.load(std::memory_order_acquire)) {
     other.is_open_.store(false, std::memory_order_release);
     other.db_ = nullptr;
 }
@@ -37,6 +34,7 @@ OUIDatabase& OUIDatabase::operator=(OUIDatabase&& other) noexcept {
     if (this != &other) {
         close();
         db_ = other.db_;
+        lookup_stmt_ = std::move(other.lookup_stmt_);
         is_open_.store(other.is_open_.load(std::memory_order_acquire), std::memory_order_release);
         other.is_open_.store(false, std::memory_order_release);
         other.db_ = nullptr;
@@ -70,6 +68,16 @@ bool OUIDatabase::open(const std::string& db_path) {
         sqlite3_free(error_msg);
     }
 
+    sqlite3_stmt* raw_stmt = nullptr;
+    status = sqlite3_prepare_v2(db_, OUI_LOOKUP_SQL, -1, &raw_stmt, nullptr);
+    if (status != SQLITE_OK) {
+        LOG_ERROR("Failed to prepare OUI lookup statement: " + std::string(sqlite3_errmsg(db_)));
+        sqlite3_close(db_);
+        db_ = nullptr;
+        return false;
+    }
+    lookup_stmt_.reset(raw_stmt);
+
     is_open_.store(true, std::memory_order_release);
     LOG_INFO("Opened OUI database: " + db_path);
     return true;
@@ -79,6 +87,7 @@ void OUIDatabase::close() {
     std::scoped_lock const lock(open_close_mutex_);
 
     if (is_open_.load(std::memory_order_acquire) && (db_ != nullptr)) {
+        lookup_stmt_.reset();
         sqlite3_close(db_);
         db_ = nullptr;
         is_open_.store(false, std::memory_order_release);
@@ -124,30 +133,23 @@ nlohmann::json OUIDatabase::lookup(const std::string& mac_address) const {
 
     std::string const oui = extract_oui(normalized);
 
-    std::scoped_lock const lock(query_mutex_);
-
-    const char* sql =
-        "SELECT oui, manufacturer, registry, short_name, "
-        "device_type, registered_date, address, sources "
-        "FROM oui_registry WHERE oui = ?";
-
-    sqlite3_stmt* raw_stmt = nullptr;
-    int status = sqlite3_prepare_v2(db_, sql, -1, &raw_stmt, nullptr);
-
-    if (status != SQLITE_OK) {
-        result["error"] = std::string("Failed to prepare statement: ") + sqlite3_errmsg(db_);
+    if (!lookup_stmt_) {
+        result["error"] = "Lookup statement not prepared";
         return result;
     }
 
-    SQLiteStmtPtr const stmt(raw_stmt);
+    std::scoped_lock const lock(query_mutex_);
 
-    status = sqlite3_bind_text(stmt.get(), 1, oui.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_reset(lookup_stmt_.get());
+    sqlite3_clear_bindings(lookup_stmt_.get());
+
+    int status = sqlite3_bind_text(lookup_stmt_.get(), 1, oui.c_str(), -1, SQLITE_TRANSIENT);
     if (status != SQLITE_OK) {
         result["error"] = std::string("Failed to bind parameter: ") + sqlite3_errmsg(db_);
         return result;
     }
 
-    status = sqlite3_step(stmt.get());
+    status = sqlite3_step(lookup_stmt_.get());
 
     if (status == SQLITE_ROW) {
         result["mac"] = mac_address;
@@ -155,7 +157,7 @@ nlohmann::json OUIDatabase::lookup(const std::string& mac_address) const {
         result["found"] = true;
 
         auto extract_col = [&](int col_idx, const char* key) {
-            const char* col = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), col_idx));
+            const char* col = reinterpret_cast<const char*>(sqlite3_column_text(lookup_stmt_.get(), col_idx));
             if (col != nullptr) result[key] = col;
         };
 

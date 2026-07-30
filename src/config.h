@@ -8,6 +8,25 @@
 
 namespace ip_server {
 
+// Validation limits
+namespace config_limits {
+constexpr int    MIN_PORT                  = 1;
+constexpr int    MAX_PORT                  = 65535;
+constexpr int    MIN_THREAD_POOL           = 1;
+constexpr int    MAX_THREAD_POOL           = 64;
+constexpr size_t MAX_CACHE_SIZE            = 1000000;
+constexpr int    MIN_RATE_LIMIT            = 1;
+constexpr int    MAX_RATE_LIMIT            = 10000;
+constexpr int    MIN_BATCH_SIZE            = 1;
+constexpr int    MAX_BATCH_SIZE            = 1000;
+constexpr size_t MIN_LOG_FILE_SIZE         = 1 * 1024 * 1024;       // 1 MB
+constexpr size_t MAX_LOG_FILE_SIZE         = 1 * 1024 * 1024 * 1024; // 1 GB
+constexpr int    MIN_ROTATION_INTERVAL     = 1;
+constexpr int    MAX_ROTATION_INTERVAL     = 10080;                 // 1 week
+constexpr int    MIN_BACKUP_FILES          = 0;
+constexpr int    MAX_BACKUP_FILES          = 100;
+}  // namespace config_limits
+
 struct ServerConfig {
     std::string host = "0.0.0.0";
     uint16_t port    = 8080;

@@ -4,6 +4,7 @@
 #include <stdexcept>
 
 #include "../logger.h"
+#include "../types.h"
 
 namespace ip_server {
 
@@ -24,18 +25,14 @@ IPGeoService::IPGeoService(const std::string& city_db_path, const std::string& a
 }
 
 LookupResult IPGeoService::lookup(const std::string& ip_address) const {
-    auto start = std::chrono::high_resolution_clock::now();
+    ScopedTimer timer;
     bool cache_hit = false;
 
     if (cache_enabled_) {
         auto cached = cache_.get(ip_address);
         if (cached.has_value()) {
             LOG_DEBUG("Cache hit for IP: " + ip_address);
-            cache_hit = true;
-            auto end = std::chrono::high_resolution_clock::now();
-            double const latency_ms =
-                std::chrono::duration<double, std::milli>(end - start).count();
-            return LookupResult(cached.value(), true, latency_ms);
+            return LookupResult(cached.value(), true, timer.elapsed());
         }
     }
 
@@ -49,10 +46,7 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
 
         if (city_result.contains("error")) {
             result["error"] = city_result["error"];
-            auto end = std::chrono::high_resolution_clock::now();
-            double const latency_ms =
-                std::chrono::duration<double, std::milli>(end - start).count();
-            return LookupResult(result, false, latency_ms);
+            return LookupResult(result, false, timer.elapsed());
         }
 
         bool const city_found = city_result.value("found", false);
@@ -63,10 +57,7 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
                 cache_.put(ip_address, result, CacheDataType::NEGATIVE);
                 LOG_DEBUG("Cached negative result for IP: " + ip_address);
             }
-            auto end = std::chrono::high_resolution_clock::now();
-            double const latency_ms =
-                std::chrono::duration<double, std::milli>(end - start).count();
-            return LookupResult(result, false, latency_ms);
+            return LookupResult(result, false, timer.elapsed());
         }
 
         result["found"] = true;
@@ -84,9 +75,7 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
         result["error"] = e.what();
     }
 
-    auto end = std::chrono::high_resolution_clock::now();
-    double const latency_ms = std::chrono::duration<double, std::milli>(end - start).count();
-    return LookupResult(result, cache_hit, latency_ms);
+    return LookupResult(result, cache_hit, timer.elapsed());
 }
 
 void IPGeoService::merge_city_result(nlohmann::json& result, const nlohmann::json& city_result) {

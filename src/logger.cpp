@@ -3,6 +3,9 @@
 #include <spdlog/formatter.h>
 #include <spdlog/pattern_formatter.h>
 
+#include <cstring>
+#include <unistd.h>
+
 namespace ip_server {
 
 // Custom formatter to map level names to match original logger
@@ -140,6 +143,16 @@ void Logger::log(LogLevel level, const std::string& message) {
 
     auto spdlog_level = static_cast<spdlog::level::level_enum>(level);
     logger_->log(spdlog_level, message);
+}
+
+void Logger::signal_safe_log(const char* signal_name) const {
+    // Only async-signal-safe operations: write(2) to stderr.
+    static constexpr char prefix[] = "[SIGNAL] Received ";
+    static constexpr char suffix[] = ", shutting down gracefully...\n";
+    // write is async-signal-safe per POSIX.
+    ::write(STDERR_FILENO, prefix, sizeof(prefix) - 1);
+    ::write(STDERR_FILENO, signal_name, std::strlen(signal_name));
+    ::write(STDERR_FILENO, suffix, sizeof(suffix) - 1);
 }
 
 }  // namespace ip_server

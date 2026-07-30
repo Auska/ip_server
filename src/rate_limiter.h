@@ -21,7 +21,7 @@ class RateLimiter {
 
     bool is_allowed(const std::string& ip_address);
 
-    int get_remaining(const std::string& ip_address) const;
+    int get_remaining(const std::string& ip_address);
 
     void cleanup();
 

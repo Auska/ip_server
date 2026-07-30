@@ -10,6 +10,14 @@
 
 namespace ip_server {
 
+struct SQLiteStmtDeleter {
+    void operator()(sqlite3_stmt* stmt) const noexcept {
+        if (stmt) sqlite3_finalize(stmt);
+    }
+};
+
+using SQLiteStmtPtr = std::unique_ptr<sqlite3_stmt, SQLiteStmtDeleter>;
+
 class OUIDatabase {
    public:
     OUIDatabase() = default;
@@ -31,6 +39,7 @@ class OUIDatabase {
     static std::string extract_oui(const std::string& normalized_mac);
 
     sqlite3* db_ = nullptr;
+    mutable SQLiteStmtPtr lookup_stmt_;
     std::atomic<bool> is_open_{false};
     mutable std::mutex open_close_mutex_;
     mutable std::mutex query_mutex_;

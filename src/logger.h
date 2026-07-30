@@ -44,6 +44,10 @@ class Logger {
 
     void flush();
 
+    /// Signal-safe logging — uses only async-signal-safe operations (write to stderr).
+    /// Only call this from signal handlers. Do not call from normal code paths.
+    void signal_safe_log(const char* signal_name) const;
+
    private:
     Logger();
     ~Logger();
