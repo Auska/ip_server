@@ -43,9 +43,11 @@ ip_local/
 │   ├── metrics.h/cpp          # 性能指标
 │   ├── logger.h/cpp           # 日志系统 + signal-safe 日志
 │   └── xdg.h/cpp              # XDG 目录标准
-├── tests/                      # 测试代码（10 个测试套件，274 个测试）
+├── tests/                      # 测试代码（9 个测试文件 + 2 个基准测试，274 个测试）
+│   ├── test_main.cpp          # gtest 入口
 │   ├── test_utils.h           # 测试共享工具（find_project_root）
-│   └── ...                    # 9 个测试套件 + 2 个基准测试文件
+│   └── ...                    # test_auth/config/database/http_server/logger/
+│                              # mac_database/password_generator/rate_limiter + 2 个基准测试
 ├── docs/                       # 文档
 ├── xmake.lua                   # xmake 构建配置
 └── build/                      # 构建输出
@@ -82,6 +84,12 @@ xmake run ip_server_tests --gtest_filter=RateLimiterTest.*
 
 # 运行单个测试用例
 xmake run ip_server_tests --gtest_filter=RateLimiterTest.AllowedRequests
+
+# 检查构建配置与 API 使用（0 警告 0 错误为合格）
+xmake check
+
+# 代码格式化（clang-format，基于 .clang-format 配置）
+xmake format
 ```
 
 ## 运行服务
@@ -113,7 +121,7 @@ xmake run ip_server --enable-api-auth true --api-keys-file /etc/ip_server/keys.t
 - **命名空间**: `ip_server`（测试工具用 `ip_server::test`）
 - **类**: PascalCase（如 `IPGeoService`）
 - **函数**: camelCase（如 `lookup`）
-- **成员变量**: 尾部下划线（如 `city_db_`）
+- **成员变量**: 尾部下划线（如 `city_db_`；纯数据 struct 成员同样适用，如 `LookupResult::data_`、`CacheStats::hits_`）
 - **常量**: UPPER_CASE 或 namespace constants
 - **资源管理**: 贯穿 RAII 模式（数据库句柄、配置锁、SQLite、计时器等）
 - **所有权**: 不可拷贝类型强制移动语义（`LookupResult`、数据库类、密码生成器）
@@ -199,8 +207,8 @@ main()
 
 ## 测试组织
 
-- **框架**: Google Test，10 个测试套件（test_config / test_database / test_mac_database / test_http_server / test_rate_limiter / test_auth / test_logger / test_password_generator / cache_edge / benchmark_performance）
-- **测试总数**: 274 个
+- **框架**: Google Test，10 个测试套件（APIAuthTest / ConfigTest / RateLimiterTest / HTTPServerTest / DatabaseTest / CacheEdgeTest / PasswordGeneratorTest / MACDatabaseTest / MACLookupServiceTest / LoggerTest）
+- **测试总数**: 274 个，全部通过（`CacheEdgeTest` 定义于 `test_database.cpp`）
 - **测试数据**: 测试链接了全部项目源码，可直接实例化内部类，无需 mock
 - **数据库文件**: MaxMind (.mmdb) 和 OUI (.db) 置于项目 `db/` 目录，测试自动路径解析
 - **共享工具**: `tests/test_utils.h` 提供 `find_project_root()` 等测试通用函数

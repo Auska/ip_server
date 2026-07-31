@@ -1,9 +1,16 @@
 # Technical Debt Analysis — IP Geolocation & AS Lookup Service
 
 **Audit Date**: 2026-07-30  
+**Review Date**: 2026-07-31  
 **Version**: 2.0.0  
-**Total Source**: 9,020 LOC (4,130 src/ + 4,890 tests/)  
-**Test Coverage Ratio**: 118% test lines vs source lines
+**Total Source**: 9,831 LOC (4,211 src/ + 5,620 tests/)  
+**Test Coverage Ratio**: 133% test lines vs source lines
+
+> **2026-07-31 复核说明**：以下项目已在本轮复核中确认解决，标记为 ✅：
+> - §1.1 `IPGeoHTTPServer` 上帝类（密码处理/输入验证已拆分，767 → 551 行）
+> - §3.1 已知失败测试（274 个测试全部通过）
+> - §3.2 跳过的数据库依赖测试（db/ 文件就位，0 个跳过）
+> - §5.1 IPv6 手动解析（改用 `getaddrinfo()` 系统级验证）
 
 ---
 
@@ -11,12 +18,12 @@
 
 | Category | Score | Trend | Severity |
 |----------|-------|-------|----------|
-| Architecture Debt | 6/10 | Worsening | High |
+| Architecture Debt | 6/10 | Improving | High |
 | Infrastructure Debt | 9/10 | Stable | Critical |
-| Testing Debt | 4/10 | Stable | Medium |
+| Testing Debt | 4/10 | Improving | Medium |
 | Security Debt | 3/10 | Stable | Low |
 | Performance Debt | 3/10 | Stable | Low |
-| Documentation Debt | 5/10 | Worsening | Medium |
+| Documentation Debt | 5/10 | Improving | Medium |
 | Code Structure Debt | 4/10 | Improving | Low |
 
 **Overall Debt Score**: **5/10** (Moderate)
@@ -25,28 +32,28 @@
 
 ## 1. Architecture Debt (Severity: High)
 
-### 1.1 God Class: `IPGeoHTTPServer`
+### 1.1 God Class: `IPGeoHTTPServer` ✅ 部分解决
 
 | Metric | Value | Threshold | Verdict |
 |--------|-------|-----------|---------|
-| Total lines | 767 | >300 | **Critical** |
+| Total lines | 551 | >300 | **High**（原 767） |
 | Public methods | 10 | — | OK |
 | Private methods | 16 | — | OK |
 | Member variables | 17 | — | OK |
 
-**Responsibility breakdown** (6 distinct concerns in one class):
+**Responsibility breakdown**（6 个关注点，已减少 2 个）:
 
 | Responsibility | Lines | Should be |
 |---------------|-------|-----------|
-| HTTP routing & request handling | 338-648 | Core class |
-| CORS headers | 241-250 | Middleware/filter |
-| Authentication (Bearer token) | 169-199 | Delegate to APIAuth |
-| Rate limiting | 216-238, 741-764 | Delegate to RateLimiter |
-| Input validation (IP/MAC format) | 23-99 | Separate utility/composable |
-| Thread lifecycle management | 650-730 | Orchestrator role |
-| Password generation HTTP binding | 521-648 | Separate handler |
+| HTTP routing & request handling | 190-425 | Core class |
+| CORS headers | 154-160 | Middleware/filter |
+| Authentication (Bearer token) | 80-111 | Delegate to APIAuth |
+| Request middleware (auth+IP+限流) | 128-152 | Delegate to APIAuth/RateLimiter |
+| Thread lifecycle management | 426-551 | Orchestrator role |
 
-**Impact**: Any change to routing, auth, rate limiting, or thread management requires modifying this single file, causing merge conflicts and high risk of regressions. Estimated cost: **8-12 hours/month** in coordination overhead.
+> **2026-07-31 更新**：密码生成 HTTP 绑定已拆分至独立类 `PasswordHandler`（`src/password_handler.h/cpp`），输入验证已提取至 `src/validation.h/cpp`（IP/MAC 格式 + `getaddrinfo` IPv6），两个关注点已消除。剩余路由/认证/限流/线程管理仍集中在一处，建议继续拆分。
+
+**Impact**: Any change to routing, auth, rate limiting, or thread management requires modifying this single file, causing merge conflicts and high risk of regressions. Estimated cost: **5-8 hours/month** in coordination overhead（较原 8-12 小时下降）。
 
 ### 1.2 Singleton Pattern (Logger, XDGPaths)
 
@@ -111,27 +118,27 @@ All 9 dependencies use `add_requires("...")` without version pins:
 
 ## 3. Testing Debt (Severity: Medium)
 
-### 3.1 Pre-existing Failing Test
+### 3.1 Pre-existing Failing Test ✅ 已解决
 
 ```
 [  FAILED  ] PasswordGeneratorTest.GenerateWithExcludeSimilarFalse
 ```
 
-**Root cause**: The test likely expects no similar-looking characters when `exclude_similar=true`, but the character set exclusion logic may be inconsistent. Affects 1/216 tests (0.46%).
+> **2026-07-31 更新**：原失败测试 `GenerateWithExcludeSimilarFalse` 已通过。当前 **274 个测试全部 PASSED**，0 个失败。测试总数由 216 增至 274（边界值/异常场景测试扩充，见 commit `da54d3e`）。
 
-### 3.2 Skipped Tests (Database-Dependent)
+### 3.2 Skipped Tests (Database-Dependent) ✅ 已解决
 
 | Test Suite | Tests Skipped | Condition |
 |-----------|--------------|-----------|
-| `DatabaseTest` | 44 | MaxMind .mmdb files missing |
-| `MACDatabaseTest` | 18 | OUI .db file missing |
-| `MACLookupServiceTest` | 9 | OUI .db file missing |
-| `HTTPServerTest` | 25 | MaxMind .mmdb files missing |
-| **Total** | **96** | **44.4% of all tests** |
+| `DatabaseTest` | 0 | MaxMind .mmdb 已就位于项目 `db/` |
+| `MACDatabaseTest` | 0 | OUI .db 已就位于项目 `db/` |
+| `MACLookupServiceTest` | 0 | OUI .db 已就位于项目 `db/` |
+| `HTTPServerTest` | 0 | MaxMind .mmdb 已就位于项目 `db/` |
+| **Total** | **0** | **全部 274 个测试可运行** |
 
-**Impact**: Nearly half the test suite is non-functional without downloading ~100MB of database files. New developers cannot run the full test suite on first checkout.
-
-**Recommendation**: Provide a test-only mock/fake database implementation that returns canned results without real MMDB files.
+> **2026-07-31 更新**：数据库文件已纳入项目 `db/` 目录，测试通过 `tests/test_utils.h::find_project_root()` 自动解析路径，不再需要手工下载。**0 个测试被跳过**。
+>
+> **遗留建议**：若需要无数据库环境跑测试，仍可考虑提供 mock/fake 数据库实现，但当前优先级已降低。
 
 ### 3.3 Missing Test Coverage
 
@@ -171,14 +178,9 @@ No abstract interface for databases makes it impossible to swap implementations 
 
 ## 5. Security Debt (Severity: Low)
 
-### 5.1 Manual IPv6 Parsing
+### 5.1 Manual IPv6 Parsing ✅ 已解决
 
-`is_valid_ipv6()` in `http_server.cpp` (lines 40-71) is a hand-written parser that:
-- Does not handle IPv4-mapped IPv6 (`::ffff:192.168.0.1`)
-- Does not validate compressed zones (`fe80::1%eth0`)
-- Uses `isxdigit()` which is locale-dependent
-
-**Recommendation**: Use `getaddrinfo()` with `AF_INET6` to delegate validation to the OS.
+> **2026-07-31 更新**：IPv6 验证已迁移至 `src/validation.cpp`（`isValidIpv6()`），使用 `getaddrinfo()` 进行系统级解析，正确处理 IPv4-mapped IPv6（`::ffff:x.x.x.x`）与压缩格式。原 http_server.cpp 中的手写解析器已移除。
 
 ### 5.2 Incomplete Confusable Character Sets
 
@@ -224,10 +226,12 @@ In `handle_lookup_post()` (line 496), each item >10 in a batch spawns a new OS t
 | # | Item | Effort | Savings | ROI |
 |---|------|--------|---------|-----|
 | 1 | Pin dependency versions in xmake.lua | 0.5h | Prevents build breaks | Immediate |
-| 2 | Use `getaddrinfo()` for IPv6 validation | 1h | Security correctness | Immediate |
+| 2 | Use `getaddrinfo()` for IPv6 validation ✅ 已完成 | 1h | Security correctness | Immediate |
 | 3 | Fix confusable character sets | 0.5h | Password quality | Immediate |
 | 4 | Add mock/fake database for tests | 8h | 96 tests become runnable | **200%** |
 | 5 | Set up GitHub Actions CI | 2h | Auto-build + test | **300%** |
+
+> **2026-07-31 更新**：#2 已完成（`getaddrinfo()` 系统级 IPv6 验证）；#4 的 96 个跳过测试已随 db/ 文件就位而全部可运行，mock 需求降级。
 
 **Total Phase 1**: 12 hours → unlocks 96 tests, provides CI, fixes 2 bugs
 
@@ -235,7 +239,7 @@ In `handle_lookup_post()` (line 496), each item >10 in a batch spawns a new OS t
 
 | # | Item | Effort | Savings | ROI |
 |---|------|--------|---------|-----|
-| 6 | Split `IPGeoHTTPServer` into focused components | 20h | 8-12h/month coordination | **50% monthly** |
+| 6 | Split `IPGeoHTTPServer` into focused components ✅ 部分完成 | 20h | 8-12h/month coordination | **50% monthly** |
 | 7 | Abstract database interfaces for testability | 8h | Enables mock-based testing | 3-month payback |
 | 8 | Replace `std::async` with thread pool | 4h | Batch perf +2-4x | 1-month payback |
 | 9 | Add Dockerfile + docker-compose | 8h | Zero-config deployment | Immediate |
