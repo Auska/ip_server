@@ -1,6 +1,7 @@
 #include "password_handler.h"
 
 #include <chrono>
+#include <optional>
 #include <stdexcept>
 
 #include "logger.h"
@@ -8,6 +9,16 @@
 #include "types.h"
 
 namespace ip_server {
+
+namespace {
+
+bool parse_bool_param(const httplib::Request& req, const char* key, bool default_val) {
+    auto val = req.get_param_value(key);
+    if (val.empty()) return default_val;
+    return val == "true" || val == "1";
+}
+
+}  // namespace
 
 PasswordHandler::PasswordHandler(Metrics* metrics) : metrics_(metrics) {}
 
@@ -18,20 +29,11 @@ void PasswordHandler::handle_get(const httplib::Request& req, httplib::Response&
         auto length_param = req.get_param_value("length");
         if (!length_param.empty()) config.length = std::stoi(length_param);
 
-        auto uppercase_param = req.get_param_value("uppercase");
-        if (!uppercase_param.empty()) config.uppercase = (uppercase_param == "true" || uppercase_param == "1");
-
-        auto lowercase_param = req.get_param_value("lowercase");
-        if (!lowercase_param.empty()) config.lowercase = (lowercase_param == "true" || lowercase_param == "1");
-
-        auto digits_param = req.get_param_value("digits");
-        if (!digits_param.empty()) config.digits = (digits_param == "true" || digits_param == "1");
-
-        auto symbols_param = req.get_param_value("symbols");
-        if (!symbols_param.empty()) config.symbols = (symbols_param == "true" || symbols_param == "1");
-
-        auto exclude_similar_param = req.get_param_value("exclude_similar");
-        if (!exclude_similar_param.empty()) config.exclude_similar = (exclude_similar_param == "true" || exclude_similar_param == "1");
+        config.uppercase       = parse_bool_param(req, "uppercase", true);
+        config.lowercase       = parse_bool_param(req, "lowercase", true);
+        config.digits          = parse_bool_param(req, "digits", true);
+        config.symbols         = parse_bool_param(req, "symbols", true);
+        config.exclude_similar = parse_bool_param(req, "exclude_similar", true);
 
         std::string error_message;
         if (!PasswordGenerator::validate_config(config, error_message)) {
@@ -67,22 +69,24 @@ void PasswordHandler::handle_post(const httplib::Request& req, httplib::Response
 
         PasswordConfig config;
 
-        if (body.contains("length") && body["length"].is_number_integer())
-            config.length = body["length"].get<int>();
-        if (body.contains("uppercase") && body["uppercase"].is_boolean())
-            config.uppercase = body["uppercase"].get<bool>();
-        if (body.contains("lowercase") && body["lowercase"].is_boolean())
-            config.lowercase = body["lowercase"].get<bool>();
-        if (body.contains("digits") && body["digits"].is_boolean())
-            config.digits = body["digits"].get<bool>();
-        if (body.contains("symbols") && body["symbols"].is_boolean())
-            config.symbols = body["symbols"].get<bool>();
-        if (body.contains("exclude_similar") && body["exclude_similar"].is_boolean())
-            config.exclude_similar = body["exclude_similar"].get<bool>();
+        auto read_bool = [&](const char* key, bool& field) {
+            if (body.contains(key) && body[key].is_boolean())
+                field = body[key].get<bool>();
+        };
+        auto read_int = [&](const char* key, int& field) {
+            if (body.contains(key) && body[key].is_number_integer())
+                field = body[key].get<int>();
+        };
+
+        read_int("length", config.length);
+        read_bool("uppercase", config.uppercase);
+        read_bool("lowercase", config.lowercase);
+        read_bool("digits", config.digits);
+        read_bool("symbols", config.symbols);
+        read_bool("exclude_similar", config.exclude_similar);
 
         int count = 1;
-        if (body.contains("count") && body["count"].is_number_integer())
-            count = body["count"].get<int>();
+        read_int("count", count);
 
         if (count < 1) {
             send_error_response(res, 400, "Bad Request", "Count must be at least 1");

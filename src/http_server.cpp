@@ -329,60 +329,43 @@ void IPGeoHTTPServer::handle_lookup_post(const httplib::Request& req, httplib::R
         std::string query_type;
         LookupHandler handler;
 
+        auto process_batch = [&](LookupHandler h, const char* type, const char* json_key,
+                                 bool (*validator)(const std::string&)) -> bool {
+            query_type = type;
+            if (!h) {
+                send_error_response(res, 500, "Internal Server Error",
+                                    std::string(type) + " lookup handler not configured");
+                return false;
+            }
+            handler = h;
+
+            auto const& items = body[json_key];
+            size_t const batch_size = items.size();
+            if (std::cmp_greater(batch_size, max_batch_size_)) {
+                nlohmann::json error;
+                error["error"] = "Batch size exceeds maximum limit";
+                error["max_batch_size"] = max_batch_size_;
+                error["requested_size"] = batch_size;
+                send_json_response(res, error, 400);
+                return false;
+            }
+
+            query_list.reserve(batch_size);
+            for (const auto& item : items) {
+                if (item.is_string()) {
+                    std::string s = item.get<std::string>();
+                    if (validator(s)) {
+                        query_list.push_back(std::move(s));
+                    }
+                }
+            }
+            return true;
+        };
+
         if (has_ips) {
-            query_type = "IP";
-            if (!lookup_handler_) {
-                send_error_response(res, 500, "Internal Server Error", "IP lookup handler not configured");
-                return;
-            }
-            handler = lookup_handler_;
-
-            size_t const batch_size = body["ips"].size();
-            if (std::cmp_greater(batch_size, max_batch_size_)) {
-                nlohmann::json error;
-                error["error"] = "Batch size exceeds maximum limit";
-                error["max_batch_size"] = max_batch_size_;
-                error["requested_size"] = batch_size;
-                send_json_response(res, error, 400);
-                return;
-            }
-
-            query_list.reserve(batch_size);
-            for (const auto& ip : body["ips"]) {
-                if (ip.is_string()) {
-                    std::string ip_str = ip.get<std::string>();
-                    if (is_valid_ip_format(ip_str)) {
-                        query_list.push_back(std::move(ip_str));
-                    }
-                }
-            }
+            if (!process_batch(lookup_handler_, "IP", "ips", is_valid_ip_format)) return;
         } else {
-            query_type = "MAC";
-            if (!mac_lookup_handler_) {
-                send_error_response(res, 500, "Internal Server Error", "MAC lookup handler not configured");
-                return;
-            }
-            handler = mac_lookup_handler_;
-
-            size_t const batch_size = body["macs"].size();
-            if (std::cmp_greater(batch_size, max_batch_size_)) {
-                nlohmann::json error;
-                error["error"] = "Batch size exceeds maximum limit";
-                error["max_batch_size"] = max_batch_size_;
-                error["requested_size"] = batch_size;
-                send_json_response(res, error, 400);
-                return;
-            }
-
-            query_list.reserve(batch_size);
-            for (const auto& mac : body["macs"]) {
-                if (mac.is_string()) {
-                    std::string mac_str = mac.get<std::string>();
-                    if (is_valid_mac_format(mac_str)) {
-                        query_list.push_back(std::move(mac_str));
-                    }
-                }
-            }
+            if (!process_batch(mac_lookup_handler_, "MAC", "macs", is_valid_mac_format)) return;
         }
 
         nlohmann::json results = nlohmann::json::array();

@@ -70,9 +70,6 @@ Metrics::Stats Metrics::get_stats() const {
             (static_cast<double>(stats.cache_hits) / stats.total_requests) * 100.0;
         stats.error_rate =
             (static_cast<double>(stats.total_errors) / stats.total_requests) * 100.0;
-    } else {
-        stats.cache_hit_rate = 0.0;
-        stats.error_rate = 0.0;
     }
 
     stats.city_db_open = city_db_open_.load();
@@ -87,11 +84,6 @@ Metrics::Stats Metrics::get_stats() const {
             stats.p50_latency_ms = calculate_percentile(0.50);
             stats.p95_latency_ms = calculate_percentile(0.95);
             stats.p99_latency_ms = calculate_percentile(0.99);
-        } else {
-            stats.avg_latency_ms = 0.0;
-            stats.p50_latency_ms = 0.0;
-            stats.p95_latency_ms = 0.0;
-            stats.p99_latency_ms = 0.0;
         }
     }
 

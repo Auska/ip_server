@@ -7,6 +7,7 @@
 
 #include "service/ip_geo_service.h"
 #include "service/mac_lookup_service.h"
+#include "test_utils.h"
 #include "types.h"
 
 using namespace ip_server;
@@ -14,17 +15,7 @@ using namespace ip_server;
 class DatabaseTest : public ::testing::Test {
    protected:
     void SetUp() override {
-        std::filesystem::path current_path = std::filesystem::current_path();
-        std::filesystem::path project_root;
-
-        if (current_path.filename() == "tests" && current_path.parent_path().filename() == "build")
-            project_root = current_path.parent_path().parent_path();
-        else if (current_path.filename() == "build")
-            project_root = current_path.parent_path();
-        else if (current_path.filename() == "bin" && current_path.parent_path().filename() == "build")
-            project_root = current_path.parent_path().parent_path();
-        else
-            project_root = current_path;
+        std::filesystem::path const project_root = test::find_project_root();
 
         city_db_path = project_root / "db" / "GeoLite2-City.mmdb";
         asn_db_path  = project_root / "db" / "GeoLite2-ASN.mmdb";

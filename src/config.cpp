@@ -305,23 +305,15 @@ void ConfigParser::from_json(ServerConfig& config, const nlohmann::json& j) {
     read_str("log_level", config.log_level);
 
     if (j.contains("log_max_file_size")) {
+        size_t raw = 0;
         if (j["log_max_file_size"].is_number_integer())
-            config.log_max_file_size = j["log_max_file_size"].get<size_t>() * 1024 * 1024;
+            raw = j["log_max_file_size"].get<size_t>();
         else if (j["log_max_file_size"].is_string())
-            config.log_max_file_size = std::stoull(j["log_max_file_size"].get<std::string>()) * 1024 * 1024;
+            raw = std::stoull(j["log_max_file_size"].get<std::string>());
+        config.log_max_file_size = raw * 1024 * 1024;
     }
-    if (j.contains("log_rotation_interval_minutes")) {
-        if (j["log_rotation_interval_minutes"].is_number_integer())
-            config.log_rotation_interval_minutes = j["log_rotation_interval_minutes"].get<int>();
-        else if (j["log_rotation_interval_minutes"].is_string())
-            config.log_rotation_interval_minutes = std::stoi(j["log_rotation_interval_minutes"].get<std::string>());
-    }
-    if (j.contains("log_max_backup_files")) {
-        if (j["log_max_backup_files"].is_number_integer())
-            config.log_max_backup_files = j["log_max_backup_files"].get<int>();
-        else if (j["log_max_backup_files"].is_string())
-            config.log_max_backup_files = std::stoi(j["log_max_backup_files"].get<std::string>());
-    }
+    read_int("log_rotation_interval_minutes", config.log_rotation_interval_minutes);
+    read_int("log_max_backup_files", config.log_max_backup_files);
 }
 
 ServerConfig ConfigParser::load_from_file(const std::filesystem::path& config_file) {

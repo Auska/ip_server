@@ -7,23 +7,14 @@
 
 #include "service/mac_lookup_service.h"
 #include "mac_database.h"
+#include "test_utils.h"
 
 using namespace ip_server;
 
 class MACDatabaseTest : public ::testing::Test {
    protected:
     void SetUp() override {
-        std::filesystem::path current_path = std::filesystem::current_path();
-        std::filesystem::path project_root;
-
-        if (current_path.filename() == "tests" && current_path.parent_path().filename() == "build")
-            project_root = current_path.parent_path().parent_path();
-        else if (current_path.filename() == "build")
-            project_root = current_path.parent_path();
-        else if (current_path.filename() == "bin" && current_path.parent_path().filename() == "build")
-            project_root = current_path.parent_path().parent_path();
-        else
-            project_root = current_path;
+        std::filesystem::path const project_root = test::find_project_root();
 
         oui_db_path = project_root / "db" / "master_oui.db";
 
@@ -231,17 +222,7 @@ TEST_F(MACDatabaseTest, OUIDatabaseLookupWhenNotOpen) {
 class MACLookupServiceTest : public ::testing::Test {
    protected:
     void SetUp() override {
-        std::filesystem::path current_path = std::filesystem::current_path();
-        std::filesystem::path project_root;
-
-        if (current_path.filename() == "tests" && current_path.parent_path().filename() == "build")
-            project_root = current_path.parent_path().parent_path();
-        else if (current_path.filename() == "build")
-            project_root = current_path.parent_path();
-        else if (current_path.filename() == "bin" && current_path.parent_path().filename() == "build")
-            project_root = current_path.parent_path().parent_path();
-        else
-            project_root = current_path;
+        std::filesystem::path const project_root = test::find_project_root();
 
         oui_db_path = project_root / "db" / "master_oui.db";
 
