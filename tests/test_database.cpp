@@ -810,3 +810,159 @@ TEST_F(DatabaseTest, MACLookupServiceHeatMap) {
     EXPECT_EQ(heat_map.hot_keys.size(), 2);
     EXPECT_GT(heat_map.total_accesses, 0);
 }
+
+// ─── Cache edge-case tests ────────────────────────────────────────
+
+TEST(CacheEdgeTest, ZeroSizeCache) {
+    IPCache cache(0, 1, std::chrono::seconds(3600), 1024);
+    EXPECT_EQ(cache.size(), 0);
+
+    // Putting into zero-size cache should not crash
+    EXPECT_NO_THROW(cache.put("test-key", nlohmann::json::object(), CacheDataType::IP_GEOLOCATION));
+    EXPECT_EQ(cache.size(), 0);
+}
+
+TEST(CacheEdgeTest, SingleShardCache) {
+    IPCache cache(100, 1, std::chrono::seconds(3600), 1024 * 1024);
+    EXPECT_EQ(cache.shard_count(), 1);
+
+    cache.put("key1", nlohmann::json{{"data", 1}});
+    cache.put("key2", nlohmann::json{{"data", 2}});
+
+    auto val1 = cache.get("key1");
+    EXPECT_TRUE(val1.has_value());
+    EXPECT_EQ((*val1)["data"], 1);
+
+    auto val2 = cache.get("key2");
+    EXPECT_TRUE(val2.has_value());
+    EXPECT_EQ((*val2)["data"], 2);
+}
+
+TEST(CacheEdgeTest, ZeroTTLEntry) {
+    IPCache cache(100, 4, std::chrono::seconds(0), 1024 * 1024);
+
+    // Override the per-type TTLs that configure_default_ttls() sets
+    cache.set_ttl(CacheDataType::IP_GEOLOCATION, std::chrono::seconds(0));
+
+    cache.put("immediate-expire", nlohmann::json{{"data", 1}});
+
+    // With TTL=0, the entry should expire immediately
+    auto val = cache.get("immediate-expire");
+    EXPECT_FALSE(val.has_value());
+}
+
+TEST(CacheEdgeTest, ConcurrentPutSameKey) {
+    IPCache cache(1000, 8, std::chrono::seconds(3600), 10 * 1024 * 1024);
+    std::string key = "concurrent-key";
+
+    std::vector<std::thread> threads;
+    for (int i = 0; i < 20; i++) {
+        threads.emplace_back([&, i]() {
+            cache.put(key, nlohmann::json{{"thread", i}});
+        });
+    }
+    for (auto& t : threads) t.join();
+
+    // At least one thread's value should be stored
+    auto val = cache.get(key);
+    EXPECT_TRUE(val.has_value());
+}
+
+TEST(CacheEdgeTest, GetHeatMapEmptyCache) {
+    IPCache cache(100, 4, std::chrono::seconds(3600), 1024 * 1024);
+    auto heat_map = cache.get_heat_map(10);
+
+    EXPECT_TRUE(heat_map.hot_keys.empty());
+    EXPECT_EQ(heat_map.shard_distribution.size(), 4);
+    EXPECT_EQ(heat_map.total_accesses, 0);
+}
+
+TEST(CacheEdgeTest, ClearEmptyCache) {
+    IPCache cache(100, 4, std::chrono::seconds(3600), 1024 * 1024);
+    EXPECT_NO_THROW(cache.clear());
+    EXPECT_EQ(cache.size(), 0);
+}
+
+TEST(CacheEdgeTest, NegativeCacheThenOverwrite) {
+    IPCache cache(100, 4, std::chrono::seconds(3600), 1024 * 1024);
+
+    // Put negative cache entry
+    cache.put("test-key", nlohmann::json{{"found", false}}, CacheDataType::NEGATIVE);
+    auto val = cache.get("test-key");
+    EXPECT_TRUE(val.has_value());
+    EXPECT_FALSE((*val)["found"].get<bool>());
+
+    // Overwrite with positive entry
+    cache.put("test-key", nlohmann::json{{"found", true}}, CacheDataType::IP_GEOLOCATION);
+    val = cache.get("test-key");
+    EXPECT_TRUE(val.has_value());
+    EXPECT_TRUE((*val)["found"].get<bool>());
+}
+
+TEST(CacheEdgeTest, CacheStatsOperatorPlusEquals) {
+    CacheStats a, b;
+
+    a.total_lookups = 10;
+    a.hits = 8;
+    a.avg_entry_size = 100.0;
+    a.entry_count = 5;
+
+    b.total_lookups = 20;
+    b.hits = 15;
+    b.avg_entry_size = 200.0;
+    b.entry_count = 10;
+
+    CacheStats combined;
+    combined += a;
+    combined += b;
+
+    EXPECT_EQ(combined.total_lookups, 30);
+    EXPECT_EQ(combined.hits, 23);
+
+    // Weighted average: (100*5 + 200*10) / 15 = (500 + 2000) / 15 = 166.67
+    EXPECT_NEAR(combined.avg_entry_size, 166.67, 0.01);
+    EXPECT_EQ(combined.entry_count, 15);
+}
+
+TEST(CacheEdgeTest, CacheStatsOperatorPlusEqualsZero) {
+    CacheStats a, b;
+
+    a.total_lookups = 10;
+    a.avg_entry_size = 100.0;
+    a.entry_count = 5;
+
+    // Adding empty stats should not change anything
+    a += b;
+    EXPECT_EQ(a.total_lookups, 10);
+    EXPECT_EQ(a.avg_entry_size, 100.0);
+    EXPECT_EQ(a.entry_count, 5);
+
+    // Adding to empty should copy
+    CacheStats c;
+    c += a;
+    EXPECT_EQ(c.total_lookups, 10);
+}
+
+TEST(CacheEdgeTest, DisableHeatMap) {
+    IPCache cache(100, 4, std::chrono::seconds(3600), 1024 * 1024, false);
+
+    // Put and get entries
+    cache.put("key1", nlohmann::json{{"data", 1}});
+    cache.get("key1");
+    cache.get("key1");
+
+    // Heat map should still be accessible (but could be empty)
+    auto heat_map = cache.get_heat_map();
+    // The behavior may vary — just verify no crash
+    EXPECT_NO_THROW(cache.get_heat_map());
+}
+
+TEST(CacheEdgeTest, LargeShardCount) {
+    // Shard count > 64 is unusual but shouldn't crash
+    IPCache cache(1000, 128, std::chrono::seconds(3600), 10 * 1024 * 1024);
+    EXPECT_EQ(cache.shard_count(), 128);
+
+    cache.put("test", nlohmann::json{{"data", 1}});
+    auto val = cache.get("test");
+    EXPECT_TRUE(val.has_value());
+}

@@ -338,3 +338,94 @@ TEST_F(MACLookupServiceTest, MACLookupServiceMultipleOUIs) {
     EXPECT_NE(result1.data["oui"], result2.data["oui"]);
     EXPECT_NE(result2.data["oui"], result3.data["oui"]);
 }
+
+// ─── MAC database edge-case tests ─────────────────────────────────
+
+TEST_F(MACDatabaseTest, EmptyMACAddress) {
+    OUIDatabase db;
+    ASSERT_TRUE(db.open(oui_db_path.string()));
+
+    auto result = db.lookup("");
+    EXPECT_TRUE(result.contains("error"));
+}
+
+TEST_F(MACDatabaseTest, ZeroMACAddress) {
+    OUIDatabase db;
+    ASSERT_TRUE(db.open(oui_db_path.string()));
+
+    auto result = db.lookup("00:00:00:00:00:00");
+    EXPECT_TRUE(result.contains("found"));
+    EXPECT_TRUE(result["found"].get<bool>());
+    EXPECT_EQ(result["mac"], "00:00:00:00:00:00");
+}
+
+TEST_F(MACDatabaseTest, SQLInjectionAttempt) {
+    OUIDatabase db;
+    ASSERT_TRUE(db.open(oui_db_path.string()));
+
+    auto result = db.lookup("'; DROP TABLE oui_registry; --");
+    EXPECT_TRUE(result.contains("error"));
+}
+
+TEST_F(MACDatabaseTest, VeryLongMACString) {
+    OUIDatabase db;
+    ASSERT_TRUE(db.open(oui_db_path.string()));
+
+    std::string long_mac(10000, 'A');
+    auto result = db.lookup(long_mac);
+    EXPECT_TRUE(result.contains("error"));
+}
+
+TEST_F(MACDatabaseTest, InvalidHexCharsG) {
+    OUIDatabase db;
+    ASSERT_TRUE(db.open(oui_db_path.string()));
+
+    auto result = db.lookup("GG:GG:GG:GG:GG:GG");
+    EXPECT_TRUE(result.contains("error"));
+}
+
+TEST_F(MACDatabaseTest, OnlySeparators) {
+    OUIDatabase db;
+    ASSERT_TRUE(db.open(oui_db_path.string()));
+
+    auto result = db.lookup("::::::");
+    EXPECT_TRUE(result.contains("error"));
+}
+
+TEST_F(MACDatabaseTest, LookupAfterClose) {
+    OUIDatabase db;
+    ASSERT_TRUE(db.open(oui_db_path.string()));
+    db.close();
+
+    auto result = db.lookup("00:1A:2B:3C:4D:5E");
+    EXPECT_TRUE(result.contains("error"));
+}
+
+TEST_F(MACLookupServiceTest, CacheSizeZero) {
+    MACLookupService service(oui_db_path.string(), 0);
+    auto result = service.lookup("00:1A:2B:3C:4D:5E");
+    EXPECT_TRUE(result.data.contains("found"));
+}
+
+TEST_F(MACLookupServiceTest, GetCacheStatsEmpty) {
+    MACLookupService service(oui_db_path.string(), 100);
+
+    auto stats = service.get_cache_stats();
+    EXPECT_EQ(stats.total_lookups, 0);
+    EXPECT_EQ(stats.hits, 0);
+    EXPECT_EQ(stats.misses, 0);
+}
+
+TEST_F(MACLookupServiceTest, LookupSameMACRepeatedly) {
+    MACLookupService service(oui_db_path.string(), 100);
+
+    // First lookup — cache miss
+    auto result1 = service.lookup("00:1A:2B:3C:4D:5E");
+    EXPECT_TRUE(result1.data["found"].get<bool>());
+    EXPECT_FALSE(result1.cache_hit);
+
+    // Second lookup — should be cache hit
+    auto result2 = service.lookup("00:1A:2B:3C:4D:5E");
+    EXPECT_TRUE(result2.data["found"].get<bool>());
+    EXPECT_TRUE(result2.cache_hit);
+}

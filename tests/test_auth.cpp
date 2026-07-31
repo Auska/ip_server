@@ -188,3 +188,90 @@ TEST_F(APIAuthTest, FileWithOnlyComments) {
     EXPECT_TRUE(result);
     EXPECT_EQ(auth->key_count(), 0);
 }
+
+// ─── Edge-case tests ──────────────────────────────────────────────
+
+TEST_F(APIAuthTest, RemoveNonExistentKey) {
+    // Removing a key that was never added should not throw or crash
+    EXPECT_NO_THROW(auth->remove_key("nonexistent_key_12345"));
+}
+
+TEST_F(APIAuthTest, RemoveFromEmptyAuth) {
+    auto empty_auth = std::make_unique<APIAuth>(true);
+    EXPECT_NO_THROW(empty_auth->remove_key("any_key"));
+}
+
+TEST_F(APIAuthTest, DisableAuthAfterAddingKeys) {
+    auth->add_key("valid-key-123");
+    EXPECT_TRUE(auth->is_valid("valid-key-123"));
+
+    auth->set_enabled(false);
+    EXPECT_FALSE(auth->is_enabled());
+}
+
+TEST_F(APIAuthTest, TrustedProxyEmptyList) {
+    // Empty trusted proxies list means trust all
+    EXPECT_TRUE(auth->is_trusted_proxy("10.0.0.1"));
+    EXPECT_TRUE(auth->is_trusted_proxy("192.168.1.1"));
+    EXPECT_TRUE(auth->is_trusted_proxy("::1"));
+}
+
+TEST_F(APIAuthTest, TrustedProxyWithExplicitList) {
+    auth->set_trusted_proxies({"127.0.0.1", "10.0.0.1"});
+
+    EXPECT_TRUE(auth->is_trusted_proxy("127.0.0.1"));
+    EXPECT_TRUE(auth->is_trusted_proxy("10.0.0.1"));
+    EXPECT_FALSE(auth->is_trusted_proxy("192.168.1.1"));
+    EXPECT_FALSE(auth->is_trusted_proxy("10.0.0.2"));
+}
+
+TEST_F(APIAuthTest, DuplicateKeysInFile) {
+    std::ofstream file("test_dup_api_keys.txt");
+    file << "key-one\n";
+    file << "key-one\n";
+    file << "key-two\n";
+    file.close();
+
+    bool result = auth->load_keys_from_file("test_dup_api_keys.txt");
+
+    EXPECT_TRUE(result);
+    EXPECT_EQ(auth->key_count(), 2);
+    std::filesystem::remove("test_dup_api_keys.txt");
+}
+
+TEST_F(APIAuthTest, KeyWithWhitespaceOnly) {
+    std::ofstream file("test_ws_api_keys.txt");
+    file << "   \n";
+    file << "\t\n";
+    file << "\n";
+    file.close();
+
+    bool result = auth->load_keys_from_file("test_ws_api_keys.txt");
+
+    EXPECT_TRUE(result);
+    EXPECT_EQ(auth->key_count(), 0);
+    std::filesystem::remove("test_ws_api_keys.txt");
+}
+
+TEST_F(APIAuthTest, ConcurrentAddAndValidate) {
+    auto concurrent_auth = std::make_unique<APIAuth>(true);
+
+    std::vector<std::thread> threads;
+    for (int i = 0; i < 10; i++) {
+        threads.emplace_back([&, i]() {
+            std::string key = "concurrent-key-" + std::to_string(i);
+            concurrent_auth->add_key(key);
+            EXPECT_TRUE(concurrent_auth->is_valid(key));
+        });
+    }
+    for (auto& t : threads) t.join();
+
+    EXPECT_EQ(concurrent_auth->key_count(), 10);
+}
+
+TEST_F(APIAuthTest, BinaryDataAsKey) {
+    // Binary-like characters (without embedded null, which C-string literals can't represent)
+    std::string binary_key = "\x01\x02\x03\xFF\xFEtest-key";
+    EXPECT_NO_THROW(auth->add_key(binary_key));
+    EXPECT_TRUE(auth->is_valid(binary_key));
+}

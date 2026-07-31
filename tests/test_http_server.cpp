@@ -668,3 +668,158 @@ TEST_F(HTTPServerTest, BatchLookupSingleIP) {
     EXPECT_EQ(json.size(), 1);
     EXPECT_EQ(json[0]["ip"], "8.8.8.8");
 }
+
+// ─── Edge-case tests ──────────────────────────────────────────────
+
+TEST_F(HTTPServerTest, UnknownEndpointReturns404) {
+    httplib::Client client("127.0.0.1", test_port);
+    auto result = client.Get("/nonexistent");
+
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->status, 404);
+}
+
+TEST_F(HTTPServerTest, PasswordGenerateGet) {
+    httplib::Client client("127.0.0.1", test_port);
+    auto result = client.Get("/password/generate");
+
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->status, 200);
+
+    auto json = nlohmann::json::parse(result->body);
+    EXPECT_TRUE(json.contains("password"));
+    EXPECT_TRUE(json.contains("length"));
+    EXPECT_TRUE(json.contains("entropy"));
+    EXPECT_TRUE(json.contains("strength"));
+    EXPECT_EQ(json["length"], 16);
+    EXPECT_FALSE(json["password"].get<std::string>().empty());
+}
+
+TEST_F(HTTPServerTest, PasswordGenerateGetCustomLength) {
+    httplib::Client client("127.0.0.1", test_port);
+    auto result = client.Get("/password/generate?length=24");
+
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->status, 200);
+
+    auto json = nlohmann::json::parse(result->body);
+    EXPECT_EQ(json["length"], 24);
+    EXPECT_EQ(json["password"].get<std::string>().size(), 24);
+}
+
+TEST_F(HTTPServerTest, PasswordGenerateGetInvalidLength) {
+    httplib::Client client("127.0.0.1", test_port);
+    auto result = client.Get("/password/generate?length=abc");
+
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->status, 400);
+}
+
+TEST_F(HTTPServerTest, PasswordGenerateGetLengthTooShort) {
+    httplib::Client client("127.0.0.1", test_port);
+    auto result = client.Get("/password/generate?length=5");
+
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->status, 400);
+}
+
+TEST_F(HTTPServerTest, PasswordGenerateGetDisableAllTypes) {
+    httplib::Client client("127.0.0.1", test_port);
+    auto result = client.Get("/password/generate?uppercase=false&lowercase=false&digits=false&symbols=false");
+
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->status, 400);
+}
+
+TEST_F(HTTPServerTest, PasswordGeneratePost) {
+    httplib::Client client("127.0.0.1", test_port);
+    nlohmann::json body;
+    body["length"] = 20;
+    body["uppercase"] = true;
+    body["lowercase"] = true;
+    body["digits"] = true;
+    body["symbols"] = true;
+
+    auto result = client.Post("/password/generate", body.dump(), "application/json");
+
+    ASSERT_TRUE(result);
+    ASSERT_EQ(result->status, 200);
+
+    auto json = nlohmann::json::parse(result->body);
+    // POST always returns batch format {count, passwords[]}
+    ASSERT_TRUE(json.contains("passwords"));
+    ASSERT_TRUE(json.contains("count"));
+    EXPECT_EQ(json["count"], 1);
+    EXPECT_EQ(json["passwords"].size(), 1);
+    EXPECT_EQ(json["passwords"][0]["length"], 20);
+    EXPECT_EQ(json["passwords"][0]["password"].get<std::string>().size(), 20);
+}
+
+TEST_F(HTTPServerTest, PasswordGeneratePostBatch) {
+    httplib::Client client("127.0.0.1", test_port);
+    nlohmann::json body;
+    body["count"] = 5;
+    body["length"] = 12;
+
+    auto result = client.Post("/password/generate", body.dump(), "application/json");
+
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->status, 200);
+
+    auto json = nlohmann::json::parse(result->body);
+    EXPECT_TRUE(json.contains("passwords"));
+    EXPECT_TRUE(json.contains("count"));
+    EXPECT_EQ(json["count"], 5);
+    EXPECT_EQ(json["passwords"].size(), 5);
+}
+
+TEST_F(HTTPServerTest, PasswordGeneratePostExcessiveBatch) {
+    httplib::Client client("127.0.0.1", test_port);
+    nlohmann::json body;
+    body["count"] = 200;
+
+    auto result = client.Post("/password/generate", body.dump(), "application/json");
+
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->status, 400);
+}
+
+TEST_F(HTTPServerTest, PasswordGeneratePostInvalidJson) {
+    httplib::Client client("127.0.0.1", test_port);
+    auto result = client.Post("/password/generate", "not-json", "application/json");
+
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->status, 400);
+}
+
+TEST_F(HTTPServerTest, LookupBothIPAndMacParams) {
+    httplib::Client client("127.0.0.1", test_port);
+    auto result = client.Get("/lookup?ip=8.8.8.8&mac=00:1A:2B:3C:4D:5E");
+
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->status, 400);
+}
+
+TEST_F(HTTPServerTest, BatchLookupWithMacsArray) {
+    httplib::Client client("127.0.0.1", test_port);
+    nlohmann::json body;
+    body["macs"] = {"00:1A:2B:3C:4D:5E"};
+
+    auto result = client.Post("/lookup", body.dump(), "application/json");
+
+    ASSERT_TRUE(result);
+    // MAC lookup handler is not set in the fixture, so should be 500
+    EXPECT_EQ(result->status, 500);
+}
+
+TEST_F(HTTPServerTest, BatchLookupBothIpsAndMacs) {
+    httplib::Client client("127.0.0.1", test_port);
+    nlohmann::json body;
+    body["ips"] = {"8.8.8.8"};
+    body["macs"] = {"00:1A:2B:3C:4D:5E"};
+
+    auto result = client.Post("/lookup", body.dump(), "application/json");
+
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->status, 400);
+}

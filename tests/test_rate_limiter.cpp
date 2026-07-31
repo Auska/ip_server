@@ -383,3 +383,103 @@ TEST_F(RateLimiterTest, MemoryEstimation) {
     // Memory should be reasonable (less than 1 MB for 100 IPs)
     EXPECT_LT(stats.estimated_memory_bytes, 1024 * 1024);
 }
+
+// ─── Edge-case tests ──────────────────────────────────────────────
+
+TEST_F(RateLimiterTest, ZeroLimitDeniesAll) {
+    auto zero_limiter = std::make_unique<RateLimiter>(0, std::chrono::seconds(60));
+    // With max_requests=0, every request should be denied.
+    EXPECT_FALSE(zero_limiter->is_allowed("10.0.0.1"));
+    EXPECT_FALSE(zero_limiter->is_allowed("10.0.0.2"));
+
+    // get_remaining should return 0.
+    EXPECT_EQ(zero_limiter->get_remaining("10.0.0.1"), 0);
+    EXPECT_EQ(zero_limiter->get_remaining("10.0.0.2"), 0);
+}
+
+TEST_F(RateLimiterTest, SingleRequestLimit) {
+    auto single_limiter = std::make_unique<RateLimiter>(1, std::chrono::seconds(60));
+    std::string ip = "10.0.0.1";
+
+    EXPECT_TRUE(single_limiter->is_allowed(ip));
+    EXPECT_FALSE(single_limiter->is_allowed(ip));
+    EXPECT_EQ(single_limiter->get_remaining(ip), 0);
+}
+
+TEST_F(RateLimiterTest, MaxIPRecordsLimitOne) {
+    auto limiter_one = std::make_unique<RateLimiter>(5, std::chrono::seconds(60), 1);
+
+    // Only one IP record allowed — first IP works, second should evict the first
+    EXPECT_TRUE(limiter_one->is_allowed("10.0.0.1"));
+    EXPECT_TRUE(limiter_one->is_allowed("10.0.0.2"));
+
+    // First IP record should have been evicted — fresh quota
+    EXPECT_EQ(limiter_one->get_remaining("10.0.0.1"), 5);
+}
+
+TEST_F(RateLimiterTest, EmptyIPString) {
+    // Empty IP string should not crash
+    EXPECT_TRUE(limiter->is_allowed(""));
+    EXPECT_TRUE(limiter->is_allowed(""));
+}
+
+TEST_F(RateLimiterTest, CleanupOnEmptyRecords) {
+    auto cleanup_limiter = std::make_unique<RateLimiter>(5, std::chrono::seconds(60), 1000);
+
+    // Add and then immediately clean — no crash
+    EXPECT_TRUE(cleanup_limiter->is_allowed("10.0.0.1"));
+    EXPECT_NO_THROW(cleanup_limiter->cleanup());
+    EXPECT_NO_THROW(cleanup_limiter->cleanup());
+}
+
+TEST_F(RateLimiterTest, ResetStatsThenContinue) {
+    std::string ip = "10.0.0.1";
+
+    EXPECT_TRUE(limiter->is_allowed(ip));
+    limiter->reset_stats();
+
+    // After reset, the IP record still exists — same quota as before
+    EXPECT_TRUE(limiter->is_allowed(ip));
+    EXPECT_EQ(limiter->get_remaining(ip), 3);
+}
+
+TEST_F(RateLimiterTest, HighContentionDifferentIPs) {
+    auto contention_limiter = std::make_unique<RateLimiter>(100, std::chrono::seconds(60), 10000);
+    std::atomic<int> allowed{0};
+    std::atomic<int> denied{0};
+
+    auto worker = [&](int id) {
+        for (int i = 0; i < 20; i++) {
+            std::string ip = "10.0.0." + std::to_string(id);
+            if (contention_limiter->is_allowed(ip))
+                allowed++;
+            else
+                denied++;
+        }
+    };
+
+    std::vector<std::thread> threads;
+    for (int t = 0; t < 20; t++) {
+        threads.emplace_back(worker, t);
+    }
+    for (auto& t : threads) t.join();
+
+    // Each of the 20 IPs can make 100 requests, so all 400 should be allowed
+    EXPECT_EQ(allowed, 400);
+    EXPECT_EQ(denied, 0);
+}
+
+TEST_F(RateLimiterTest, RateLimitedIPGetRemaining) {
+    std::string ip = "10.0.0.1";
+
+    // Exhaust all 5 requests
+    for (int i = 0; i < 5; i++) {
+        EXPECT_TRUE(limiter->is_allowed(ip));
+    }
+    // 6th is denied
+    EXPECT_FALSE(limiter->is_allowed(ip));
+    EXPECT_EQ(limiter->get_remaining(ip), 0);
+
+    // Non-existent IP gets full quota
+    EXPECT_EQ(limiter->get_remaining("10.0.0.99"), 5);
+}
