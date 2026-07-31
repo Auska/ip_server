@@ -848,9 +848,7 @@ TEST(CacheEdgeTest, ConcurrentPutSameKey) {
 
     std::vector<std::thread> threads;
     for (int i = 0; i < 20; i++) {
-        threads.emplace_back([&, i]() {
-            cache.put(key, nlohmann::json{{"thread", i}});
-        });
+        threads.emplace_back([&, i]() { cache.put(key, nlohmann::json{{"thread", i}}); });
     }
     for (auto& t : threads) t.join();
 
@@ -893,15 +891,15 @@ TEST(CacheEdgeTest, NegativeCacheThenOverwrite) {
 TEST(CacheEdgeTest, CacheStatsOperatorPlusEquals) {
     CacheStats a, b;
 
-    a.total_lookups = 10;
-    a.hits = 8;
+    a.total_lookups  = 10;
+    a.hits           = 8;
     a.avg_entry_size = 100.0;
-    a.entry_count = 5;
+    a.entry_count    = 5;
 
-    b.total_lookups = 20;
-    b.hits = 15;
+    b.total_lookups  = 20;
+    b.hits           = 15;
     b.avg_entry_size = 200.0;
-    b.entry_count = 10;
+    b.entry_count    = 10;
 
     CacheStats combined;
     combined += a;
@@ -918,9 +916,9 @@ TEST(CacheEdgeTest, CacheStatsOperatorPlusEquals) {
 TEST(CacheEdgeTest, CacheStatsOperatorPlusEqualsZero) {
     CacheStats a, b;
 
-    a.total_lookups = 10;
+    a.total_lookups  = 10;
     a.avg_entry_size = 100.0;
-    a.entry_count = 5;
+    a.entry_count    = 5;
 
     // Adding empty stats should not change anything
     a += b;

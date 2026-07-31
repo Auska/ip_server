@@ -20,7 +20,8 @@ bool parse_bool_param(const httplib::Request& req, const char* key, bool default
 
 }  // namespace
 
-PasswordHandler::PasswordHandler(Metrics* metrics) : metrics_(metrics) {}
+PasswordHandler::PasswordHandler(Metrics* metrics) : metrics_(metrics) {
+}
 
 void PasswordHandler::handle_get(const httplib::Request& req, httplib::Response& res) {
     try {
@@ -48,14 +49,15 @@ void PasswordHandler::handle_get(const httplib::Request& req, httplib::Response&
 
         nlohmann::json response;
         response["password"] = result.password;
-        response["length"] = result.length;
-        response["entropy"] = result.entropy;
+        response["length"]   = result.length;
+        response["entropy"]  = result.entropy;
         response["strength"] = result.strength;
 
         send_json_response(res, response, 200);
 
     } catch (const std::invalid_argument& e) {
-        send_error_response(res, 400, "Bad Request", "Invalid parameter value: " + std::string(e.what()));
+        send_error_response(res, 400, "Bad Request",
+                            "Invalid parameter value: " + std::string(e.what()));
     } catch (const std::exception& e) {
         send_error_response(res, 500, "Internal Server Error", e.what());
         metrics_->record_error();
@@ -70,12 +72,10 @@ void PasswordHandler::handle_post(const httplib::Request& req, httplib::Response
         PasswordConfig config;
 
         auto read_bool = [&](const char* key, bool& field) {
-            if (body.contains(key) && body[key].is_boolean())
-                field = body[key].get<bool>();
+            if (body.contains(key) && body[key].is_boolean()) field = body[key].get<bool>();
         };
         auto read_int = [&](const char* key, int& field) {
-            if (body.contains(key) && body[key].is_number_integer())
-                field = body[key].get<int>();
+            if (body.contains(key) && body[key].is_number_integer()) field = body[key].get<int>();
         };
 
         read_int("length", config.length);
@@ -95,7 +95,8 @@ void PasswordHandler::handle_post(const httplib::Request& req, httplib::Response
 
         if (count > PasswordGenerator::MAX_BATCH) {
             send_error_response(res, 400, "Bad Request",
-                                "Count cannot exceed " + std::to_string(PasswordGenerator::MAX_BATCH));
+                                "Count cannot exceed "
+                                    + std::to_string(PasswordGenerator::MAX_BATCH));
             return;
         }
 
@@ -111,14 +112,14 @@ void PasswordHandler::handle_post(const httplib::Request& req, httplib::Response
         metrics_->record_request(false, timer.elapsed());
 
         nlohmann::json response;
-        response["count"] = static_cast<int>(results.size());
+        response["count"]     = static_cast<int>(results.size());
         response["passwords"] = nlohmann::json::array();
 
         for (const auto& result : results) {
             nlohmann::json password_json;
             password_json["password"] = result.password;
-            password_json["length"] = result.length;
-            password_json["entropy"] = result.entropy;
+            password_json["length"]   = result.length;
+            password_json["entropy"]  = result.entropy;
             password_json["strength"] = result.strength;
             response["passwords"].push_back(password_json);
         }
@@ -137,9 +138,9 @@ void PasswordHandler::handle_post(const httplib::Request& req, httplib::Response
 void PasswordHandler::send_error_response(httplib::Response& res, int status,
                                           const std::string& error, const std::string& message) {
     nlohmann::json error_json;
-    error_json["error"] = error;
+    error_json["error"]   = error;
     error_json["message"] = message;
-    res.status = status;
+    res.status            = status;
     res.set_content(error_json.dump(), "application/json");
 }
 

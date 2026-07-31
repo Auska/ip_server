@@ -10,11 +10,11 @@
 
 #include "auth.h"
 #include "cache.h"
-#include "database/city_database.h"
 #include "database/asn_database.h"
-#include "service/ip_geo_service.h"
+#include "database/city_database.h"
 #include "mac_database.h"
 #include "rate_limiter.h"
+#include "service/ip_geo_service.h"
 #include "types.h"
 
 using namespace ip_server;
@@ -23,10 +23,8 @@ using namespace ip_server;
 std::filesystem::path find_project_root() {
     std::filesystem::path current_path = std::filesystem::current_path();
 
-    if (std::filesystem::exists(current_path / "db"))
-        return current_path;
-    if (std::filesystem::exists(current_path / ".." / "db"))
-        return current_path / "..";
+    if (std::filesystem::exists(current_path / "db")) return current_path;
+    if (std::filesystem::exists(current_path / ".." / "db")) return current_path / "..";
     return current_path;
 }
 

@@ -399,7 +399,7 @@ TEST_F(RateLimiterTest, ZeroLimitDeniesAll) {
 
 TEST_F(RateLimiterTest, SingleRequestLimit) {
     auto single_limiter = std::make_unique<RateLimiter>(1, std::chrono::seconds(60));
-    std::string ip = "10.0.0.1";
+    std::string ip      = "10.0.0.1";
 
     EXPECT_TRUE(single_limiter->is_allowed(ip));
     EXPECT_FALSE(single_limiter->is_allowed(ip));

@@ -5,11 +5,11 @@
 #include <string_view>
 
 #include "config.h"
-#include "service/ip_geo_service.h"
-#include "service/mac_lookup_service.h"
 #include "http_server.h"
 #include "logger.h"
 #include "metrics.h"
+#include "service/ip_geo_service.h"
+#include "service/mac_lookup_service.h"
 #include "xdg.h"
 
 namespace ip_server {
@@ -61,7 +61,7 @@ class Application {
         sigaction(SIGINT, &sa, nullptr);
         sigaction(SIGTERM, &sa, nullptr);
 
-        if (auto *metrics = http_server_.get_metrics()) {
+        if (auto* metrics = http_server_.get_metrics()) {
             metrics->set_city_db_status(geo_service_.is_city_db_open());
             metrics->set_asn_db_status(geo_service_.is_asn_db_open());
             metrics->set_oui_db_status(mac_service_.is_oui_db_open());
@@ -98,8 +98,8 @@ int main(int argc, char* argv[]) {
         {
             LogConfig log_config;
             log_config.enable_file_logging = config.enable_file_logging;
-            log_config.log_file_path = config.log_file_path;
-            log_config.enable_stdout = config.log_enable_stdout;
+            log_config.log_file_path       = config.log_file_path;
+            log_config.enable_stdout       = config.log_enable_stdout;
 
             if (config.log_rotation_type == "size")
                 log_config.rotation_type = RotationType::SIZE;
@@ -111,7 +111,8 @@ int main(int argc, char* argv[]) {
                 log_config.rotation_type = RotationType::NONE;
 
             log_config.max_file_size = config.log_max_file_size;
-            log_config.rotation_interval = std::chrono::minutes(config.log_rotation_interval_minutes);
+            log_config.rotation_interval =
+                std::chrono::minutes(config.log_rotation_interval_minutes);
             log_config.max_backup_files = config.log_max_backup_files;
 
             Logger::instance().set_config(log_config);

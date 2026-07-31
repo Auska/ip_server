@@ -59,22 +59,21 @@ void Metrics::record_cache_eviction() {
 Metrics::Stats Metrics::get_stats() const {
     Stats stats{};
 
-    stats.total_requests = total_requests_.load();
-    stats.cache_hits = cache_hits_.load();
-    stats.cache_misses = cache_misses_.load();
+    stats.total_requests  = total_requests_.load();
+    stats.cache_hits      = cache_hits_.load();
+    stats.cache_misses    = cache_misses_.load();
     stats.cache_evictions = cache_evictions_.load();
-    stats.total_errors = total_errors_.load();
+    stats.total_errors    = total_errors_.load();
 
     if (stats.total_requests > 0) {
         stats.cache_hit_rate =
             (static_cast<double>(stats.cache_hits) / stats.total_requests) * 100.0;
-        stats.error_rate =
-            (static_cast<double>(stats.total_errors) / stats.total_requests) * 100.0;
+        stats.error_rate = (static_cast<double>(stats.total_errors) / stats.total_requests) * 100.0;
     }
 
     stats.city_db_open = city_db_open_.load();
-    stats.asn_db_open = asn_db_open_.load();
-    stats.oui_db_open = oui_db_open_.load();
+    stats.asn_db_open  = asn_db_open_.load();
+    stats.oui_db_open  = oui_db_open_.load();
 
     {
         std::scoped_lock const lock(mutex_);
@@ -92,7 +91,8 @@ Metrics::Stats Metrics::get_stats() const {
     stats.memory_usage_mb = 0;
 
     auto now = std::chrono::steady_clock::now();
-    stats.uptime_seconds = std::chrono::duration_cast<std::chrono::seconds>(now - start_time_).count();
+    stats.uptime_seconds =
+        std::chrono::duration_cast<std::chrono::seconds>(now - start_time_).count();
 
     return stats;
 }
@@ -100,11 +100,11 @@ Metrics::Stats Metrics::get_stats() const {
 void Metrics::reset() {
     std::scoped_lock const lock(mutex_);
 
-    total_requests_ = 0;
-    cache_hits_ = 0;
-    cache_misses_ = 0;
+    total_requests_  = 0;
+    cache_hits_      = 0;
+    cache_misses_    = 0;
     cache_evictions_ = 0;
-    total_errors_ = 0;
+    total_errors_    = 0;
     latencies_.clear();
     request_timestamps_.clear();
     start_time_ = std::chrono::steady_clock::now();

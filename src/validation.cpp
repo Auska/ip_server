@@ -1,8 +1,9 @@
 #include "validation.h"
 
-#include <cstring>
 #include <netdb.h>
 #include <sys/socket.h>
+
+#include <cstring>
 
 namespace ip_server {
 
@@ -11,7 +12,8 @@ bool is_valid_ipv4(const std::string& ip) {
     for (char c : ip) {
         if (c == '.') {
             if (++octets > 3 || digits == 0) return false;
-            val = 0; digits = 0;
+            val    = 0;
+            digits = 0;
         } else if (c >= '0' && c <= '9') {
             val = val * 10 + (c - '0');
             if (val > 255) return false;
@@ -31,10 +33,10 @@ bool is_valid_ipv6(const std::string& ip) {
     struct addrinfo hints{};
     std::memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET6;
-    hints.ai_flags = AI_NUMERICHOST;
+    hints.ai_flags  = AI_NUMERICHOST;
 
     struct addrinfo* result = nullptr;
-    int const ret = getaddrinfo(ip.c_str(), nullptr, &hints, &result);
+    int const ret           = getaddrinfo(ip.c_str(), nullptr, &hints, &result);
     if (ret != 0) {
         return false;
     }
@@ -53,18 +55,17 @@ bool is_valid_mac_format(const std::string& mac) {
             if (i % 3 == 2) {
                 if (mac[i] != ':' && mac[i] != '-') return false;
             } else {
-                if (!((mac[i] >= '0' && mac[i] <= '9') ||
-                      (mac[i] >= 'a' && mac[i] <= 'f') ||
-                      (mac[i] >= 'A' && mac[i] <= 'F'))) return false;
+                if (!((mac[i] >= '0' && mac[i] <= '9') || (mac[i] >= 'a' && mac[i] <= 'f')
+                      || (mac[i] >= 'A' && mac[i] <= 'F')))
+                    return false;
             }
         }
         return true;
     }
     if (mac.size() == 12) {
         for (char c : mac) {
-            if (!((c >= '0' && c <= '9') ||
-                  (c >= 'a' && c <= 'f') ||
-                  (c >= 'A' && c <= 'F'))) return false;
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
+                return false;
         }
         return true;
     }

@@ -293,7 +293,7 @@ TEST_F(PasswordGeneratorTest, GenerateInvalidLengthThrows) {
 TEST_F(PasswordGeneratorTest, LengthBoundaryEight) {
     PasswordConfig config;
     config.length = 8;
-    auto result = generator_.generate(config);
+    auto result   = generator_.generate(config);
     EXPECT_EQ(result.length, 8);
     EXPECT_FALSE(result.password.empty());
 }
@@ -301,17 +301,17 @@ TEST_F(PasswordGeneratorTest, LengthBoundaryEight) {
 TEST_F(PasswordGeneratorTest, LengthBoundaryOneTwentyEight) {
     PasswordConfig config;
     config.length = 128;
-    auto result = generator_.generate(config);
+    auto result   = generator_.generate(config);
     EXPECT_EQ(result.length, 128);
     EXPECT_FALSE(result.password.empty());
 }
 
 TEST_F(PasswordGeneratorTest, SymbolsOnlyPassword) {
     PasswordConfig config;
-    config.uppercase = false;
-    config.lowercase = false;
-    config.digits = false;
-    config.symbols = true;
+    config.uppercase       = false;
+    config.lowercase       = false;
+    config.digits          = false;
+    config.symbols         = true;
     config.exclude_similar = false;
 
     auto result = generator_.generate(config);
@@ -319,20 +319,21 @@ TEST_F(PasswordGeneratorTest, SymbolsOnlyPassword) {
 
     for (char c : result.password) {
         bool is_symbol = c == '!' || c == '@' || c == '#' || c == '$' || c == '%' || c == '^'
-                      || c == '&' || c == '*' || c == '(' || c == ')' || c == '_' || c == '+'
-                      || c == '-' || c == '=' || c == '[' || c == ']' || c == '{' || c == '}'
-                      || c == '|' || c == ';' || c == ':' || c == ',' || c == '.' || c == '<'
-                      || c == '>' || c == '?';
-        EXPECT_TRUE(is_symbol) << "Non-symbol character '" << c << "' found in symbols-only password";
+                         || c == '&' || c == '*' || c == '(' || c == ')' || c == '_' || c == '+'
+                         || c == '-' || c == '=' || c == '[' || c == ']' || c == '{' || c == '}'
+                         || c == '|' || c == ';' || c == ':' || c == ',' || c == '.' || c == '<'
+                         || c == '>' || c == '?';
+        EXPECT_TRUE(is_symbol) << "Non-symbol character '" << c
+                               << "' found in symbols-only password";
     }
 }
 
 TEST_F(PasswordGeneratorTest, ExcludeSimilarReducesPool) {
     PasswordConfig config;
-    config.uppercase = true;
-    config.lowercase = false;
-    config.digits = false;
-    config.symbols = false;
+    config.uppercase       = true;
+    config.lowercase       = false;
+    config.digits          = false;
+    config.symbols         = false;
     config.exclude_similar = true;
 
     // Only uppercase with exclude_similar: pool = 26 - 2 = 24 chars
@@ -360,41 +361,56 @@ TEST_F(PasswordGeneratorTest, StrengthRatingBoundaries) {
     // Digits only, length 8: pool=10, entropy = 8*log2(10) ≈ 26.6 → very_weak (< 28)
     {
         PasswordConfig c;
-        c.length = 8; c.uppercase = false; c.lowercase = false;
-        c.digits = true; c.symbols = false; c.exclude_similar = true;
+        c.length          = 8;
+        c.uppercase       = false;
+        c.lowercase       = false;
+        c.digits          = true;
+        c.symbols         = false;
+        c.exclude_similar = true;
         cases.push_back({c, "very_weak"});
     }
 
     // Lowercase only, length 12: pool=26, entropy = 12*log2(26) ≈ 56.4 → fair (36-60)
     {
         PasswordConfig c;
-        c.length = 12; c.uppercase = false; c.lowercase = true;
-        c.digits = false; c.symbols = false; c.exclude_similar = true;
+        c.length          = 12;
+        c.uppercase       = false;
+        c.lowercase       = true;
+        c.digits          = false;
+        c.symbols         = false;
+        c.exclude_similar = true;
         cases.push_back({c, "fair"});
     }
 
     // All types, length 12: pool≈86, entropy = 12*log2(86) ≈ 77.1 → strong (60-80)
     {
         PasswordConfig c;
-        c.length = 12; c.uppercase = true; c.lowercase = true;
-        c.digits = true; c.symbols = true; c.exclude_similar = true;
+        c.length          = 12;
+        c.uppercase       = true;
+        c.lowercase       = true;
+        c.digits          = true;
+        c.symbols         = true;
+        c.exclude_similar = true;
         cases.push_back({c, "strong"});
     }
 
     // All types, length 20: pool≈86, entropy ≈ 128 → very_strong (>=80)
     {
         PasswordConfig c;
-        c.length = 20; c.uppercase = true; c.lowercase = true;
-        c.digits = true; c.symbols = true; c.exclude_similar = true;
+        c.length          = 20;
+        c.uppercase       = true;
+        c.lowercase       = true;
+        c.digits          = true;
+        c.symbols         = true;
+        c.exclude_similar = true;
         cases.push_back({c, "very_strong"});
     }
 
     for (size_t i = 0; i < cases.size(); ++i) {
         auto result = generator_.generate(cases[i].config);
         EXPECT_EQ(result.strength, cases[i].expected_strength)
-            << "Case " << i << " failed: expected " << cases[i].expected_strength
-            << " but got " << result.strength
-            << " (entropy=" << result.entropy << ")";
+            << "Case " << i << " failed: expected " << cases[i].expected_strength << " but got "
+            << result.strength << " (entropy=" << result.entropy << ")";
     }
 }
 
@@ -408,7 +424,7 @@ TEST_F(PasswordGeneratorTest, GenerateBatchValidOne) {
 TEST_F(PasswordGeneratorTest, GenerateBatchUniqueResults) {
     PasswordConfig config;
     config.length = 32;  // Long enough to be unique
-    auto results = generator_.generate_batch(config, 10);
+    auto results  = generator_.generate_batch(config, 10);
 
     std::set<std::string> seen;
     for (const auto& r : results) {

@@ -35,7 +35,7 @@ bool RateLimiter::is_allowed(const std::string& ip_address) {
     }
 
     auto now = std::chrono::steady_clock::now();
-    auto it = ip_records_.find(ip_address);
+    auto it  = ip_records_.find(ip_address);
 
     if (it == ip_records_.end()) {
         if (ip_records_.size() >= max_ip_records_) {
@@ -87,7 +87,7 @@ void RateLimiter::cleanup() {
         cleanup_old_timestamps(record);
     }
 
-    auto it = ip_records_.begin();
+    auto it              = ip_records_.begin();
     size_t removed_count = 0;
     while (it != ip_records_.end()) {
         if (it->second.timestamps.empty()) {
@@ -124,11 +124,11 @@ RateLimiter::MemoryStats RateLimiter::get_memory_stats() const {
     std::scoped_lock const lock(mutex_);
 
     MemoryStats stats{};
-    stats.ip_record_count = ip_records_.size();
-    stats.total_timestamps = 0;
+    stats.ip_record_count        = ip_records_.size();
+    stats.total_timestamps       = 0;
     stats.estimated_memory_bytes = 0;
-    stats.total_requests = total_requests_.load();
-    stats.total_rate_limited = total_rate_limited_.load();
+    stats.total_requests         = total_requests_.load();
+    stats.total_rate_limited     = total_rate_limited_.load();
 
     for (const auto& [ip, record] : ip_records_) {
         stats.total_timestamps += record.timestamps.size();
@@ -142,7 +142,7 @@ RateLimiter::MemoryStats RateLimiter::get_memory_stats() const {
 void RateLimiter::reset_stats() {
     std::scoped_lock const lock(mutex_);
 
-    total_requests_ = 0;
+    total_requests_     = 0;
     total_rate_limited_ = 0;
 
     LOG_INFO("Rate limiter statistics reset");

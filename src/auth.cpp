@@ -1,9 +1,9 @@
 #include "auth.h"
 
+#include <openssl/sha.h>
+
 #include <array>
 #include <fstream>
-
-#include <openssl/sha.h>
 
 #include "logger.h"
 

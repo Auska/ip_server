@@ -33,7 +33,7 @@ OUIDatabase::OUIDatabase(OUIDatabase&& other) noexcept
 OUIDatabase& OUIDatabase::operator=(OUIDatabase&& other) noexcept {
     if (this != &other) {
         close();
-        db_ = other.db_;
+        db_          = other.db_;
         lookup_stmt_ = std::move(other.lookup_stmt_);
         is_open_.store(other.is_open_.load(std::memory_order_acquire), std::memory_order_release);
         other.is_open_.store(false, std::memory_order_release);
@@ -62,14 +62,14 @@ bool OUIDatabase::open(const std::string& db_path) {
     }
 
     char* error_msg = nullptr;
-    status = sqlite3_exec(db_, "PRAGMA journal_mode=WAL;", nullptr, nullptr, &error_msg);
+    status          = sqlite3_exec(db_, "PRAGMA journal_mode=WAL;", nullptr, nullptr, &error_msg);
     if (status != SQLITE_OK) {
         LOG_WARNING("Failed to enable WAL mode: " + std::string(error_msg ? error_msg : "unknown"));
         sqlite3_free(error_msg);
     }
 
     sqlite3_stmt* raw_stmt = nullptr;
-    status = sqlite3_prepare_v2(db_, OUI_LOOKUP_SQL, -1, &raw_stmt, nullptr);
+    status                 = sqlite3_prepare_v2(db_, OUI_LOOKUP_SQL, -1, &raw_stmt, nullptr);
     if (status != SQLITE_OK) {
         LOG_ERROR("Failed to prepare OUI lookup statement: " + std::string(sqlite3_errmsg(db_)));
         sqlite3_close(db_);
@@ -152,12 +152,13 @@ nlohmann::json OUIDatabase::lookup(const std::string& mac_address) const {
     status = sqlite3_step(lookup_stmt_.get());
 
     if (status == SQLITE_ROW) {
-        result["mac"] = mac_address;
-        result["oui"] = oui;
+        result["mac"]   = mac_address;
+        result["oui"]   = oui;
         result["found"] = true;
 
         auto extract_col = [&](int col_idx, const char* key) {
-            const char* col = reinterpret_cast<const char*>(sqlite3_column_text(lookup_stmt_.get(), col_idx));
+            const char* col =
+                reinterpret_cast<const char*>(sqlite3_column_text(lookup_stmt_.get(), col_idx));
             if (col != nullptr) result[key] = col;
         };
 
@@ -170,8 +171,8 @@ nlohmann::json OUIDatabase::lookup(const std::string& mac_address) const {
         extract_col(7, "sources");
 
     } else if (status == SQLITE_DONE) {
-        result["mac"] = mac_address;
-        result["oui"] = oui;
+        result["mac"]   = mac_address;
+        result["oui"]   = oui;
         result["found"] = false;
     } else {
         result["error"] = std::string("Query failed: ") + sqlite3_errmsg(db_);

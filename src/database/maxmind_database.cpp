@@ -60,7 +60,7 @@ nlohmann::json MaxMindDatabase::perform_lookup(const std::string& ip_address, in
 
     if (!is_open_) {
         json_result["error"] = "Database not open";
-        json_result["ip"] = ip_address;
+        json_result["ip"]    = ip_address;
         return json_result;
     }
 
@@ -68,23 +68,23 @@ nlohmann::json MaxMindDatabase::perform_lookup(const std::string& ip_address, in
 
     if (gai_error != 0) {
         json_result["error"] = "Invalid IP address";
-        json_result["ip"] = ip_address;
+        json_result["ip"]    = ip_address;
         return json_result;
     }
 
     if (mmdb_error != MMDB_SUCCESS) {
         json_result["error"] = std::string("MaxMind DB lookup error: ") + MMDB_strerror(mmdb_error);
-        json_result["ip"] = ip_address;
+        json_result["ip"]    = ip_address;
         return json_result;
     }
 
     if (!result.found_entry) {
-        json_result["ip"] = ip_address;
+        json_result["ip"]    = ip_address;
         json_result["found"] = false;
         return json_result;
     }
 
-    json_result["ip"] = ip_address;
+    json_result["ip"]    = ip_address;
     json_result["found"] = true;
     return json_result;
 }

@@ -2,9 +2,9 @@
 
 #include <spdlog/formatter.h>
 #include <spdlog/pattern_formatter.h>
+#include <unistd.h>
 
 #include <cstring>
-#include <unistd.h>
 
 namespace ip_server {
 
@@ -14,16 +14,16 @@ class CustomLevelFormatter : public spdlog::custom_flag_formatter {
     void format(const spdlog::details::log_msg& msg, const std::tm& /*tm_time*/,
                 spdlog::memory_buf_t& dest) override {
         static constexpr const char* level_names[] = {
-            "TRACE",    // trace
-            "DEBUG",    // debug
-            "INFO ",    // info
-            "WARN ",    // warn
-            "ERROR",    // err
-            "CRITICAL", // critical
-            "OFF",      // off
-            "UNKNOWN"   // n_levels
+            "TRACE",     // trace
+            "DEBUG",     // debug
+            "INFO ",     // info
+            "WARN ",     // warn
+            "ERROR",     // err
+            "CRITICAL",  // critical
+            "OFF",       // off
+            "UNKNOWN"    // n_levels
         };
-        size_t idx = msg.level < 8 ? static_cast<size_t>(msg.level) : 7;
+        size_t idx             = msg.level < 8 ? static_cast<size_t>(msg.level) : 7;
         const char* level_name = level_names[idx];
         dest.append(level_name, level_name + std::char_traits<char>::length(level_name));
     }
@@ -82,7 +82,7 @@ void Logger::setup_sinks() {
         } else if (config_.rotation_type == RotationType::TIME) {
             file_sink =
                 std::make_shared<spdlog::sinks::daily_file_sink_mt>(config_.log_file_path.string(),
-                                                                     0, 0);
+                                                                    0, 0);
         } else {
             file_sink = std::make_shared<
                 spdlog::sinks::rotating_file_sink_mt>(config_.log_file_path.string(),

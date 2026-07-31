@@ -6,9 +6,9 @@
 #include <thread>
 #include <vector>
 
+#include "http_server.h"
 #include "service/ip_geo_service.h"
 #include "service/mac_lookup_service.h"
-#include "http_server.h"
 #include "test_utils.h"
 
 using namespace ip_server;
@@ -462,11 +462,11 @@ TEST_F(HTTPServerTest, BatchLookupMixedIPs) {
 
     nlohmann::json batch_request;
     batch_request["ips"] = {
-        "8.8.8.8",          // Valid
-        "1.1.1.1",          // Valid
-        "not.an.ip",        // Invalid - will be filtered (letters)
-        "invalid.ip",       // Invalid - will be filtered (letters)
-        "9.9.9.9"           // Valid
+        "8.8.8.8",     // Valid
+        "1.1.1.1",     // Valid
+        "not.an.ip",   // Invalid - will be filtered (letters)
+        "invalid.ip",  // Invalid - will be filtered (letters)
+        "9.9.9.9"      // Valid
     };
 
     auto result = client.Post("/lookup", batch_request.dump(), "application/json");
@@ -716,7 +716,8 @@ TEST_F(HTTPServerTest, PasswordGenerateGetLengthTooShort) {
 
 TEST_F(HTTPServerTest, PasswordGenerateGetDisableAllTypes) {
     httplib::Client client("127.0.0.1", test_port);
-    auto result = client.Get("/password/generate?uppercase=false&lowercase=false&digits=false&symbols=false");
+    auto result =
+        client.Get("/password/generate?uppercase=false&lowercase=false&digits=false&symbols=false");
 
     ASSERT_TRUE(result);
     EXPECT_EQ(result->status, 400);
@@ -725,11 +726,11 @@ TEST_F(HTTPServerTest, PasswordGenerateGetDisableAllTypes) {
 TEST_F(HTTPServerTest, PasswordGeneratePost) {
     httplib::Client client("127.0.0.1", test_port);
     nlohmann::json body;
-    body["length"] = 20;
+    body["length"]    = 20;
     body["uppercase"] = true;
     body["lowercase"] = true;
-    body["digits"] = true;
-    body["symbols"] = true;
+    body["digits"]    = true;
+    body["symbols"]   = true;
 
     auto result = client.Post("/password/generate", body.dump(), "application/json");
 
@@ -749,7 +750,7 @@ TEST_F(HTTPServerTest, PasswordGeneratePost) {
 TEST_F(HTTPServerTest, PasswordGeneratePostBatch) {
     httplib::Client client("127.0.0.1", test_port);
     nlohmann::json body;
-    body["count"] = 5;
+    body["count"]  = 5;
     body["length"] = 12;
 
     auto result = client.Post("/password/generate", body.dump(), "application/json");
@@ -806,7 +807,7 @@ TEST_F(HTTPServerTest, BatchLookupWithMacsArray) {
 TEST_F(HTTPServerTest, BatchLookupBothIpsAndMacs) {
     httplib::Client client("127.0.0.1", test_port);
     nlohmann::json body;
-    body["ips"] = {"8.8.8.8"};
+    body["ips"]  = {"8.8.8.8"};
     body["macs"] = {"00:1A:2B:3C:4D:5E"};
 
     auto result = client.Post("/lookup", body.dump(), "application/json");

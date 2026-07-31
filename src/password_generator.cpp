@@ -64,18 +64,20 @@ PasswordResult PasswordGenerator::generate(const PasswordConfig& config) {
 
     std::uniform_int_distribution<size_t> pos_dist(0, config.length - 1);
     for (const auto& char_set : sets.required_chars) {
-        if (char_set.empty()) { continue; }
+        if (char_set.empty()) {
+            continue;
+        }
         std::uniform_int_distribution<size_t> char_dist(0, char_set.size() - 1);
         size_t const pos = pos_dist(password_gen);
-        password[pos] = char_set[char_dist(password_gen)];
+        password[pos]    = char_set[char_dist(password_gen)];
     }
 
     std::shuffle(password.begin(), password.end(), password_gen);
 
     PasswordResult result;
     result.password = password;
-    result.length = static_cast<int>(password.length());
-    result.entropy = calculate_entropy(password, static_cast<int>(sets.pool.size()));
+    result.length   = static_cast<int>(password.length());
+    result.entropy  = calculate_entropy(password, static_cast<int>(sets.pool.size()));
     result.strength = get_strength_rating(result.entropy);
 
     return result;
@@ -101,11 +103,14 @@ std::vector<PasswordResult> PasswordGenerator::generate_batch(const PasswordConf
     return results;
 }
 
-PasswordGenerator::CharacterSets PasswordGenerator::build_character_sets(const PasswordConfig& config) {
+PasswordGenerator::CharacterSets PasswordGenerator::build_character_sets(
+    const PasswordConfig& config) {
     CharacterSets sets;
 
     auto add_set = [&](const char* chars, const char* confusable, bool enabled) {
-        if (!enabled) { return; }
+        if (!enabled) {
+            return;
+        }
         std::string filtered(chars);
         if (config.exclude_similar && confusable) {
             for (char const c : std::string_view(confusable)) {
