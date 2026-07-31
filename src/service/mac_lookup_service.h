@@ -3,9 +3,9 @@
 #include <chrono>
 #include <string>
 
-#include "../cache.h"
-#include "../types.h"
-#include "../mac_database.h"
+#include "cache.h"
+#include "types.h"
+#include "mac_database.h"
 
 namespace ip_server {
 

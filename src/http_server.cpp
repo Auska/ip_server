@@ -229,27 +229,27 @@ void IPGeoHTTPServer::handle_health(const httplib::Request&, httplib::Response& 
     health["status"]    = "ok";
     health["timestamp"] = std::time(nullptr);
 
-    health["databases"] = {{"city", {{"open", stats.city_db_open}}},
-                           {"asn", {{"open", stats.asn_db_open}}},
-                           {"oui", {{"open", stats.oui_db_open}}}};
+    health["databases"] = {{"city", {{"open", stats.city_db_open_}}},
+                           {"asn", {{"open", stats.asn_db_open_}}},
+                           {"oui", {{"open", stats.oui_db_open_}}}};
 
-    health["metrics"] = {{"total_requests", stats.total_requests},
-                         {"qps", round(stats.current_qps * 100) / 100},
-                         {"avg_latency_ms", round(stats.avg_latency_ms * 1000) / 1000},
-                         {"p50_latency_ms", round(stats.p50_latency_ms * 1000) / 1000},
-                         {"p95_latency_ms", round(stats.p95_latency_ms * 1000) / 1000},
-                         {"p99_latency_ms", round(stats.p99_latency_ms * 1000) / 1000}};
+    health["metrics"] = {{"total_requests", stats.total_requests_},
+                         {"qps", round(stats.current_qps_ * 100) / 100},
+                         {"avg_latency_ms", round(stats.avg_latency_ms_ * 1000) / 1000},
+                         {"p50_latency_ms", round(stats.p50_latency_ms_ * 1000) / 1000},
+                         {"p95_latency_ms", round(stats.p95_latency_ms_ * 1000) / 1000},
+                         {"p99_latency_ms", round(stats.p99_latency_ms_ * 1000) / 1000}};
 
-    health["cache"] = {{"hits", stats.cache_hits},
-                       {"misses", stats.cache_misses},
-                       {"hit_rate_percent", round(stats.cache_hit_rate * 100) / 100},
-                       {"evictions", stats.cache_evictions}};
+    health["cache"] = {{"hits", stats.cache_hits_},
+                       {"misses", stats.cache_misses_},
+                       {"hit_rate_percent", round(stats.cache_hit_rate_ * 100) / 100},
+                       {"evictions", stats.cache_evictions_}};
 
-    health["errors"] = {{"total", stats.total_errors},
-                        {"rate_percent", round(stats.error_rate * 100) / 100}};
+    health["errors"] = {{"total", stats.total_errors_},
+                        {"rate_percent", round(stats.error_rate_ * 100) / 100}};
 
-    health["system"] = {{"memory_usage_mb", stats.memory_usage_mb},
-                        {"uptime_seconds", stats.uptime_seconds}};
+    health["system"] = {{"memory_usage_mb", stats.memory_usage_mb_},
+                        {"uptime_seconds", stats.uptime_seconds_}};
 
     res.set_content(health.dump(), "application/json");
 }
@@ -275,7 +275,7 @@ void IPGeoHTTPServer::handle_lookup_get(const httplib::Request& req, httplib::Re
 
     try {
         if (!mac_param.empty()) {
-            if (!is_valid_mac_format(mac_param)) {
+            if (!isValidMacFormat(mac_param)) {
                 send_error_response(res, 400, "Bad Request", "Invalid MAC address format");
                 return;
             }
@@ -287,10 +287,10 @@ void IPGeoHTTPServer::handle_lookup_get(const httplib::Request& req, httplib::Re
             }
             LOG_DEBUG("MAC lookup request for: " + mac_param);
             auto result = mac_lookup_handler_(mac_param);
-            metrics_->record_request(result.cache_hit, result.latency_ms);
-            res.set_content(result.data.dump(), "application/json");
+            metrics_->record_request(result.cache_hit_, result.latency_ms_);
+            res.set_content(result.data_.dump(), "application/json");
         } else {
-            if (!is_valid_ip_format(ip_param)) {
+            if (!isValidIpFormat(ip_param)) {
                 send_error_response(res, 400, "Bad Request", "Invalid IP address format");
                 return;
             }
@@ -302,8 +302,8 @@ void IPGeoHTTPServer::handle_lookup_get(const httplib::Request& req, httplib::Re
             }
             LOG_DEBUG("IP lookup request for: " + ip_param);
             auto result = lookup_handler_(ip_param);
-            metrics_->record_request(result.cache_hit, result.latency_ms);
-            res.set_content(result.data.dump(), "application/json");
+            metrics_->record_request(result.cache_hit_, result.latency_ms_);
+            res.set_content(result.data_.dump(), "application/json");
         }
     } catch (const std::exception& e) {
         res.status = 500;
@@ -378,9 +378,9 @@ void IPGeoHTTPServer::handle_lookup_post(const httplib::Request& req, httplib::R
         };
 
         if (has_ips) {
-            if (!process_batch(lookup_handler_, "IP", "ips", is_valid_ip_format)) return;
+            if (!process_batch(lookup_handler_, "IP", "ips", isValidIpFormat)) return;
         } else {
-            if (!process_batch(mac_lookup_handler_, "MAC", "macs", is_valid_mac_format)) return;
+            if (!process_batch(mac_lookup_handler_, "MAC", "macs", isValidMacFormat)) return;
         }
 
         nlohmann::json results = nlohmann::json::array();
@@ -389,8 +389,8 @@ void IPGeoHTTPServer::handle_lookup_post(const httplib::Request& req, httplib::R
         if (query_list.size() <= 10) {
             for (const auto& query_str : query_list) {
                 auto result = handler(query_str);
-                metrics_->record_request(result.cache_hit, result.latency_ms);
-                results.push_back(std::move(result.data));
+                metrics_->record_request(result.cache_hit_, result.latency_ms_);
+                results.push_back(std::move(result.data_));
             }
         } else {
             std::vector<std::future<LookupResult>> futures;
@@ -404,8 +404,8 @@ void IPGeoHTTPServer::handle_lookup_post(const httplib::Request& req, httplib::R
 
             for (auto& future : futures) {
                 auto result = future.get();
-                metrics_->record_request(result.cache_hit, result.latency_ms);
-                results.push_back(std::move(result.data));
+                metrics_->record_request(result.cache_hit_, result.latency_ms_);
+                results.push_back(std::move(result.data_));
             }
         }
 
@@ -539,9 +539,9 @@ void IPGeoHTTPServer::cleanup_thread_func(std::atomic<bool>& shutdown_requested)
             rate_limiter_->cleanup();
 
             auto stats = rate_limiter_->get_memory_stats();
-            LOG_INFO("Rate limiter memory stats: " + std::to_string(stats.ip_record_count)
-                     + " IP records, " + std::to_string(stats.total_timestamps) + " timestamps, "
-                     + std::to_string(stats.estimated_memory_bytes / 1024) + " KB");
+            LOG_INFO("Rate limiter memory stats: " + std::to_string(stats.ip_record_count_)
+                     + " IP records, " + std::to_string(stats.total_timestamps_) + " timestamps, "
+                     + std::to_string(stats.estimated_memory_bytes_ / 1024) + " KB");
         }
     }
 

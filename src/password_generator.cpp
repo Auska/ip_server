@@ -24,17 +24,17 @@ PasswordGenerator::PasswordGenerator() {
 }
 
 bool PasswordGenerator::validate_config(const PasswordConfig& config, std::string& error_message) {
-    if (config.length < 8) {
+    if (config.length_ < 8) {
         error_message = "Password length must be at least 8 characters";
         return false;
     }
 
-    if (config.length > 128) {
+    if (config.length_ > 128) {
         error_message = "Password length must not exceed 128 characters";
         return false;
     }
 
-    if (!config.uppercase && !config.lowercase && !config.digits && !config.symbols) {
+    if (!config.uppercase_ && !config.lowercase_ && !config.digits_ && !config.symbols_) {
         error_message = "At least one character type must be enabled";
         return false;
     }
@@ -49,21 +49,21 @@ PasswordResult PasswordGenerator::generate(const PasswordConfig& config) {
     }
 
     auto sets = build_character_sets(config);
-    if (sets.pool.empty()) {
+    if (sets.pool_.empty()) {
         throw std::runtime_error("Character pool is empty");
     }
 
-    std::uniform_int_distribution<size_t> dist(0, sets.pool.size() - 1);
+    std::uniform_int_distribution<size_t> dist(0, sets.pool_.size() - 1);
 
     std::string password;
-    password.reserve(config.length);
+    password.reserve(config.length_);
 
-    for (int i = 0; i < config.length; ++i) {
-        password += sets.pool[dist(password_gen)];
+    for (int i = 0; i < config.length_; ++i) {
+        password += sets.pool_[dist(password_gen)];
     }
 
-    std::uniform_int_distribution<size_t> pos_dist(0, config.length - 1);
-    for (const auto& char_set : sets.required_chars) {
+    std::uniform_int_distribution<size_t> pos_dist(0, config.length_ - 1);
+    for (const auto& char_set : sets.required_chars_) {
         if (char_set.empty()) {
             continue;
         }
@@ -75,10 +75,10 @@ PasswordResult PasswordGenerator::generate(const PasswordConfig& config) {
     std::shuffle(password.begin(), password.end(), password_gen);
 
     PasswordResult result;
-    result.password = password;
-    result.length   = static_cast<int>(password.length());
-    result.entropy  = calculate_entropy(password, static_cast<int>(sets.pool.size()));
-    result.strength = get_strength_rating(result.entropy);
+    result.password_ = password;
+    result.length_   = static_cast<int>(password.length());
+    result.entropy_  = calculate_entropy(password, static_cast<int>(sets.pool_.size()));
+    result.strength_ = get_strength_rating(result.entropy_);
 
     return result;
 }
@@ -107,32 +107,32 @@ PasswordGenerator::CharacterSets PasswordGenerator::build_character_sets(
     const PasswordConfig& config) {
     CharacterSets sets;
 
-    auto add_set = [&](const char* chars, const char* confusable, bool enabled) {
+    auto addSet = [&](const char* chars, const char* confusable, bool enabled) {
         if (!enabled) {
             return;
         }
         std::string filtered(chars);
-        if (config.exclude_similar && confusable) {
+        if (config.exclude_similar_ && confusable) {
             for (char const c : std::string_view(confusable)) {
                 filtered.erase(std::remove(filtered.begin(), filtered.end(), c), filtered.end());
             }
         }
-        sets.pool += filtered;
+        sets.pool_ += filtered;
         if (!filtered.empty()) {
-            sets.required_chars.push_back(std::move(filtered));
+            sets.required_chars_.push_back(std::move(filtered));
         }
     };
 
-    add_set(UPPERCASE, CONFUSING_UPPER, config.uppercase);
-    add_set(LOWERCASE, CONFUSING_LOWER, config.lowercase);
-    add_set(DIGITS, CONFUSING_DIGITS, config.digits);
-    add_set(SYMBOLS, nullptr, config.symbols);
+    addSet(UPPERCASE, CONFUSING_UPPER, config.uppercase_);
+    addSet(LOWERCASE, CONFUSING_LOWER, config.lowercase_);
+    addSet(DIGITS, CONFUSING_DIGITS, config.digits_);
+    addSet(SYMBOLS, nullptr, config.symbols_);
 
     return sets;
 }
 
 std::string PasswordGenerator::build_character_pool(const PasswordConfig& config) {
-    return build_character_sets(config).pool;
+    return build_character_sets(config).pool_;
 }
 
 double PasswordGenerator::calculate_entropy(const std::string& password, int pool_size) {

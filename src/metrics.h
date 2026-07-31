@@ -18,27 +18,27 @@ class Metrics {
     void record_cache_eviction();
 
     struct Stats {
-        uint64_t total_requests;
-        uint64_t cache_hits;
-        uint64_t cache_misses;
-        uint64_t cache_evictions;
-        uint64_t total_errors;
+        uint64_t total_requests_;
+        uint64_t cache_hits_;
+        uint64_t cache_misses_;
+        uint64_t cache_evictions_;
+        uint64_t total_errors_;
 
-        double cache_hit_rate;
-        double error_rate;
+        double cache_hit_rate_;
+        double error_rate_;
 
-        double current_qps;
-        double avg_latency_ms;
-        double p50_latency_ms;
-        double p95_latency_ms;
-        double p99_latency_ms;
+        double current_qps_;
+        double avg_latency_ms_;
+        double p50_latency_ms_;
+        double p95_latency_ms_;
+        double p99_latency_ms_;
 
-        size_t memory_usage_mb;
-        uint64_t uptime_seconds;
+        size_t memory_usage_mb_;
+        uint64_t uptime_seconds_;
 
-        bool city_db_open;
-        bool asn_db_open;
-        bool oui_db_open;
+        bool city_db_open_;
+        bool asn_db_open_;
+        bool oui_db_open_;
     };
 
     Stats get_stats() const;

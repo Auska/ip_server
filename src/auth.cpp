@@ -11,7 +11,7 @@ namespace ip_server {
 
 namespace {
 
-std::string sha256_hash(const std::string& input) {
+std::string sha256Hash(const std::string& input) {
     std::array<unsigned char, SHA256_DIGEST_LENGTH> hash;
     SHA256(reinterpret_cast<const unsigned char*>(input.c_str()), input.size(), hash.data());
 
@@ -35,7 +35,7 @@ APIAuth::APIAuth(bool enabled) : enabled_(enabled) {
 }
 
 std::string APIAuth::hash_key(const std::string& key) {
-    return sha256_hash(key);
+    return sha256Hash(key);
 }
 
 std::string APIAuth::generate_key_id(const std::string& key_hash) {

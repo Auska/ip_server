@@ -250,9 +250,9 @@ TEST_F(MACLookupServiceTest, MACLookupServiceLookup) {
 
     auto result = service.lookup("00:1A:2B:3C:4D:5E");
 
-    EXPECT_TRUE(result.data.contains("found"));
-    EXPECT_TRUE(result.data["found"].get<bool>());
-    EXPECT_TRUE(result.data.contains("mac"));
+    EXPECT_TRUE(result.data_.contains("found"));
+    EXPECT_TRUE(result.data_["found"].get<bool>());
+    EXPECT_TRUE(result.data_.contains("mac"));
 }
 
 TEST_F(MACLookupServiceTest, MACLookupServiceCacheEnabled) {
@@ -260,11 +260,11 @@ TEST_F(MACLookupServiceTest, MACLookupServiceCacheEnabled) {
 
     // First lookup
     auto result1 = service.lookup("00:1A:2B:3C:4D:5E");
-    EXPECT_FALSE(result1.cache_hit);
+    EXPECT_FALSE(result1.cache_hit_);
 
     // Second lookup (should hit cache)
     auto result2 = service.lookup("00:1A:2B:3C:4D:5E");
-    EXPECT_TRUE(result2.cache_hit);
+    EXPECT_TRUE(result2.cache_hit_);
 }
 
 TEST_F(MACLookupServiceTest, MACLookupServiceSetCacheSize) {
@@ -284,7 +284,7 @@ TEST_F(MACLookupServiceTest, MACLookupServiceLatencyTracking) {
 
     auto result = service.lookup("00:1A:2B:3C:4D:5E");
 
-    EXPECT_GE(result.latency_ms, 0.0);
+    EXPECT_GE(result.latency_ms_, 0.0);
 }
 
 TEST_F(MACLookupServiceTest, MACLookupServiceConcurrentLookups) {
@@ -301,7 +301,7 @@ TEST_F(MACLookupServiceTest, MACLookupServiceConcurrentLookups) {
     // Wait for all futures to complete
     for (auto& future : futures) {
         auto result = future.get();
-        EXPECT_TRUE(result.data.contains("found"));
+        EXPECT_TRUE(result.data_.contains("found"));
     }
 }
 
@@ -312,12 +312,12 @@ TEST_F(MACLookupServiceTest, MACLookupServiceMultipleOUIs) {
     auto result2 = service.lookup("F4:EA:B5:12:34:56");
     auto result3 = service.lookup("08:EA:44:AB:CD:EF");
 
-    EXPECT_TRUE(result1.data["found"].get<bool>());
-    EXPECT_TRUE(result2.data["found"].get<bool>());
-    EXPECT_TRUE(result3.data["found"].get<bool>());
+    EXPECT_TRUE(result1.data_["found"].get<bool>());
+    EXPECT_TRUE(result2.data_["found"].get<bool>());
+    EXPECT_TRUE(result3.data_["found"].get<bool>());
 
-    EXPECT_NE(result1.data["oui"], result2.data["oui"]);
-    EXPECT_NE(result2.data["oui"], result3.data["oui"]);
+    EXPECT_NE(result1.data_["oui"], result2.data_["oui"]);
+    EXPECT_NE(result2.data_["oui"], result3.data_["oui"]);
 }
 
 // ─── MAC database edge-case tests ─────────────────────────────────
@@ -385,16 +385,16 @@ TEST_F(MACDatabaseTest, LookupAfterClose) {
 TEST_F(MACLookupServiceTest, CacheSizeZero) {
     MACLookupService service(oui_db_path.string(), 0);
     auto result = service.lookup("00:1A:2B:3C:4D:5E");
-    EXPECT_TRUE(result.data.contains("found"));
+    EXPECT_TRUE(result.data_.contains("found"));
 }
 
 TEST_F(MACLookupServiceTest, GetCacheStatsEmpty) {
     MACLookupService service(oui_db_path.string(), 100);
 
     auto stats = service.get_cache_stats();
-    EXPECT_EQ(stats.total_lookups, 0);
-    EXPECT_EQ(stats.hits, 0);
-    EXPECT_EQ(stats.misses, 0);
+    EXPECT_EQ(stats.total_lookups_, 0);
+    EXPECT_EQ(stats.hits_, 0);
+    EXPECT_EQ(stats.misses_, 0);
 }
 
 TEST_F(MACLookupServiceTest, LookupSameMACRepeatedly) {
@@ -402,11 +402,11 @@ TEST_F(MACLookupServiceTest, LookupSameMACRepeatedly) {
 
     // First lookup — cache miss
     auto result1 = service.lookup("00:1A:2B:3C:4D:5E");
-    EXPECT_TRUE(result1.data["found"].get<bool>());
-    EXPECT_FALSE(result1.cache_hit);
+    EXPECT_TRUE(result1.data_["found"].get<bool>());
+    EXPECT_FALSE(result1.cache_hit_);
 
     // Second lookup — should be cache hit
     auto result2 = service.lookup("00:1A:2B:3C:4D:5E");
-    EXPECT_TRUE(result2.data["found"].get<bool>());
-    EXPECT_TRUE(result2.cache_hit);
+    EXPECT_TRUE(result2.data_["found"].get<bool>());
+    EXPECT_TRUE(result2.cache_hit_);
 }

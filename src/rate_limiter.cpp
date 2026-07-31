@@ -8,8 +8,8 @@ namespace ip_server {
 
 void RateLimiter::cleanup_old_timestamps(IPRecord& record) const {
     auto now = std::chrono::steady_clock::now();
-    while (!record.timestamps.empty() && now - record.timestamps.front() > window_) {
-        record.timestamps.pop_front();
+    while (!record.timestamps_.empty() && now - record.timestamps_.front() > window_) {
+        record.timestamps_.pop_front();
     }
 }
 
@@ -44,22 +44,22 @@ bool RateLimiter::is_allowed(const std::string& ip_address) {
 
         lru_list_.push_front(ip_address);
         IPRecord record;
-        record.last_access = now;
-        record.timestamps.push_back(now);
-        record.lru_it = lru_list_.begin();
+        record.last_access_ = now;
+        record.timestamps_.push_back(now);
+        record.lru_it_ = lru_list_.begin();
         ip_records_.emplace(ip_address, std::move(record));
         return true;
     }
 
     IPRecord& record = it->second;
 
-    lru_list_.splice(lru_list_.begin(), lru_list_, record.lru_it);
-    record.last_access = now;
+    lru_list_.splice(lru_list_.begin(), lru_list_, record.lru_it_);
+    record.last_access_ = now;
 
     cleanup_old_timestamps(record);
 
-    if (record.timestamps.size() < static_cast<size_t>(max_requests_)) {
-        record.timestamps.push_back(now);
+    if (record.timestamps_.size() < static_cast<size_t>(max_requests_)) {
+        record.timestamps_.push_back(now);
         return true;
     }
 
@@ -77,7 +77,7 @@ int RateLimiter::get_remaining(const std::string& ip_address) {
 
     cleanup_old_timestamps(it->second);
 
-    return std::max(0, max_requests_ - static_cast<int>(it->second.timestamps.size()));
+    return std::max(0, max_requests_ - static_cast<int>(it->second.timestamps_.size()));
 }
 
 void RateLimiter::cleanup() {
@@ -90,8 +90,8 @@ void RateLimiter::cleanup() {
     auto it              = ip_records_.begin();
     size_t removed_count = 0;
     while (it != ip_records_.end()) {
-        if (it->second.timestamps.empty()) {
-            lru_list_.erase(it->second.lru_it);
+        if (it->second.timestamps_.empty()) {
+            lru_list_.erase(it->second.lru_it_);
             it = ip_records_.erase(it);
             removed_count++;
         } else {
@@ -111,7 +111,7 @@ size_t RateLimiter::estimate_memory_usage() const {
 
     for (const auto& [ip, record] : ip_records_) {
         total += ip.size() * sizeof(char);
-        total += record.timestamps.size() * sizeof(std::chrono::steady_clock::time_point);
+        total += record.timestamps_.size() * sizeof(std::chrono::steady_clock::time_point);
         total += sizeof(std::deque<std::chrono::steady_clock::time_point>);
     }
 
@@ -124,17 +124,17 @@ RateLimiter::MemoryStats RateLimiter::get_memory_stats() const {
     std::scoped_lock const lock(mutex_);
 
     MemoryStats stats{};
-    stats.ip_record_count        = ip_records_.size();
-    stats.total_timestamps       = 0;
-    stats.estimated_memory_bytes = 0;
-    stats.total_requests         = total_requests_.load();
-    stats.total_rate_limited     = total_rate_limited_.load();
+    stats.ip_record_count_        = ip_records_.size();
+    stats.total_timestamps_       = 0;
+    stats.estimated_memory_bytes_ = 0;
+    stats.total_requests_         = total_requests_.load();
+    stats.total_rate_limited_     = total_rate_limited_.load();
 
     for (const auto& [ip, record] : ip_records_) {
-        stats.total_timestamps += record.timestamps.size();
+        stats.total_timestamps_ += record.timestamps_.size();
     }
 
-    stats.estimated_memory_bytes = estimate_memory_usage();
+    stats.estimated_memory_bytes_ = estimate_memory_usage();
 
     return stats;
 }

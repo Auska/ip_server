@@ -28,30 +28,30 @@ constexpr int    MAX_BACKUP_FILES          = 100;
 }  // namespace config_limits
 
 struct ServerConfig {
-    std::string host = "0.0.0.0";
-    uint16_t port    = 8080;
-    std::string city_db_path;
-    std::string asn_db_path;
-    std::string oui_db_path;
-    int thread_pool_size = 4;
-    size_t cache_size    = 10000;
-    std::filesystem::path config_file;
-    bool enable_rate_limiter    = true;
-    int max_requests_per_minute = 100;
-    int max_batch_size          = 100;
-    bool enable_api_auth        = false;
-    std::string api_keys_file;
-    std::string default_api_key;
+    std::string host_ = "0.0.0.0";
+    uint16_t port_    = 8080;
+    std::string city_db_path_;
+    std::string asn_db_path_;
+    std::string oui_db_path_;
+    int thread_pool_size_ = 4;
+    size_t cache_size_    = 10000;
+    std::filesystem::path config_file_;
+    bool enable_rate_limiter_    = true;
+    int max_requests_per_minute_ = 100;
+    int max_batch_size_          = 100;
+    bool enable_api_auth_        = false;
+    std::string api_keys_file_;
+    std::string default_api_key_;
 
     // Logging configuration
-    bool enable_file_logging          = false;
-    std::string log_file_path         = "logs/ip_server.log";  // Overridden by XDG paths
-    std::string log_rotation_type     = "size";                // "none", "size", "time", "both"
-    size_t log_max_file_size          = 10 * 1024 * 1024;      // 10 MB
-    int log_rotation_interval_minutes = 1440;                  // 24 hours
-    int log_max_backup_files          = 5;
-    bool log_enable_stdout            = true;
-    std::string log_level = "info";  // "trace", "debug", "info", "warn", "error", "critical", "off"
+    bool enable_file_logging_          = false;
+    std::string log_file_path_         = "logs/ip_server.log";  // Overridden by XDG paths
+    std::string log_rotation_type_     = "size";                // "none", "size", "time", "both"
+    size_t log_max_file_size_          = 10 * 1024 * 1024;      // 10 MB
+    int log_rotation_interval_minutes_ = 1440;                  // 24 hours
+    int log_max_backup_files_          = 5;
+    bool log_enable_stdout_            = true;
+    std::string log_level_ = "info";  // "trace", "debug", "info", "warn", "error", "critical", "off"
 };
 
 class ConfigParser {

@@ -15,9 +15,9 @@ class ConfigTest : public ::testing::Test {
 };
 
 TEST_F(ConfigTest, DefaultConfigValues) {
-    EXPECT_EQ(default_config.host, "0.0.0.0");
-    EXPECT_EQ(default_config.port, 8080);
-    EXPECT_EQ(default_config.thread_pool_size, 4);
+    EXPECT_EQ(default_config.host_, "0.0.0.0");
+    EXPECT_EQ(default_config.port_, 8080);
+    EXPECT_EQ(default_config.thread_pool_size_, 4);
 }
 
 TEST_F(ConfigTest, ParseNoArguments) {
@@ -27,8 +27,8 @@ TEST_F(ConfigTest, ParseNoArguments) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_EQ(config.host, "0.0.0.0");
-    EXPECT_EQ(config.port, 8080);
+    EXPECT_EQ(config.host_, "0.0.0.0");
+    EXPECT_EQ(config.port_, 8080);
 }
 
 TEST_F(ConfigTest, ParseHostArgument) {
@@ -39,8 +39,8 @@ TEST_F(ConfigTest, ParseHostArgument) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_EQ(config.host, "127.0.0.1");
-    EXPECT_EQ(config.port, 8080);
+    EXPECT_EQ(config.host_, "127.0.0.1");
+    EXPECT_EQ(config.port_, 8080);
 }
 
 TEST_F(ConfigTest, ParsePortArgument) {
@@ -49,8 +49,8 @@ TEST_F(ConfigTest, ParsePortArgument) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_EQ(config.host, "0.0.0.0");
-    EXPECT_EQ(config.port, 9000);
+    EXPECT_EQ(config.host_, "0.0.0.0");
+    EXPECT_EQ(config.port_, 9000);
 }
 
 TEST_F(ConfigTest, ParseCityDbArgument) {
@@ -60,7 +60,7 @@ TEST_F(ConfigTest, ParseCityDbArgument) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_EQ(config.city_db_path, "/path/to/city.mmdb");
+    EXPECT_EQ(config.city_db_path_, "/path/to/city.mmdb");
 }
 
 TEST_F(ConfigTest, ParseAsnDbArgument) {
@@ -70,7 +70,7 @@ TEST_F(ConfigTest, ParseAsnDbArgument) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_EQ(config.asn_db_path, "/path/to/asn.mmdb");
+    EXPECT_EQ(config.asn_db_path_, "/path/to/asn.mmdb");
 }
 
 TEST_F(ConfigTest, ParseThreadsArgument) {
@@ -79,7 +79,7 @@ TEST_F(ConfigTest, ParseThreadsArgument) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_EQ(config.thread_pool_size, 8);
+    EXPECT_EQ(config.thread_pool_size_, 8);
 }
 
 TEST_F(ConfigTest, ParseMultipleArguments) {
@@ -92,11 +92,11 @@ TEST_F(ConfigTest, ParseMultipleArguments) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_EQ(config.host, "192.168.1.1");
-    EXPECT_EQ(config.port, 8080);
-    EXPECT_EQ(config.city_db_path, "/custom/city.mmdb");
-    EXPECT_EQ(config.asn_db_path, "/custom/asn.mmdb");
-    EXPECT_EQ(config.thread_pool_size, 16);
+    EXPECT_EQ(config.host_, "192.168.1.1");
+    EXPECT_EQ(config.port_, 8080);
+    EXPECT_EQ(config.city_db_path_, "/custom/city.mmdb");
+    EXPECT_EQ(config.asn_db_path_, "/custom/asn.mmdb");
+    EXPECT_EQ(config.thread_pool_size_, 16);
 }
 
 TEST_F(ConfigTest, InvalidPortNumber) {
@@ -121,7 +121,7 @@ TEST_F(ConfigTest, ParseEnableRateLimiter) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_FALSE(config.enable_rate_limiter);
+    EXPECT_FALSE(config.enable_rate_limiter_);
 }
 
 TEST_F(ConfigTest, ParseMaxRequestsPerMinute) {
@@ -131,7 +131,7 @@ TEST_F(ConfigTest, ParseMaxRequestsPerMinute) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_EQ(config.max_requests_per_minute, 200);
+    EXPECT_EQ(config.max_requests_per_minute_, 200);
 }
 
 TEST_F(ConfigTest, ParseMaxBatchSize) {
@@ -141,7 +141,7 @@ TEST_F(ConfigTest, ParseMaxBatchSize) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_EQ(config.max_batch_size, 50);
+    EXPECT_EQ(config.max_batch_size_, 50);
 }
 
 TEST_F(ConfigTest, ParseAllNewParameters) {
@@ -158,9 +158,9 @@ TEST_F(ConfigTest, ParseAllNewParameters) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_TRUE(config.enable_rate_limiter);
-    EXPECT_EQ(config.max_requests_per_minute, 150);
-    EXPECT_EQ(config.max_batch_size, 75);
+    EXPECT_TRUE(config.enable_rate_limiter_);
+    EXPECT_EQ(config.max_requests_per_minute_, 150);
+    EXPECT_EQ(config.max_batch_size_, 75);
 }
 
 TEST_F(ConfigTest, DefaultNewParameters) {
@@ -169,9 +169,9 @@ TEST_F(ConfigTest, DefaultNewParameters) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_TRUE(config.enable_rate_limiter);
-    EXPECT_EQ(config.max_requests_per_minute, 100);
-    EXPECT_EQ(config.max_batch_size, 100);
+    EXPECT_TRUE(config.enable_rate_limiter_);
+    EXPECT_EQ(config.max_requests_per_minute_, 100);
+    EXPECT_EQ(config.max_batch_size_, 100);
 }
 
 TEST_F(ConfigTest, InvalidMaxRequestsPerMinute) {
@@ -197,7 +197,7 @@ TEST_F(ConfigTest, RateLimiterDisabledWithZeroRequests) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_FALSE(config.enable_rate_limiter);
+    EXPECT_FALSE(config.enable_rate_limiter_);
 }
 
 TEST_F(ConfigTest, ValidatePortRange) {
@@ -212,7 +212,7 @@ TEST_F(ConfigTest, ValidPortRange) {
     int argc           = 5;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
-    EXPECT_EQ(config.port, 65535);
+    EXPECT_EQ(config.port_, 65535);
 }
 
 TEST_F(ConfigTest, ValidateThreadPoolSizeTooSmall) {
@@ -234,7 +234,7 @@ TEST_F(ConfigTest, ValidThreadPoolSize) {
     int argc           = 5;
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
-    EXPECT_EQ(config.thread_pool_size, 64);
+    EXPECT_EQ(config.thread_pool_size_, 64);
 }
 
 TEST_F(ConfigTest, ValidateMaxRequestsPerMinuteTooSmall) {
@@ -286,7 +286,7 @@ TEST_F(ConfigTest, ParseEnableApiAuth) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_TRUE(config.enable_api_auth);
+    EXPECT_TRUE(config.enable_api_auth_);
 }
 
 TEST_F(ConfigTest, ParseApiKeysFile) {
@@ -296,7 +296,7 @@ TEST_F(ConfigTest, ParseApiKeysFile) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_EQ(config.api_keys_file, "/path/to/keys.txt");
+    EXPECT_EQ(config.api_keys_file_, "/path/to/keys.txt");
 }
 
 TEST_F(ConfigTest, ParseDefaultApiKey) {
@@ -306,7 +306,7 @@ TEST_F(ConfigTest, ParseDefaultApiKey) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_EQ(config.default_api_key, "my_secret_key");
+    EXPECT_EQ(config.default_api_key_, "my_secret_key");
 }
 
 TEST_F(ConfigTest, DefaultApiAuthDisabled) {
@@ -315,7 +315,7 @@ TEST_F(ConfigTest, DefaultApiAuthDisabled) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_FALSE(config.enable_api_auth);
-    EXPECT_TRUE(config.api_keys_file.empty());
-    EXPECT_TRUE(config.default_api_key.empty());
+    EXPECT_FALSE(config.enable_api_auth_);
+    EXPECT_TRUE(config.api_keys_file_.empty());
+    EXPECT_TRUE(config.default_api_key_.empty());
 }

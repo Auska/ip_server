@@ -129,9 +129,9 @@ TEST_F(DatabaseTest, IPGeoServiceLookup) {
 
     auto result = service.lookup("8.8.8.8");
 
-    EXPECT_TRUE(result.data.contains("ip"));
-    EXPECT_EQ(result.data["ip"], "8.8.8.8");
-    EXPECT_TRUE(result.data.contains("found"));
+    EXPECT_TRUE(result.data_.contains("ip"));
+    EXPECT_EQ(result.data_["ip"], "8.8.8.8");
+    EXPECT_TRUE(result.data_.contains("found"));
 }
 
 TEST_F(DatabaseTest, IPGeoServiceLookupMultipleIPs) {
@@ -145,9 +145,9 @@ TEST_F(DatabaseTest, IPGeoServiceLookupMultipleIPs) {
 
     for (const auto& ip : test_ips) {
         auto result = service.lookup(ip);
-        EXPECT_TRUE(result.data.contains("ip"));
-        EXPECT_EQ(result.data["ip"], ip);
-        EXPECT_TRUE(result.data.contains("found"));
+        EXPECT_TRUE(result.data_.contains("ip"));
+        EXPECT_EQ(result.data_["ip"], ip);
+        EXPECT_TRUE(result.data_.contains("found"));
     }
 }
 
@@ -156,8 +156,8 @@ TEST_F(DatabaseTest, IPGeoServiceLookupInvalidIP) {
 
     auto result = service.lookup("999.999.999.999");
 
-    EXPECT_TRUE(result.data.contains("ip"));
-    EXPECT_TRUE(result.data.contains("error"));
+    EXPECT_TRUE(result.data_.contains("ip"));
+    EXPECT_TRUE(result.data_.contains("error"));
 }
 
 TEST_F(DatabaseTest, IPGeoServiceNotCopyable) {
@@ -186,10 +186,10 @@ TEST_F(DatabaseTest, LookupResultStructure) {
     auto result = service.lookup("8.8.8.8");
 
     // Verify LookupResult structure
-    EXPECT_TRUE(result.data.contains("ip"));
-    EXPECT_TRUE(result.data.contains("found"));
-    EXPECT_GE(result.latency_ms, 0.0);
-    EXPECT_TRUE(result.cache_hit == true || result.cache_hit == false);
+    EXPECT_TRUE(result.data_.contains("ip"));
+    EXPECT_TRUE(result.data_.contains("found"));
+    EXPECT_GE(result.latency_ms_, 0.0);
+    EXPECT_TRUE(result.cache_hit_ == true || result.cache_hit_ == false);
 }
 
 TEST_F(DatabaseTest, CacheHitTracking) {
@@ -197,19 +197,19 @@ TEST_F(DatabaseTest, CacheHitTracking) {
 
     // First lookup - should be cache miss
     auto result1 = service.lookup("8.8.8.8");
-    EXPECT_FALSE(result1.cache_hit);
-    EXPECT_TRUE(result1.data.contains("found"));
+    EXPECT_FALSE(result1.cache_hit_);
+    EXPECT_TRUE(result1.data_.contains("found"));
 
     // Second lookup - should be cache hit
     auto result2 = service.lookup("8.8.8.8");
-    EXPECT_TRUE(result2.cache_hit);
-    EXPECT_TRUE(result2.data.contains("found"));
+    EXPECT_TRUE(result2.cache_hit_);
+    EXPECT_TRUE(result2.data_.contains("found"));
 
     // Cache hit should be much faster
-    EXPECT_LT(result2.latency_ms, result1.latency_ms);
+    EXPECT_LT(result2.latency_ms_, result1.latency_ms_);
 
     // Results should be identical
-    EXPECT_EQ(result1.data.dump(), result2.data.dump());
+    EXPECT_EQ(result1.data_.dump(), result2.data_.dump());
 }
 
 TEST_F(DatabaseTest, CacheMissTracking) {
@@ -219,8 +219,8 @@ TEST_F(DatabaseTest, CacheMissTracking) {
 
     for (const auto& ip : unique_ips) {
         auto result = service.lookup(ip);
-        EXPECT_FALSE(result.cache_hit) << "First lookup for " << ip << " should be cache miss";
-        EXPECT_TRUE(result.data.contains("found"));
+        EXPECT_FALSE(result.cache_hit_) << "First lookup for " << ip << " should be cache miss";
+        EXPECT_TRUE(result.data_.contains("found"));
     }
 }
 
@@ -230,26 +230,26 @@ TEST_F(DatabaseTest, CacheSizeLimit) {
 
     // First lookup - cache miss
     auto result1 = service.lookup("8.8.8.8");
-    ASSERT_TRUE(result1.data["found"].get<bool>());
-    EXPECT_FALSE(result1.cache_hit);
+    ASSERT_TRUE(result1.data_["found"].get<bool>());
+    EXPECT_FALSE(result1.cache_hit_);
 
     // Second lookup of same IP - cache hit
     auto result2 = service.lookup("8.8.8.8");
-    EXPECT_TRUE(result2.cache_hit);
-    EXPECT_EQ(result2.data.dump(), result1.data.dump());
+    EXPECT_TRUE(result2.cache_hit_);
+    EXPECT_EQ(result2.data_.dump(), result1.data_.dump());
 
     // Third lookup of different IP - cache miss
     auto result3 = service.lookup("1.1.1.1");
-    ASSERT_TRUE(result3.data["found"].get<bool>());
-    EXPECT_FALSE(result3.cache_hit);
+    ASSERT_TRUE(result3.data_["found"].get<bool>());
+    EXPECT_FALSE(result3.cache_hit_);
 
     // Fourth lookup of first IP - should still be in cache (cache hit)
     auto result4 = service.lookup("8.8.8.8");
-    EXPECT_TRUE(result4.cache_hit);
+    EXPECT_TRUE(result4.cache_hit_);
 
     // Fifth lookup of second IP - should still be in cache (cache hit)
     auto result5 = service.lookup("1.1.1.1");
-    EXPECT_TRUE(result5.cache_hit);
+    EXPECT_TRUE(result5.cache_hit_);
 }
 
 TEST_F(DatabaseTest, LatencyMeasurement) {
@@ -258,11 +258,11 @@ TEST_F(DatabaseTest, LatencyMeasurement) {
     auto result = service.lookup("8.8.8.8");
 
     // Latency should be positive
-    EXPECT_GT(result.latency_ms, 0.0);
+    EXPECT_GT(result.latency_ms_, 0.0);
 
     // Latency should be reasonable (less than 1 second for cached, less than 10
     // seconds for uncached)
-    EXPECT_LT(result.latency_ms, 10000.0);
+    EXPECT_LT(result.latency_ms_, 10000.0);
 }
 
 TEST_F(DatabaseTest, ParallelLookupConsistency) {
@@ -279,17 +279,17 @@ TEST_F(DatabaseTest, ParallelLookupConsistency) {
 
     // Verify all results are valid
     for (size_t i = 0; i < test_ips.size(); ++i) {
-        EXPECT_TRUE(results[i].data.contains("ip"));
-        EXPECT_EQ(results[i].data["ip"], test_ips[i]);
-        EXPECT_TRUE(results[i].data.contains("found"));
-        EXPECT_GE(results[i].latency_ms, 0.0);
+        EXPECT_TRUE(results[i].data_.contains("ip"));
+        EXPECT_EQ(results[i].data_["ip"], test_ips[i]);
+        EXPECT_TRUE(results[i].data_.contains("found"));
+        EXPECT_GE(results[i].latency_ms_, 0.0);
     }
 
     // Perform same lookups again - should all be cache hits
     for (size_t i = 0; i < test_ips.size(); ++i) {
         auto cached_result = service.lookup(test_ips[i]);
-        EXPECT_TRUE(cached_result.cache_hit);
-        EXPECT_EQ(cached_result.data.dump(), results[i].data.dump());
+        EXPECT_TRUE(cached_result.cache_hit_);
+        EXPECT_EQ(cached_result.data_.dump(), results[i].data_.dump());
     }
 }
 
@@ -301,17 +301,17 @@ TEST_F(DatabaseTest, LookupResultMoveSemantics) {
     // Test move constructor
     LookupResult result2 = std::move(result1);
 
-    EXPECT_TRUE(result2.data.contains("ip"));
-    EXPECT_TRUE(result2.cache_hit == true || result2.cache_hit == false);
-    EXPECT_GE(result2.latency_ms, 0.0);
+    EXPECT_TRUE(result2.data_.contains("ip"));
+    EXPECT_TRUE(result2.cache_hit_ == true || result2.cache_hit_ == false);
+    EXPECT_GE(result2.latency_ms_, 0.0);
 
     // Test move assignment
     LookupResult result3;
     result3 = std::move(result2);
 
-    EXPECT_TRUE(result3.data.contains("ip"));
-    EXPECT_TRUE(result3.cache_hit == true || result3.cache_hit == false);
-    EXPECT_GE(result3.latency_ms, 0.0);
+    EXPECT_TRUE(result3.data_.contains("ip"));
+    EXPECT_TRUE(result3.cache_hit_ == true || result3.cache_hit_ == false);
+    EXPECT_GE(result3.latency_ms_, 0.0);
 }
 
 TEST_F(DatabaseTest, BatchLookupPerformance) {
@@ -335,7 +335,7 @@ TEST_F(DatabaseTest, BatchLookupPerformance) {
     start = std::chrono::high_resolution_clock::now();
     for (const auto& ip : test_ips) {
         auto result = service.lookup(ip);
-        EXPECT_TRUE(result.cache_hit);
+        EXPECT_TRUE(result.cache_hit_);
     }
     auto second_batch_time =
         std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start)
@@ -348,7 +348,7 @@ TEST_F(DatabaseTest, BatchLookupPerformance) {
     // Also verify that all lookups in second batch are cache hits
     for (const auto& ip : test_ips) {
         auto result = service.lookup(ip);
-        EXPECT_TRUE(result.cache_hit) << "IP " << ip << " should be cached";
+        EXPECT_TRUE(result.cache_hit_) << "IP " << ip << " should be cached";
     }
 }
 
@@ -358,11 +358,11 @@ TEST_F(DatabaseTest, CacheTTLExpiration) {
 
     // First lookup
     auto result1 = service.lookup("8.8.8.8");
-    EXPECT_FALSE(result1.cache_hit);
+    EXPECT_FALSE(result1.cache_hit_);
 
     // Immediate second lookup - should be cache hit
     auto result2 = service.lookup("8.8.8.8");
-    EXPECT_TRUE(result2.cache_hit);
+    EXPECT_TRUE(result2.cache_hit_);
 
     // Wait for TTL to expire (default TTL is 1 hour, so we can't test this
     // without modifying cache) This test is conceptual - in production, you might
@@ -385,9 +385,9 @@ TEST_F(DatabaseTest, ConcurrentLookups) {
     // Wait for all results
     for (size_t i = 0; i < futures.size(); ++i) {
         auto result = futures[i].get();
-        EXPECT_TRUE(result.data.contains("ip"));
-        EXPECT_EQ(result.data["ip"], test_ips[i]);
-        EXPECT_TRUE(result.data.contains("found"));
+        EXPECT_TRUE(result.data_.contains("ip"));
+        EXPECT_EQ(result.data_["ip"], test_ips[i]);
+        EXPECT_TRUE(result.data_.contains("found"));
     }
 }
 
@@ -397,24 +397,24 @@ TEST_F(DatabaseTest, LookupResultDataIntegrity) {
     auto result = service.lookup("8.8.8.8");
 
     // Verify all expected fields are present
-    EXPECT_TRUE(result.data.contains("ip"));
-    EXPECT_TRUE(result.data.contains("found"));
+    EXPECT_TRUE(result.data_.contains("ip"));
+    EXPECT_TRUE(result.data_.contains("found"));
 
-    if (result.data["found"].get<bool>()) {
+    if (result.data_["found"].get<bool>()) {
         // Check for city data
-        if (result.data.contains("country")) {
-            EXPECT_FALSE(result.data["country"].get<std::string>().empty());
+        if (result.data_.contains("country")) {
+            EXPECT_FALSE(result.data_["country"].get<std::string>().empty());
         }
-        if (result.data.contains("country_code")) {
-            EXPECT_FALSE(result.data["country_code"].get<std::string>().empty());
+        if (result.data_.contains("country_code")) {
+            EXPECT_FALSE(result.data_["country_code"].get<std::string>().empty());
         }
 
         // Check for ASN data
-        if (result.data.contains("as_organization")) {
-            EXPECT_FALSE(result.data["as_organization"].get<std::string>().empty());
+        if (result.data_.contains("as_organization")) {
+            EXPECT_FALSE(result.data_["as_organization"].get<std::string>().empty());
         }
-        if (result.data.contains("as_number")) {
-            EXPECT_GT(result.data["as_number"].get<uint32_t>(), 0);
+        if (result.data_.contains("as_number")) {
+            EXPECT_GT(result.data_["as_number"].get<uint32_t>(), 0);
         }
     }
 }
@@ -428,11 +428,11 @@ TEST_F(DatabaseTest, CacheStatsInitialization) {
 
     auto stats = service.get_cache_stats();
 
-    EXPECT_EQ(stats.total_lookups, 0);
-    EXPECT_EQ(stats.hits, 0);
-    EXPECT_EQ(stats.misses, 0);
-    EXPECT_EQ(stats.evictions, 0);
-    EXPECT_EQ(stats.expired_entries, 0);
+    EXPECT_EQ(stats.total_lookups_, 0);
+    EXPECT_EQ(stats.hits_, 0);
+    EXPECT_EQ(stats.misses_, 0);
+    EXPECT_EQ(stats.evictions_, 0);
+    EXPECT_EQ(stats.expired_entries_, 0);
     EXPECT_DOUBLE_EQ(stats.hit_rate(), 0.0);
 }
 
@@ -446,9 +446,9 @@ TEST_F(DatabaseTest, CacheStatsHitRate) {
     service.lookup("8.8.8.8");
 
     auto stats = service.get_cache_stats();
-    EXPECT_EQ(stats.total_lookups, 2);
-    EXPECT_EQ(stats.hits, 1);
-    EXPECT_EQ(stats.misses, 1);
+    EXPECT_EQ(stats.total_lookups_, 2);
+    EXPECT_EQ(stats.hits_, 1);
+    EXPECT_EQ(stats.misses_, 1);
     EXPECT_DOUBLE_EQ(stats.hit_rate(), 50.0);
 }
 
@@ -461,8 +461,8 @@ TEST_F(DatabaseTest, CacheStatsAfterClear) {
     service.lookup("8.8.8.8");  // Cache hit
 
     auto stats_before = service.get_cache_stats();
-    EXPECT_GT(stats_before.total_lookups, 0);
-    EXPECT_GT(stats_before.hits, 0);
+    EXPECT_GT(stats_before.total_lookups_, 0);
+    EXPECT_GT(stats_before.hits_, 0);
 
     // Clear cache
     service.clear_cache();
@@ -473,7 +473,7 @@ TEST_F(DatabaseTest, CacheStatsAfterClear) {
 
     // Next lookup should be a miss
     auto result = service.lookup("8.8.8.8");
-    EXPECT_FALSE(result.cache_hit);
+    EXPECT_FALSE(result.cache_hit_);
 }
 
 TEST_F(DatabaseTest, CacheStatsEvictionTracking) {
@@ -488,13 +488,13 @@ TEST_F(DatabaseTest, CacheStatsEvictionTracking) {
     for (const auto& ip : known_ips) {
         auto result = service.lookup(ip);
         // Verify the IP was found in database
-        ASSERT_TRUE(result.data.value("found", false)) << "IP " << ip << " not found in database";
+        ASSERT_TRUE(result.data_.value("found", false)) << "IP " << ip << " not found in database";
     }
 
     auto stats = service.get_cache_stats();
     // With 6 lookups and cache size 5, we should have at least 1 eviction
-    EXPECT_GT(stats.evictions, 0) << "Expected evictions but got " << stats.evictions
-                                  << ". Cache size: " << service.get_cache_size();
+    EXPECT_GT(stats.evictions_, 0) << "Expected evictions but got " << stats.evictions_
+                                   << ". Cache size: " << service.get_cache_size();
 }
 
 TEST_F(DatabaseTest, CacheShardDistribution) {
@@ -516,9 +516,9 @@ TEST_F(DatabaseTest, CacheShardDistribution) {
 
     // Verify stats are updated
     auto stats = service.get_cache_stats();
-    EXPECT_EQ(stats.total_lookups, 100);
+    EXPECT_EQ(stats.total_lookups_, 100);
     // First batch_size lookups are misses, rest are hits
-    EXPECT_GT(stats.hits, 0);
+    EXPECT_GT(stats.hits_, 0);
 }
 
 TEST_F(DatabaseTest, CacheConcurrentAccess) {
@@ -540,15 +540,15 @@ TEST_F(DatabaseTest, CacheConcurrentAccess) {
     // Wait for all results
     for (auto& future : futures) {
         auto result = future.get();
-        EXPECT_TRUE(result.data.contains("ip"));
-        EXPECT_TRUE(result.data.contains("found"));
+        EXPECT_TRUE(result.data_.contains("ip"));
+        EXPECT_TRUE(result.data_.contains("found"));
     }
 
     // Verify stats
     auto stats = service.get_cache_stats();
-    EXPECT_EQ(stats.total_lookups, 50);
-    EXPECT_EQ(stats.hits, 0);
-    EXPECT_EQ(stats.misses, 50);
+    EXPECT_EQ(stats.total_lookups_, 50);
+    EXPECT_EQ(stats.hits_, 0);
+    EXPECT_EQ(stats.misses_, 50);
 }
 
 TEST_F(DatabaseTest, CacheConcurrencyStress) {
@@ -583,10 +583,10 @@ TEST_F(DatabaseTest, CacheConcurrencyStress) {
     // Verify stats
     auto stats = service.get_cache_stats();
     // Allow for some queries to fail (not in database)
-    EXPECT_GE(stats.total_lookups, num_threads * lookups_per_thread * 0.9);
-    EXPECT_GT(stats.concurrent_accesses, 0);
+    EXPECT_GE(stats.total_lookups_, num_threads * lookups_per_thread * 0.9);
+    EXPECT_GT(stats.concurrent_accesses_, 0);
     // Hits may occur if same IP is queried multiple times across threads
-    EXPECT_GT(stats.misses, 0);
+    EXPECT_GT(stats.misses_, 0);
 }
 
 TEST_F(DatabaseTest, CacheAverageEntrySize) {
@@ -597,7 +597,7 @@ TEST_F(DatabaseTest, CacheAverageEntrySize) {
     service.lookup("1.1.1.1");
 
     auto stats = service.get_cache_stats();
-    EXPECT_GT(stats.avg_entry_size, 0.0);
+    EXPECT_GT(stats.avg_entry_size_, 0.0);
 }
 
 // ============================================================================
@@ -613,7 +613,7 @@ TEST_F(DatabaseTest, CacheMemoryUsageTracking) {
     service.lookup("9.9.9.9");
 
     auto stats = service.get_cache_stats();
-    EXPECT_GT(stats.memory_usage_bytes, 0);
+    EXPECT_GT(stats.memory_usage_bytes_, 0);
     EXPECT_GT(stats.get_memory_usage_mb(), 0.0);
 }
 
@@ -629,7 +629,7 @@ TEST_F(DatabaseTest, CacheMemoryBasedEviction) {
     auto stats = service.get_cache_stats();
     // Memory usage should be close to limit (within some tolerance)
     // Allow 4x overhead due to estimation and data structure overhead
-    EXPECT_LT(stats.memory_usage_bytes, 1024 * 4);
+    EXPECT_LT(stats.memory_usage_bytes_, 1024 * 4);
 }
 
 TEST_F(DatabaseTest, CacheNegativeCaching) {
@@ -638,17 +638,17 @@ TEST_F(DatabaseTest, CacheNegativeCaching) {
     // Use a valid IP that likely doesn't exist in the GeoLite database
     // 10.0.0.1 is a private IP, typically not in public IP databases
     auto result1 = service.lookup("10.0.0.1");
-    EXPECT_FALSE(result1.cache_hit);
+    EXPECT_FALSE(result1.cache_hit_);
     // The result should have found=false (not an error)
-    EXPECT_FALSE(result1.data.value("found", true));
+    EXPECT_FALSE(result1.data_.value("found", true));
 
     // Second lookup of same IP - should be cache hit (negative cache)
     auto result2 = service.lookup("10.0.0.1");
-    EXPECT_TRUE(result2.cache_hit);
-    EXPECT_EQ(result2.data.dump(), result1.data.dump());
+    EXPECT_TRUE(result2.cache_hit_);
+    EXPECT_EQ(result2.data_.dump(), result1.data_.dump());
 
     auto stats = service.get_cache_stats();
-    EXPECT_GT(stats.negative_hits, 0);
+    EXPECT_GT(stats.negative_hits_, 0);
 }
 
 TEST_F(DatabaseTest, CacheShardStatistics) {
@@ -665,9 +665,9 @@ TEST_F(DatabaseTest, CacheShardStatistics) {
     // Verify all shards have some entries
     size_t total_shard_entries = 0;
     for (const auto& stat : shard_stats) {
-        total_shard_entries += stat.size;
-        EXPECT_GE(stat.shard_index, 0);
-        EXPECT_LT(stat.shard_index, 8);
+        total_shard_entries += stat.size_;
+        EXPECT_GE(stat.shard_index_, 0);
+        EXPECT_LT(stat.shard_index_, 8);
     }
 
     EXPECT_GT(total_shard_entries, 0);
@@ -695,13 +695,13 @@ TEST_F(DatabaseTest, CacheHeatMapGeneration) {
 
     auto heat_map = service.get_heat_map(3);
 
-    EXPECT_EQ(heat_map.hot_keys.size(), 3);
-    EXPECT_GT(heat_map.total_accesses, 0);
-    EXPECT_EQ(heat_map.shard_distribution.size(), 8);
+    EXPECT_EQ(heat_map.hot_keys_.size(), 3);
+    EXPECT_GT(heat_map.total_accesses_, 0);
+    EXPECT_EQ(heat_map.shard_distribution_.size(), 8);
 
     // Top key should be 8.8.8.8 (most accessed)
-    EXPECT_EQ(heat_map.hot_keys[0].first, "8.8.8.8");
-    EXPECT_GT(heat_map.hot_keys[0].second, heat_map.hot_keys[1].second);
+    EXPECT_EQ(heat_map.hot_keys_[0].first, "8.8.8.8");
+    EXPECT_GT(heat_map.hot_keys_[0].second, heat_map.hot_keys_[1].second);
 }
 
 TEST_F(DatabaseTest, CacheTTLConfiguration) {
@@ -716,7 +716,7 @@ TEST_F(DatabaseTest, CacheTTLConfiguration) {
 
     // Cache should work normally
     auto result1 = service.lookup("8.8.8.8");
-    EXPECT_TRUE(result1.cache_hit);
+    EXPECT_TRUE(result1.cache_hit_);
 }
 
 TEST_F(DatabaseTest, ConcurrentReadWritePerformance) {
@@ -752,8 +752,8 @@ TEST_F(DatabaseTest, ConcurrentReadWritePerformance) {
     }
 
     auto stats = service.get_cache_stats();
-    EXPECT_GT(stats.total_lookups, 0);
-    EXPECT_GT(stats.concurrent_accesses, 0);
+    EXPECT_GT(stats.total_lookups_, 0);
+    EXPECT_GT(stats.concurrent_accesses_, 0);
 }
 
 TEST_F(DatabaseTest, CacheMemoryLimitRespected) {
@@ -770,7 +770,7 @@ TEST_F(DatabaseTest, CacheMemoryLimitRespected) {
 
     // Memory usage should be close to or below limit (allowing for some overhead)
     EXPECT_LT(memory_usage, memory_limit * 2);
-    EXPECT_GT(stats.evictions, 0);  // Should have evicted some entries
+    EXPECT_GT(stats.evictions_, 0);  // Should have evicted some entries
 }
 
 TEST_F(DatabaseTest, MACLookupServiceMemoryTracking) {
@@ -781,7 +781,7 @@ TEST_F(DatabaseTest, MACLookupServiceMemoryTracking) {
     service.lookup("F4:EA:B5:12:34:56");
 
     auto stats = service.get_cache_stats();
-    EXPECT_GT(stats.memory_usage_bytes, 0);
+    EXPECT_GT(stats.memory_usage_bytes_, 0);
     EXPECT_GT(stats.get_memory_usage_mb(), 0.0);
 
     auto shard_stats = service.get_shard_stats();
@@ -798,8 +798,8 @@ TEST_F(DatabaseTest, MACLookupServiceHeatMap) {
     }
 
     auto heat_map = service.get_heat_map(2);
-    EXPECT_EQ(heat_map.hot_keys.size(), 2);
-    EXPECT_GT(heat_map.total_accesses, 0);
+    EXPECT_EQ(heat_map.hot_keys_.size(), 2);
+    EXPECT_GT(heat_map.total_accesses_, 0);
 }
 
 // ─── Cache edge-case tests ────────────────────────────────────────
@@ -861,9 +861,9 @@ TEST(CacheEdgeTest, GetHeatMapEmptyCache) {
     IPCache cache(100, 4, std::chrono::seconds(3600), 1024 * 1024);
     auto heat_map = cache.get_heat_map(10);
 
-    EXPECT_TRUE(heat_map.hot_keys.empty());
-    EXPECT_EQ(heat_map.shard_distribution.size(), 4);
-    EXPECT_EQ(heat_map.total_accesses, 0);
+    EXPECT_TRUE(heat_map.hot_keys_.empty());
+    EXPECT_EQ(heat_map.shard_distribution_.size(), 4);
+    EXPECT_EQ(heat_map.total_accesses_, 0);
 }
 
 TEST(CacheEdgeTest, ClearEmptyCache) {
@@ -891,45 +891,45 @@ TEST(CacheEdgeTest, NegativeCacheThenOverwrite) {
 TEST(CacheEdgeTest, CacheStatsOperatorPlusEquals) {
     CacheStats a, b;
 
-    a.total_lookups  = 10;
-    a.hits           = 8;
-    a.avg_entry_size = 100.0;
-    a.entry_count    = 5;
+    a.total_lookups_  = 10;
+    a.hits_           = 8;
+    a.avg_entry_size_ = 100.0;
+    a.entry_count_    = 5;
 
-    b.total_lookups  = 20;
-    b.hits           = 15;
-    b.avg_entry_size = 200.0;
-    b.entry_count    = 10;
+    b.total_lookups_  = 20;
+    b.hits_           = 15;
+    b.avg_entry_size_ = 200.0;
+    b.entry_count_    = 10;
 
     CacheStats combined;
     combined += a;
     combined += b;
 
-    EXPECT_EQ(combined.total_lookups, 30);
-    EXPECT_EQ(combined.hits, 23);
+    EXPECT_EQ(combined.total_lookups_, 30);
+    EXPECT_EQ(combined.hits_, 23);
 
     // Weighted average: (100*5 + 200*10) / 15 = (500 + 2000) / 15 = 166.67
-    EXPECT_NEAR(combined.avg_entry_size, 166.67, 0.01);
-    EXPECT_EQ(combined.entry_count, 15);
+    EXPECT_NEAR(combined.avg_entry_size_, 166.67, 0.01);
+    EXPECT_EQ(combined.entry_count_, 15);
 }
 
 TEST(CacheEdgeTest, CacheStatsOperatorPlusEqualsZero) {
     CacheStats a, b;
 
-    a.total_lookups  = 10;
-    a.avg_entry_size = 100.0;
-    a.entry_count    = 5;
+    a.total_lookups_  = 10;
+    a.avg_entry_size_ = 100.0;
+    a.entry_count_    = 5;
 
     // Adding empty stats should not change anything
     a += b;
-    EXPECT_EQ(a.total_lookups, 10);
-    EXPECT_EQ(a.avg_entry_size, 100.0);
-    EXPECT_EQ(a.entry_count, 5);
+    EXPECT_EQ(a.total_lookups_, 10);
+    EXPECT_EQ(a.avg_entry_size_, 100.0);
+    EXPECT_EQ(a.entry_count_, 5);
 
     // Adding to empty should copy
     CacheStats c;
     c += a;
-    EXPECT_EQ(c.total_lookups, 10);
+    EXPECT_EQ(c.total_lookups_, 10);
 }
 
 TEST(CacheEdgeTest, DisableHeatMap) {

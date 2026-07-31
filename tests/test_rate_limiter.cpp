@@ -240,11 +240,11 @@ TEST_F(RateLimiterTest, MemoryStats) {
     // Get memory stats
     auto stats = limiter->get_memory_stats();
 
-    EXPECT_EQ(stats.ip_record_count, 2);
-    EXPECT_EQ(stats.total_timestamps, 5);
-    EXPECT_EQ(stats.total_requests, 5);
-    EXPECT_GT(stats.estimated_memory_bytes, 0);
-    EXPECT_EQ(stats.total_rate_limited, 0);
+    EXPECT_EQ(stats.ip_record_count_, 2);
+    EXPECT_EQ(stats.total_timestamps_, 5);
+    EXPECT_EQ(stats.total_requests_, 5);
+    EXPECT_GT(stats.estimated_memory_bytes_, 0);
+    EXPECT_EQ(stats.total_rate_limited_, 0);
 }
 
 TEST_F(RateLimiterTest, MemoryStatsWithRateLimiting) {
@@ -261,8 +261,8 @@ TEST_F(RateLimiterTest, MemoryStatsWithRateLimiting) {
 
     auto stats = limiter->get_memory_stats();
 
-    EXPECT_EQ(stats.total_requests, 7);
-    EXPECT_EQ(stats.total_rate_limited, 2);
+    EXPECT_EQ(stats.total_requests_, 7);
+    EXPECT_EQ(stats.total_rate_limited_, 2);
 }
 
 TEST_F(RateLimiterTest, CleanupRemovesIdleRecords) {
@@ -274,7 +274,7 @@ TEST_F(RateLimiterTest, CleanupRemovesIdleRecords) {
     short_limiter->is_allowed(ip1);
     short_limiter->is_allowed(ip2);
 
-    EXPECT_EQ(short_limiter->get_memory_stats().ip_record_count, 2);
+    EXPECT_EQ(short_limiter->get_memory_stats().ip_record_count_, 2);
 
     // Wait for window to expire
     std::this_thread::sleep_for(std::chrono::seconds(3));
@@ -282,7 +282,7 @@ TEST_F(RateLimiterTest, CleanupRemovesIdleRecords) {
     // Cleanup should remove idle records
     short_limiter->cleanup();
 
-    EXPECT_EQ(short_limiter->get_memory_stats().ip_record_count, 0);
+    EXPECT_EQ(short_limiter->get_memory_stats().ip_record_count_, 0);
 }
 
 TEST_F(RateLimiterTest, MaxIPRecordsLimit) {
@@ -297,7 +297,7 @@ TEST_F(RateLimiterTest, MaxIPRecordsLimit) {
 
     // Should only have 3 IP records (LRU eviction)
     auto stats = small_limiter->get_memory_stats();
-    EXPECT_LE(stats.ip_record_count, 3);
+    EXPECT_LE(stats.ip_record_count_, 3);
 }
 
 TEST_F(RateLimiterTest, LRUEviction) {
@@ -321,7 +321,7 @@ TEST_F(RateLimiterTest, LRUEviction) {
     small_limiter->is_allowed(ip4);
 
     auto stats = small_limiter->get_memory_stats();
-    EXPECT_EQ(stats.ip_record_count, 3);
+    EXPECT_EQ(stats.ip_record_count_, 3);
 
     // ip2 should be evicted, so it should have full quota
     EXPECT_EQ(small_limiter->get_remaining(ip2), 5);
@@ -344,15 +344,15 @@ TEST_F(RateLimiterTest, ResetStats) {
     }
 
     auto stats_before = limiter->get_memory_stats();
-    EXPECT_GT(stats_before.total_requests, 0);
-    EXPECT_GT(stats_before.total_rate_limited, 0);
+    EXPECT_GT(stats_before.total_requests_, 0);
+    EXPECT_GT(stats_before.total_rate_limited_, 0);
 
     // Reset stats
     limiter->reset_stats();
 
     auto stats_after = limiter->get_memory_stats();
-    EXPECT_EQ(stats_after.total_requests, 0);
-    EXPECT_EQ(stats_after.total_rate_limited, 0);
+    EXPECT_EQ(stats_after.total_requests_, 0);
+    EXPECT_EQ(stats_after.total_rate_limited_, 0);
 }
 
 TEST_F(RateLimiterTest, GetRemainingForNonExistentIP) {
@@ -376,12 +376,12 @@ TEST_F(RateLimiterTest, MemoryEstimation) {
 
     auto stats = large_limiter->get_memory_stats();
 
-    EXPECT_EQ(stats.ip_record_count, 100);
-    EXPECT_EQ(stats.total_timestamps, 500);
-    EXPECT_GT(stats.estimated_memory_bytes, 0);
+    EXPECT_EQ(stats.ip_record_count_, 100);
+    EXPECT_EQ(stats.total_timestamps_, 500);
+    EXPECT_GT(stats.estimated_memory_bytes_, 0);
 
     // Memory should be reasonable (less than 1 MB for 100 IPs)
-    EXPECT_LT(stats.estimated_memory_bytes, 1024 * 1024);
+    EXPECT_LT(stats.estimated_memory_bytes_, 1024 * 1024);
 }
 
 // ─── Edge-case tests ──────────────────────────────────────────────

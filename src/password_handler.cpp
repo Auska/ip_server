@@ -12,7 +12,7 @@ namespace ip_server {
 
 namespace {
 
-bool parse_bool_param(const httplib::Request& req, const char* key, bool default_val) {
+bool parseBoolParam(const httplib::Request& req, const char* key, bool default_val) {
     auto val = req.get_param_value(key);
     if (val.empty()) return default_val;
     return val == "true" || val == "1";
@@ -28,13 +28,13 @@ void PasswordHandler::handle_get(const httplib::Request& req, httplib::Response&
         PasswordConfig config;
 
         auto length_param = req.get_param_value("length");
-        if (!length_param.empty()) config.length = std::stoi(length_param);
+        if (!length_param.empty()) config.length_ = std::stoi(length_param);
 
-        config.uppercase       = parse_bool_param(req, "uppercase", true);
-        config.lowercase       = parse_bool_param(req, "lowercase", true);
-        config.digits          = parse_bool_param(req, "digits", true);
-        config.symbols         = parse_bool_param(req, "symbols", true);
-        config.exclude_similar = parse_bool_param(req, "exclude_similar", true);
+        config.uppercase_       = parseBoolParam(req, "uppercase", true);
+        config.lowercase_       = parseBoolParam(req, "lowercase", true);
+        config.digits_          = parseBoolParam(req, "digits", true);
+        config.symbols_         = parseBoolParam(req, "symbols", true);
+        config.exclude_similar_ = parseBoolParam(req, "exclude_similar", true);
 
         std::string error_message;
         if (!PasswordGenerator::validate_config(config, error_message)) {
@@ -48,10 +48,10 @@ void PasswordHandler::handle_get(const httplib::Request& req, httplib::Response&
         metrics_->record_request(false, timer.elapsed());
 
         nlohmann::json response;
-        response["password"] = result.password;
-        response["length"]   = result.length;
-        response["entropy"]  = result.entropy;
-        response["strength"] = result.strength;
+        response["password"] = result.password_;
+        response["length"]   = result.length_;
+        response["entropy"]  = result.entropy_;
+        response["strength"] = result.strength_;
 
         send_json_response(res, response, 200);
 
@@ -71,22 +71,22 @@ void PasswordHandler::handle_post(const httplib::Request& req, httplib::Response
 
         PasswordConfig config;
 
-        auto read_bool = [&](const char* key, bool& field) {
+        auto readBool = [&](const char* key, bool& field) {
             if (body.contains(key) && body[key].is_boolean()) field = body[key].get<bool>();
         };
-        auto read_int = [&](const char* key, int& field) {
+        auto readInt = [&](const char* key, int& field) {
             if (body.contains(key) && body[key].is_number_integer()) field = body[key].get<int>();
         };
 
-        read_int("length", config.length);
-        read_bool("uppercase", config.uppercase);
-        read_bool("lowercase", config.lowercase);
-        read_bool("digits", config.digits);
-        read_bool("symbols", config.symbols);
-        read_bool("exclude_similar", config.exclude_similar);
+        readInt("length", config.length_);
+        readBool("uppercase", config.uppercase_);
+        readBool("lowercase", config.lowercase_);
+        readBool("digits", config.digits_);
+        readBool("symbols", config.symbols_);
+        readBool("exclude_similar", config.exclude_similar_);
 
         int count = 1;
-        read_int("count", count);
+        readInt("count", count);
 
         if (count < 1) {
             send_error_response(res, 400, "Bad Request", "Count must be at least 1");
@@ -117,10 +117,10 @@ void PasswordHandler::handle_post(const httplib::Request& req, httplib::Response
 
         for (const auto& result : results) {
             nlohmann::json password_json;
-            password_json["password"] = result.password;
-            password_json["length"]   = result.length;
-            password_json["entropy"]  = result.entropy;
-            password_json["strength"] = result.strength;
+            password_json["password"] = result.password_;
+            password_json["length"]   = result.length_;
+            password_json["entropy"]  = result.entropy_;
+            password_json["strength"] = result.strength_;
             response["passwords"].push_back(password_json);
         }
 

@@ -6,19 +6,19 @@
 namespace ip_server {
 
 struct PasswordConfig {
-    int length           = 16;
-    bool uppercase       = true;
-    bool lowercase       = true;
-    bool digits          = true;
-    bool symbols         = true;
-    bool exclude_similar = true;
+    int length_           = 16;
+    bool uppercase_       = true;
+    bool lowercase_       = true;
+    bool digits_          = true;
+    bool symbols_         = true;
+    bool exclude_similar_ = true;
 };
 
 struct PasswordResult {
-    std::string password;
-    int length;
-    double entropy;
-    std::string strength;
+    std::string password_;
+    int length_;
+    double entropy_;
+    std::string strength_;
 };
 
 class PasswordGenerator {
@@ -42,8 +42,8 @@ class PasswordGenerator {
 
    private:
     struct CharacterSets {
-        std::string pool;
-        std::vector<std::string> required_chars;
+        std::string pool_;
+        std::vector<std::string> required_chars_;
     };
 
     static CharacterSets build_character_sets(const PasswordConfig& config);

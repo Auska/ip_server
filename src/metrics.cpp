@@ -59,39 +59,40 @@ void Metrics::record_cache_eviction() {
 Metrics::Stats Metrics::get_stats() const {
     Stats stats{};
 
-    stats.total_requests  = total_requests_.load();
-    stats.cache_hits      = cache_hits_.load();
-    stats.cache_misses    = cache_misses_.load();
-    stats.cache_evictions = cache_evictions_.load();
-    stats.total_errors    = total_errors_.load();
+    stats.total_requests_  = total_requests_.load();
+    stats.cache_hits_      = cache_hits_.load();
+    stats.cache_misses_    = cache_misses_.load();
+    stats.cache_evictions_ = cache_evictions_.load();
+    stats.total_errors_    = total_errors_.load();
 
-    if (stats.total_requests > 0) {
-        stats.cache_hit_rate =
-            (static_cast<double>(stats.cache_hits) / stats.total_requests) * 100.0;
-        stats.error_rate = (static_cast<double>(stats.total_errors) / stats.total_requests) * 100.0;
+    if (stats.total_requests_ > 0) {
+        stats.cache_hit_rate_ =
+            (static_cast<double>(stats.cache_hits_) / stats.total_requests_) * 100.0;
+        stats.error_rate_ =
+            (static_cast<double>(stats.total_errors_) / stats.total_requests_) * 100.0;
     }
 
-    stats.city_db_open = city_db_open_.load();
-    stats.asn_db_open  = asn_db_open_.load();
-    stats.oui_db_open  = oui_db_open_.load();
+    stats.city_db_open_ = city_db_open_.load();
+    stats.asn_db_open_  = asn_db_open_.load();
+    stats.oui_db_open_  = oui_db_open_.load();
 
     {
         std::scoped_lock const lock(mutex_);
         if (!latencies_.empty()) {
-            stats.avg_latency_ms =
+            stats.avg_latency_ms_ =
                 std::accumulate(latencies_.begin(), latencies_.end(), 0.0) / latencies_.size();
-            stats.p50_latency_ms = calculate_percentile(0.50);
-            stats.p95_latency_ms = calculate_percentile(0.95);
-            stats.p99_latency_ms = calculate_percentile(0.99);
+            stats.p50_latency_ms_ = calculate_percentile(0.50);
+            stats.p95_latency_ms_ = calculate_percentile(0.95);
+            stats.p99_latency_ms_ = calculate_percentile(0.99);
         }
     }
 
-    stats.current_qps = calculate_qps();
+    stats.current_qps_ = calculate_qps();
 
-    stats.memory_usage_mb = 0;
+    stats.memory_usage_mb_ = 0;
 
     auto now = std::chrono::steady_clock::now();
-    stats.uptime_seconds =
+    stats.uptime_seconds_ =
         std::chrono::duration_cast<std::chrono::seconds>(now - start_time_).count();
 
     return stats;

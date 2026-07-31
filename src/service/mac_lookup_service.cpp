@@ -3,8 +3,8 @@
 #include <chrono>
 #include <stdexcept>
 
-#include "../logger.h"
-#include "../types.h"
+#include "logger.h"
+#include "types.h"
 
 namespace ip_server {
 

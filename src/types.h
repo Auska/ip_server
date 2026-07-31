@@ -7,24 +7,24 @@ namespace ip_server {
 
 // Result of an IP lookup with cache hit information
 struct LookupResult {
-    nlohmann::json data;
-    bool cache_hit;
-    double latency_ms;
+    nlohmann::json data_;
+    bool cache_hit_;
+    double latency_ms_;
 
-    LookupResult() : cache_hit(false), latency_ms(0.0) {}
+    LookupResult() : cache_hit_(false), latency_ms_(0.0) {}
     LookupResult(const nlohmann::json& d, bool hit, double latency)
-        : data(d), cache_hit(hit), latency_ms(latency) {}
+        : data_(d), cache_hit_(hit), latency_ms_(latency) {}
 
     // Move constructor
     LookupResult(LookupResult&& other) noexcept
-        : data(std::move(other.data)), cache_hit(other.cache_hit), latency_ms(other.latency_ms) {}
+        : data_(std::move(other.data_)), cache_hit_(other.cache_hit_), latency_ms_(other.latency_ms_) {}
 
     // Move assignment
     LookupResult& operator=(LookupResult&& other) noexcept {
         if (this != &other) {
-            data       = std::move(other.data);
-            cache_hit  = other.cache_hit;
-            latency_ms = other.latency_ms;
+            data_       = std::move(other.data_);
+            cache_hit_  = other.cache_hit_;
+            latency_ms_ = other.latency_ms_;
         }
         return *this;
     }

@@ -23,8 +23,8 @@ class LoggerTest : public ::testing::Test {
 
         // Save original logger config (keep stdout enabled for tests)
         LogConfig original_config;
-        original_config.enable_file_logging = false;
-        original_config.enable_stdout       = true;
+        original_config.enable_file_logging_ = false;
+        original_config.enable_stdout_       = true;
         Logger::instance().set_config(original_config);
     }
 
@@ -34,8 +34,8 @@ class LoggerTest : public ::testing::Test {
 
         // Reset logger to default
         LogConfig default_config;
-        default_config.enable_file_logging = false;
-        default_config.enable_stdout       = true;
+        default_config.enable_file_logging_ = false;
+        default_config.enable_stdout_       = true;
         Logger::instance().set_config(default_config);
 
         // Clean up test logs directory at the end
@@ -107,9 +107,9 @@ TEST_F(LoggerTest, DefaultLogLevel) {
 
     std::string log_path = get_test_log_path("default_level.log");
     LogConfig config;
-    config.enable_file_logging = true;
-    config.log_file_path       = log_path;
-    config.enable_stdout       = false;
+    config.enable_file_logging_ = true;
+    config.log_file_path_       = log_path;
+    config.enable_stdout_       = false;
     Logger::instance().set_config(config);
 
     Logger::instance().debug("This should not appear");
@@ -127,9 +127,9 @@ TEST_F(LoggerTest, LogLevelDebug) {
 
     std::string log_path = get_test_log_path("debug_level.log");
     LogConfig config;
-    config.enable_file_logging = true;
-    config.log_file_path       = log_path;
-    config.enable_stdout       = false;
+    config.enable_file_logging_ = true;
+    config.log_file_path_       = log_path;
+    config.enable_stdout_       = false;
     Logger::instance().set_config(config);
 
     Logger::instance().debug("Debug message");
@@ -145,9 +145,9 @@ TEST_F(LoggerTest, LogLevelInfo) {
 
     std::string log_path = get_test_log_path("info_level.log");
     LogConfig config;
-    config.enable_file_logging = true;
-    config.log_file_path       = log_path;
-    config.enable_stdout       = false;
+    config.enable_file_logging_ = true;
+    config.log_file_path_       = log_path;
+    config.enable_stdout_       = false;
     Logger::instance().set_config(config);
 
     Logger::instance().info("Info message");
@@ -163,9 +163,9 @@ TEST_F(LoggerTest, LogLevelWarning) {
 
     std::string log_path = get_test_log_path("warning_level.log");
     LogConfig config;
-    config.enable_file_logging = true;
-    config.log_file_path       = log_path;
-    config.enable_stdout       = false;
+    config.enable_file_logging_ = true;
+    config.log_file_path_       = log_path;
+    config.enable_stdout_       = false;
     Logger::instance().set_config(config);
 
     Logger::instance().warning("Warning message");
@@ -181,9 +181,9 @@ TEST_F(LoggerTest, LogLevelError) {
 
     std::string log_path = get_test_log_path("error_level.log");
     LogConfig config;
-    config.enable_file_logging = true;
-    config.log_file_path       = log_path;
-    config.enable_stdout       = false;
+    config.enable_file_logging_ = true;
+    config.log_file_path_       = log_path;
+    config.enable_stdout_       = false;
     Logger::instance().set_config(config);
 
     Logger::instance().error("Error message");
@@ -199,9 +199,9 @@ TEST_F(LoggerTest, LogFormat) {
 
     std::string log_path = get_test_log_path("format.log");
     LogConfig config;
-    config.enable_file_logging = true;
-    config.log_file_path       = log_path;
-    config.enable_stdout       = false;
+    config.enable_file_logging_ = true;
+    config.log_file_path_       = log_path;
+    config.enable_stdout_       = false;
     Logger::instance().set_config(config);
 
     Logger::instance().info("Test message");
@@ -217,8 +217,8 @@ TEST_F(LoggerTest, LogFormat) {
 
 TEST_F(LoggerTest, FileLoggingDisabled) {
     LogConfig config;
-    config.enable_file_logging = false;
-    config.enable_stdout       = false;
+    config.enable_file_logging_ = false;
+    config.enable_stdout_       = false;
 
     Logger::instance().set_config(config);
 
@@ -230,9 +230,9 @@ TEST_F(LoggerTest, FileLoggingDisabled) {
 
 TEST_F(LoggerTest, FileLoggingEnabled) {
     LogConfig config;
-    config.enable_file_logging = true;
-    config.log_file_path       = get_test_log_path("test.log");
-    config.enable_stdout       = false;
+    config.enable_file_logging_ = true;
+    config.log_file_path_       = get_test_log_path("test.log");
+    config.enable_stdout_       = false;
 
     Logger::instance().set_config(config);
 
@@ -251,10 +251,10 @@ TEST_F(LoggerTest, LogDirectoryCreation) {
     std::string nested_path = get_test_log_path("nested/dir/test.log");
 
     LogConfig config;
-    config.enable_file_logging = true;
-    config.log_file_path       = nested_path;
-    config.enable_stdout       = false;
-    config.rotation_type       = RotationType::NONE;
+    config.enable_file_logging_ = true;
+    config.log_file_path_       = nested_path;
+    config.enable_stdout_       = false;
+    config.rotation_type_       = RotationType::NONE;
 
     Logger::instance().set_config(config);
 
@@ -269,12 +269,12 @@ TEST_F(LoggerTest, SizeBasedRotation) {
     std::string log_path = get_test_log_path("size_rotation.log");
 
     LogConfig config;
-    config.enable_file_logging = true;
-    config.log_file_path       = log_path;
-    config.rotation_type       = RotationType::SIZE;
-    config.max_file_size       = 1024;  // 1 KB
-    config.max_backup_files    = 3;
-    config.enable_stdout       = false;
+    config.enable_file_logging_ = true;
+    config.log_file_path_       = log_path;
+    config.rotation_type_       = RotationType::SIZE;
+    config.max_file_size_       = 1024;  // 1 KB
+    config.max_backup_files_    = 3;
+    config.enable_stdout_       = false;
 
     Logger::instance().set_config(config);
 
@@ -306,12 +306,12 @@ TEST_F(LoggerTest, MaxBackupFilesLimit) {
     std::string log_path = get_test_log_path("max_backups.log");
 
     LogConfig config;
-    config.enable_file_logging = true;
-    config.log_file_path       = log_path;
-    config.rotation_type       = RotationType::SIZE;
-    config.max_file_size       = 512;  // 512 bytes - very small to force multiple rotations
-    config.max_backup_files    = 2;
-    config.enable_stdout       = false;
+    config.enable_file_logging_ = true;
+    config.log_file_path_       = log_path;
+    config.rotation_type_       = RotationType::SIZE;
+    config.max_file_size_       = 512;  // 512 bytes - very small to force multiple rotations
+    config.max_backup_files_    = 2;
+    config.enable_stdout_       = false;
 
     Logger::instance().set_config(config);
 
@@ -323,7 +323,7 @@ TEST_F(LoggerTest, MaxBackupFilesLimit) {
 
     // Check that only max_backup_files + 1 (current) files exist
     int file_count = count_backup_files(log_path);
-    EXPECT_LE(file_count, config.max_backup_files + 1);
+    EXPECT_LE(file_count, config.max_backup_files_ + 1);
 
     // Check that .3 doesn't exist (should have been deleted)
     std::string backup3 = get_backup_path(log_path, 3);
@@ -334,10 +334,10 @@ TEST_F(LoggerTest, NoRotation) {
     std::string log_path = get_test_log_path("no_rotation.log");
 
     LogConfig config;
-    config.enable_file_logging = true;
-    config.log_file_path       = log_path;
-    config.rotation_type       = RotationType::NONE;
-    config.enable_stdout       = false;
+    config.enable_file_logging_ = true;
+    config.log_file_path_       = log_path;
+    config.rotation_type_       = RotationType::NONE;
+    config.enable_stdout_       = false;
 
     Logger::instance().set_config(config);
 
@@ -365,13 +365,13 @@ TEST_F(LoggerTest, CombinedRotation) {
     std::string log_path = get_test_log_path("combined_rotation.log");
 
     LogConfig config;
-    config.enable_file_logging = true;
-    config.log_file_path       = log_path;
-    config.rotation_type       = RotationType::BOTH;
-    config.max_file_size       = 1024;  // 1 KB
-    config.rotation_interval   = std::chrono::minutes(0);
-    config.max_backup_files    = 3;
-    config.enable_stdout       = false;
+    config.enable_file_logging_ = true;
+    config.log_file_path_       = log_path;
+    config.rotation_type_       = RotationType::BOTH;
+    config.max_file_size_       = 1024;  // 1 KB
+    config.rotation_interval_   = std::chrono::minutes(0);
+    config.max_backup_files_    = 3;
+    config.enable_stdout_       = false;
 
     Logger::instance().set_config(config);
 
@@ -396,10 +396,10 @@ TEST_F(LoggerTest, LogFilePersistence) {
     std::string log_path = get_test_log_path("persistence.log");
 
     LogConfig config;
-    config.enable_file_logging = true;
-    config.log_file_path       = log_path;
-    config.enable_stdout       = false;
-    config.rotation_type       = RotationType::NONE;
+    config.enable_file_logging_ = true;
+    config.log_file_path_       = log_path;
+    config.enable_stdout_       = false;
+    config.rotation_type_       = RotationType::NONE;
 
     Logger::instance().set_config(config);
 
@@ -430,10 +430,10 @@ TEST_F(LoggerTest, MultipleLoggers) {
 
     // First logger
     LogConfig config1;
-    config1.enable_file_logging = true;
-    config1.log_file_path       = log_path1;
-    config1.enable_stdout       = false;
-    config1.rotation_type       = RotationType::NONE;
+    config1.enable_file_logging_ = true;
+    config1.log_file_path_       = log_path1;
+    config1.enable_stdout_       = false;
+    config1.rotation_type_       = RotationType::NONE;
     Logger::instance().set_config(config1);
 
     Logger::instance().info("Logger 1 message");
@@ -441,10 +441,10 @@ TEST_F(LoggerTest, MultipleLoggers) {
 
     // Second logger (same instance, different config)
     LogConfig config2;
-    config2.enable_file_logging = true;
-    config2.log_file_path       = log_path2;
-    config2.enable_stdout       = false;
-    config2.rotation_type       = RotationType::NONE;
+    config2.enable_file_logging_ = true;
+    config2.log_file_path_       = log_path2;
+    config2.enable_stdout_       = false;
+    config2.rotation_type_       = RotationType::NONE;
     Logger::instance().set_config(config2);
 
     Logger::instance().info("Logger 2 message");
@@ -464,8 +464,8 @@ TEST_F(LoggerTest, MultipleLoggers) {
 
 TEST_F(LoggerTest, StdoutLogging) {
     LogConfig config;
-    config.enable_file_logging = false;
-    config.enable_stdout       = true;
+    config.enable_file_logging_ = false;
+    config.enable_stdout_       = true;
 
     Logger::instance().set_config(config);
     Logger::instance().set_level(LogLevel::INFO);
@@ -481,8 +481,8 @@ TEST_F(LoggerTest, StdoutLogging) {
 
 TEST_F(LoggerTest, StdoutDisabled) {
     LogConfig config;
-    config.enable_file_logging = false;
-    config.enable_stdout       = false;
+    config.enable_file_logging_ = false;
+    config.enable_stdout_       = false;
 
     Logger::instance().set_config(config);
     Logger::instance().set_level(LogLevel::INFO);
@@ -499,10 +499,10 @@ TEST_F(LoggerTest, EmptyLogFile) {
     std::string log_path = get_test_log_path("empty.log");
 
     LogConfig config;
-    config.enable_file_logging = true;
-    config.log_file_path       = log_path;
-    config.enable_stdout       = false;
-    config.rotation_type       = RotationType::NONE;
+    config.enable_file_logging_ = true;
+    config.log_file_path_       = log_path;
+    config.enable_stdout_       = false;
+    config.rotation_type_       = RotationType::NONE;
 
     Logger::instance().set_config(config);
 
@@ -531,10 +531,10 @@ TEST_F(LoggerTest, SpecialCharactersInLog) {
     std::string log_path = get_test_log_path("special.log");
 
     LogConfig config;
-    config.enable_file_logging = true;
-    config.log_file_path       = log_path;
-    config.enable_stdout       = false;
-    config.rotation_type       = RotationType::NONE;
+    config.enable_file_logging_ = true;
+    config.log_file_path_       = log_path;
+    config.enable_stdout_       = false;
+    config.rotation_type_       = RotationType::NONE;
 
     Logger::instance().set_config(config);
 
@@ -551,12 +551,12 @@ TEST_F(LoggerTest, LogRotationSequence) {
     std::string log_path = get_test_log_path("sequence.log");
 
     LogConfig config;
-    config.enable_file_logging = true;
-    config.log_file_path       = log_path;
-    config.rotation_type       = RotationType::SIZE;
-    config.max_file_size       = 512;  // Small size to force multiple rotations
-    config.max_backup_files    = 3;
-    config.enable_stdout       = false;
+    config.enable_file_logging_ = true;
+    config.log_file_path_       = log_path;
+    config.rotation_type_       = RotationType::SIZE;
+    config.max_file_size_       = 512;  // Small size to force multiple rotations
+    config.max_backup_files_    = 3;
+    config.enable_stdout_       = false;
 
     Logger::instance().set_config(config);
 
@@ -599,8 +599,8 @@ TEST_F(LoggerTest, ConfigParsingEnableFileLogging) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_TRUE(config.enable_file_logging);
-    EXPECT_EQ(config.log_file_path, "/tmp/test.log");
+    EXPECT_TRUE(config.enable_file_logging_);
+    EXPECT_EQ(config.log_file_path_, "/tmp/test.log");
 }
 
 TEST_F(LoggerTest, ConfigParsingLogRotationSize) {
@@ -610,8 +610,8 @@ TEST_F(LoggerTest, ConfigParsingLogRotationSize) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_EQ(config.log_rotation_type, "size");
-    EXPECT_EQ(config.log_max_file_size, 20 * 1024 * 1024);
+    EXPECT_EQ(config.log_rotation_type_, "size");
+    EXPECT_EQ(config.log_max_file_size_, 20 * 1024 * 1024);
 }
 
 TEST_F(LoggerTest, ConfigParsingLogRotationTime) {
@@ -621,8 +621,8 @@ TEST_F(LoggerTest, ConfigParsingLogRotationTime) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_EQ(config.log_rotation_type, "time");
-    EXPECT_EQ(config.log_rotation_interval_minutes, 60);
+    EXPECT_EQ(config.log_rotation_type_, "time");
+    EXPECT_EQ(config.log_rotation_interval_minutes_, 60);
 }
 
 TEST_F(LoggerTest, ConfigParsingLogRotationBoth) {
@@ -631,7 +631,7 @@ TEST_F(LoggerTest, ConfigParsingLogRotationBoth) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_EQ(config.log_rotation_type, "both");
+    EXPECT_EQ(config.log_rotation_type_, "both");
 }
 
 TEST_F(LoggerTest, ConfigParsingLogMaxBackups) {
@@ -640,7 +640,7 @@ TEST_F(LoggerTest, ConfigParsingLogMaxBackups) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_EQ(config.log_max_backup_files, 10);
+    EXPECT_EQ(config.log_max_backup_files_, 10);
 }
 
 TEST_F(LoggerTest, ConfigParsingInvalidLogRotationType) {
@@ -718,13 +718,13 @@ TEST_F(LoggerTest, DefaultLogConfigValues) {
 
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
-    EXPECT_FALSE(config.enable_file_logging);
+    EXPECT_FALSE(config.enable_file_logging_);
     // After XDG enforcement, log_file_path is set to XDG path
     auto& xdg = XDGPaths::instance();
-    EXPECT_EQ(config.log_file_path, xdg.log_file_path().string());
-    EXPECT_EQ(config.log_rotation_type, "size");
-    EXPECT_EQ(config.log_max_file_size, 10 * 1024 * 1024);
-    EXPECT_EQ(config.log_rotation_interval_minutes, 1440);
-    EXPECT_EQ(config.log_max_backup_files, 5);
-    EXPECT_TRUE(config.log_enable_stdout);
+    EXPECT_EQ(config.log_file_path_, xdg.log_file_path().string());
+    EXPECT_EQ(config.log_rotation_type_, "size");
+    EXPECT_EQ(config.log_max_file_size_, 10 * 1024 * 1024);
+    EXPECT_EQ(config.log_rotation_interval_minutes_, 1440);
+    EXPECT_EQ(config.log_max_backup_files_, 5);
+    EXPECT_TRUE(config.log_enable_stdout_);
 }

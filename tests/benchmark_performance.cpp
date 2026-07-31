@@ -232,7 +232,7 @@ BENCHMARK_REGISTER_F(CacheBenchmark, Cache_Eviction)
 
 class RateLimiterBenchmark : public benchmark::Fixture {
    protected:
-    void SetUp(::benchmark::State& state) override {
+    void SetUp(::benchmark::State& /*state*/) override {
         test_ips_.reserve(1000);
         for (int i = 0; i < 1000; ++i) {
             test_ips_.push_back("192.168.1." + std::to_string(i));
@@ -417,7 +417,7 @@ BENCHMARK_F(BatchLookupBenchmark, BatchLookup_ThreadPool)(benchmark::State& stat
             t.join();
         }
 
-        for (const auto& result : results) {
+        for (auto& result : results) {
             benchmark::DoNotOptimize(result);
         }
     }

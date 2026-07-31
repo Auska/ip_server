@@ -52,44 +52,44 @@ Logger::~Logger() {
 void Logger::setup_sinks() {
     std::vector<spdlog::sink_ptr> sinks;
 
-    auto make_formatter = [] {
+    auto makeFormatter = [] {
         auto fmt = std::make_unique<spdlog::pattern_formatter>();
         fmt->add_flag<CustomLevelFormatter>('*').set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%*] %v");
         return fmt;
     };
 
-    if (config_.enable_stdout) {
+    if (config_.enable_stdout_) {
         auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-        stdout_sink->set_formatter(make_formatter());
+        stdout_sink->set_formatter(makeFormatter());
         sinks.push_back(stdout_sink);
     }
 
-    if (config_.enable_file_logging) {
-        std::filesystem::path const log_dir = config_.log_file_path.parent_path();
+    if (config_.enable_file_logging_) {
+        std::filesystem::path const log_dir = config_.log_file_path_.parent_path();
         if (!log_dir.empty() && !std::filesystem::exists(log_dir)) {
             std::filesystem::create_directories(log_dir);
         }
 
         std::shared_ptr<spdlog::sinks::sink> file_sink;
 
-        if (config_.rotation_type == RotationType::SIZE
-            || config_.rotation_type == RotationType::BOTH) {
+        if (config_.rotation_type_ == RotationType::SIZE
+            || config_.rotation_type_ == RotationType::BOTH) {
             file_sink =
-                std::make_shared<spdlog::sinks::rotating_file_sink_mt>(config_.log_file_path
+                std::make_shared<spdlog::sinks::rotating_file_sink_mt>(config_.log_file_path_
                                                                            .string(),
-                                                                       config_.max_file_size,
-                                                                       config_.max_backup_files);
-        } else if (config_.rotation_type == RotationType::TIME) {
+                                                                       config_.max_file_size_,
+                                                                       config_.max_backup_files_);
+        } else if (config_.rotation_type_ == RotationType::TIME) {
             file_sink =
-                std::make_shared<spdlog::sinks::daily_file_sink_mt>(config_.log_file_path.string(),
+                std::make_shared<spdlog::sinks::daily_file_sink_mt>(config_.log_file_path_.string(),
                                                                     0, 0);
         } else {
             file_sink = std::make_shared<
-                spdlog::sinks::rotating_file_sink_mt>(config_.log_file_path.string(),
+                spdlog::sinks::rotating_file_sink_mt>(config_.log_file_path_.string(),
                                                       std::numeric_limits<size_t>::max(), 0);
         }
 
-        file_sink->set_formatter(make_formatter());
+        file_sink->set_formatter(makeFormatter());
         sinks.push_back(file_sink);
     }
 

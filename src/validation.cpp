@@ -7,7 +7,7 @@
 
 namespace ip_server {
 
-bool is_valid_ipv4(const std::string& ip) {
+bool isValidIpv4(const std::string& ip) {
     int octets = 0, val = 0, digits = 0;
     for (char c : ip) {
         if (c == '.') {
@@ -25,7 +25,7 @@ bool is_valid_ipv4(const std::string& ip) {
     return octets == 3 && digits > 0;
 }
 
-bool is_valid_ipv6(const std::string& ip) {
+bool isValidIpv6(const std::string& ip) {
     if (ip.empty() || ip.find('%') != std::string::npos) {
         return false;
     }
@@ -45,11 +45,11 @@ bool is_valid_ipv6(const std::string& ip) {
     return true;
 }
 
-bool is_valid_ip_format(const std::string& ip) {
-    return is_valid_ipv4(ip) || is_valid_ipv6(ip);
+bool isValidIpFormat(const std::string& ip) {
+    return isValidIpv4(ip) || isValidIpv6(ip);
 }
 
-bool is_valid_mac_format(const std::string& mac) {
+bool isValidMacFormat(const std::string& mac) {
     if (mac.size() == 17) {
         for (size_t i = 0; i < 17; ++i) {
             if (i % 3 == 2) {

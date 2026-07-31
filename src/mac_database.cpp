@@ -156,19 +156,19 @@ nlohmann::json OUIDatabase::lookup(const std::string& mac_address) const {
         result["oui"]   = oui;
         result["found"] = true;
 
-        auto extract_col = [&](int col_idx, const char* key) {
+        auto extractCol = [&](int col_idx, const char* key) {
             const char* col =
                 reinterpret_cast<const char*>(sqlite3_column_text(lookup_stmt_.get(), col_idx));
             if (col != nullptr) result[key] = col;
         };
 
-        extract_col(1, "manufacturer");
-        extract_col(2, "registry");
-        extract_col(3, "short_name");
-        extract_col(4, "device_type");
-        extract_col(5, "registered_date");
-        extract_col(6, "address");
-        extract_col(7, "sources");
+        extractCol(1, "manufacturer");
+        extractCol(2, "registry");
+        extractCol(3, "short_name");
+        extractCol(4, "device_type");
+        extractCol(5, "registered_date");
+        extractCol(6, "address");
+        extractCol(7, "sources");
 
     } else if (status == SQLITE_DONE) {
         result["mac"]   = mac_address;

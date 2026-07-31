@@ -26,11 +26,11 @@ class RateLimiter {
     void cleanup();
 
     struct MemoryStats {
-        size_t ip_record_count;
-        size_t total_timestamps;
-        size_t estimated_memory_bytes;
-        uint64_t total_requests;
-        uint64_t total_rate_limited;
+        size_t ip_record_count_;
+        size_t total_timestamps_;
+        size_t estimated_memory_bytes_;
+        uint64_t total_requests_;
+        uint64_t total_rate_limited_;
     };
     MemoryStats get_memory_stats() const;
 
@@ -38,9 +38,9 @@ class RateLimiter {
 
    private:
     struct IPRecord {
-        std::deque<std::chrono::steady_clock::time_point> timestamps;
-        std::chrono::steady_clock::time_point last_access;
-        std::list<std::string>::iterator lru_it;
+        std::deque<std::chrono::steady_clock::time_point> timestamps_;
+        std::chrono::steady_clock::time_point last_access_;
+        std::list<std::string>::iterator lru_it_;
     };
 
     void cleanup_old_timestamps(IPRecord& record) const;

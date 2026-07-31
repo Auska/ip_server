@@ -3,10 +3,10 @@
 #include <chrono>
 #include <string>
 
-#include "../cache.h"
-#include "../types.h"
-#include "../database/city_database.h"
-#include "../database/asn_database.h"
+#include "cache.h"
+#include "types.h"
+#include "database/city_database.h"
+#include "database/asn_database.h"
 
 namespace ip_server {
 

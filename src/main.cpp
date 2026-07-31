@@ -34,12 +34,12 @@ class Application {
    public:
     Application(const ServerConfig& config)
         : config_(config),
-          geo_service_(config.city_db_path, config.asn_db_path, config.cache_size),
-          mac_service_(config.oui_db_path, config.cache_size),
-          http_server_(config.host, config.port, config.thread_pool_size,
-                       config.enable_rate_limiter, config.max_requests_per_minute,
-                       config.max_batch_size, config.enable_api_auth, config.api_keys_file,
-                       config.default_api_key) {
+          geo_service_(config.city_db_path_, config.asn_db_path_, config.cache_size_),
+          mac_service_(config.oui_db_path_, config.cache_size_),
+          http_server_(config.host_, config.port_, config.thread_pool_size_,
+                       config.enable_rate_limiter_, config.max_requests_per_minute_,
+                       config.max_batch_size_, config.enable_api_auth_, config.api_keys_file_,
+                       config.default_api_key_) {
         http_server_.set_lookup_handler(
             [this](const std::string& ip) { return geo_service_.lookup(ip); });
 
@@ -97,23 +97,23 @@ int main(int argc, char* argv[]) {
 
         {
             LogConfig log_config;
-            log_config.enable_file_logging = config.enable_file_logging;
-            log_config.log_file_path       = config.log_file_path;
-            log_config.enable_stdout       = config.log_enable_stdout;
+            log_config.enable_file_logging_ = config.enable_file_logging_;
+            log_config.log_file_path_       = config.log_file_path_;
+            log_config.enable_stdout_       = config.log_enable_stdout_;
 
-            if (config.log_rotation_type == "size")
-                log_config.rotation_type = RotationType::SIZE;
-            else if (config.log_rotation_type == "time")
-                log_config.rotation_type = RotationType::TIME;
-            else if (config.log_rotation_type == "both")
-                log_config.rotation_type = RotationType::BOTH;
+            if (config.log_rotation_type_ == "size")
+                log_config.rotation_type_ = RotationType::SIZE;
+            else if (config.log_rotation_type_ == "time")
+                log_config.rotation_type_ = RotationType::TIME;
+            else if (config.log_rotation_type_ == "both")
+                log_config.rotation_type_ = RotationType::BOTH;
             else
-                log_config.rotation_type = RotationType::NONE;
+                log_config.rotation_type_ = RotationType::NONE;
 
-            log_config.max_file_size = config.log_max_file_size;
-            log_config.rotation_interval =
-                std::chrono::minutes(config.log_rotation_interval_minutes);
-            log_config.max_backup_files = config.log_max_backup_files;
+            log_config.max_file_size_ = config.log_max_file_size_;
+            log_config.rotation_interval_ =
+                std::chrono::minutes(config.log_rotation_interval_minutes_);
+            log_config.max_backup_files_ = config.log_max_backup_files_;
 
             Logger::instance().set_config(log_config);
         }
@@ -126,7 +126,7 @@ int main(int argc, char* argv[]) {
                 {"error", LogLevel::ERROR},
             });
             for (const auto& [name, level] : levels) {
-                if (name == config.log_level) {
+                if (name == config.log_level_) {
                     Logger::instance().set_level(level);
                     break;
                 }
@@ -135,9 +135,9 @@ int main(int argc, char* argv[]) {
 
         ip_server::XDGPaths::ensure_directories();
 
-        if (!config.config_file.empty() && !std::filesystem::exists(config.config_file)) {
-            LOG_INFO("Creating default config file: " + config.config_file.string());
-            ConfigParser::save_to_file(config, config.config_file);
+        if (!config.config_file_.empty() && !std::filesystem::exists(config.config_file_)) {
+            LOG_INFO("Creating default config file: " + config.config_file_.string());
+            ConfigParser::save_to_file(config, config.config_file_);
         }
 
         Application app(config);

@@ -80,58 +80,58 @@ enum class CacheDataType {
 };
 
 struct CacheStats {
-    uint64_t total_lookups{0};
-    uint64_t hits{0};
-    uint64_t misses{0};
-    uint64_t evictions{0};
-    uint64_t expired_entries{0};
-    uint64_t concurrent_accesses{0};
-    uint64_t memory_usage_bytes{0};
-    uint64_t negative_hits{0};
-    uint64_t negative_misses{0};
-    uint64_t entry_count{0};
-    double avg_entry_size{0.0};
+    uint64_t total_lookups_{0};
+    uint64_t hits_{0};
+    uint64_t misses_{0};
+    uint64_t evictions_{0};
+    uint64_t expired_entries_{0};
+    uint64_t concurrent_accesses_{0};
+    uint64_t memory_usage_bytes_{0};
+    uint64_t negative_hits_{0};
+    uint64_t negative_misses_{0};
+    uint64_t entry_count_{0};
+    double avg_entry_size_{0.0};
 
     double hit_rate() const {
-        return total_lookups > 0 ? (static_cast<double>(hits) / total_lookups) * 100.0 : 0.0;
+        return total_lookups_ > 0 ? (static_cast<double>(hits_) / total_lookups_) * 100.0 : 0.0;
     }
 
-    double get_memory_usage_mb() const { return memory_usage_bytes / (1024.0 * 1024.0); }
+    double get_memory_usage_mb() const { return memory_usage_bytes_ / (1024.0 * 1024.0); }
 
     void reset() {
-        total_lookups = 0;
-        hits = 0;
-        misses = 0;
-        evictions = 0;
-        expired_entries = 0;
-        concurrent_accesses = 0;
-        memory_usage_bytes = 0;
-        negative_hits = 0;
-        negative_misses = 0;
-        entry_count = 0;
-        avg_entry_size = 0.0;
+        total_lookups_ = 0;
+        hits_ = 0;
+        misses_ = 0;
+        evictions_ = 0;
+        expired_entries_ = 0;
+        concurrent_accesses_ = 0;
+        memory_usage_bytes_ = 0;
+        negative_hits_ = 0;
+        negative_misses_ = 0;
+        entry_count_ = 0;
+        avg_entry_size_ = 0.0;
     }
 
     CacheStats& operator+=(const CacheStats& o) {
-        if (o.entry_count == 0) return *this;
-        if (entry_count == 0) {
+        if (o.entry_count_ == 0) return *this;
+        if (entry_count_ == 0) {
             *this = o;
             return *this;
         }
-        uint64_t const total = entry_count + o.entry_count;
-        avg_entry_size = (avg_entry_size * static_cast<double>(entry_count)
-                          + o.avg_entry_size * static_cast<double>(o.entry_count))
+        uint64_t const total = entry_count_ + o.entry_count_;
+        avg_entry_size_ = (avg_entry_size_ * static_cast<double>(entry_count_)
+                          + o.avg_entry_size_ * static_cast<double>(o.entry_count_))
                          / static_cast<double>(total);
-        total_lookups += o.total_lookups;
-        hits += o.hits;
-        misses += o.misses;
-        evictions += o.evictions;
-        expired_entries += o.expired_entries;
-        concurrent_accesses += o.concurrent_accesses;
-        memory_usage_bytes += o.memory_usage_bytes;
-        negative_hits += o.negative_hits;
-        negative_misses += o.negative_misses;
-        entry_count = total;
+        total_lookups_ += o.total_lookups_;
+        hits_ += o.hits_;
+        misses_ += o.misses_;
+        evictions_ += o.evictions_;
+        expired_entries_ += o.expired_entries_;
+        concurrent_accesses_ += o.concurrent_accesses_;
+        memory_usage_bytes_ += o.memory_usage_bytes_;
+        negative_hits_ += o.negative_hits_;
+        negative_misses_ += o.negative_misses_;
+        entry_count_ = total;
         return *this;
     }
 };
@@ -146,34 +146,34 @@ class CacheShard {
     std::optional<nlohmann::json> get(const std::string& key) {
         std::unique_lock<std::shared_mutex> lock(mutex_);
 
-        stats_.total_lookups++;
-        stats_.concurrent_accesses++;
+        stats_.total_lookups_++;
+        stats_.concurrent_accesses_++;
 
         auto it = cache_map_.find(key);
         if (it == cache_map_.end()) {
-            stats_.misses++;
+            stats_.misses_++;
             return std::nullopt;
         }
 
         auto now = std::chrono::system_clock::now();
-        auto ttl = get_ttl_for_type(it->second.data_type);
-        if (now - it->second.timestamp > ttl) {
-            size_t entry_size = it->second.size_bytes;
-            cache_list_.erase(it->second.list_it);
+        auto ttl = get_ttl_for_type(it->second.data_type_);
+        if (now - it->second.timestamp_ > ttl) {
+            size_t entry_size = it->second.size_bytes_;
+            cache_list_.erase(it->second.list_it_);
             negative_cache_.erase(key);
             memory_usage_bytes_ -= entry_size;
             cache_map_.erase(it);
-            stats_.expired_entries++;
-            stats_.misses++;
+            stats_.expired_entries_++;
+            stats_.misses_++;
             return std::nullopt;
         }
 
-        cache_list_.splice(cache_list_.begin(), cache_list_, it->second.list_it);
-        stats_.hits++;
-        if (it->second.data_type == CacheDataType::NEGATIVE) {
-            stats_.negative_hits++;
+        cache_list_.splice(cache_list_.begin(), cache_list_, it->second.list_it_);
+        stats_.hits_++;
+        if (it->second.data_type_ == CacheDataType::NEGATIVE) {
+            stats_.negative_hits_++;
         }
-        return it->second.result;
+        return it->second.result_;
     }
 
     void put(std::string key, nlohmann::json result,
@@ -181,19 +181,19 @@ class CacheShard {
         std::unique_lock<std::shared_mutex> lock(mutex_);
 
         size_t entry_size = estimate_entry_size(key, result);
-        stats_.avg_entry_size =
-            (stats_.avg_entry_size * (cache_map_.size()) + entry_size) / (cache_map_.size() + 1);
-        stats_.entry_count = cache_map_.size() + 1;
+        stats_.avg_entry_size_ =
+            (stats_.avg_entry_size_ * (cache_map_.size()) + entry_size) / (cache_map_.size() + 1);
+        stats_.entry_count_ = cache_map_.size() + 1;
 
         auto it = cache_map_.find(key);
         if (it != cache_map_.end()) {
-            memory_usage_bytes_ -= it->second.size_bytes;
-            it->second.result = std::move(result);
-            it->second.timestamp = std::chrono::system_clock::now();
-            it->second.size_bytes = entry_size;
-            it->second.data_type = data_type;
+            memory_usage_bytes_ -= it->second.size_bytes_;
+            it->second.result_ = std::move(result);
+            it->second.timestamp_ = std::chrono::system_clock::now();
+            it->second.size_bytes_ = entry_size;
+            it->second.data_type_ = data_type;
             memory_usage_bytes_ += entry_size;
-            cache_list_.splice(cache_list_.begin(), cache_list_, it->second.list_it);
+            cache_list_.splice(cache_list_.begin(), cache_list_, it->second.list_it_);
             return;
         }
 
@@ -248,11 +248,11 @@ class CacheShard {
 
    private:
     struct CacheEntry {
-        nlohmann::json result;
-        std::chrono::system_clock::time_point timestamp;
-        std::list<std::string>::iterator list_it;
-        size_t size_bytes;
-        CacheDataType data_type;
+        nlohmann::json result_;
+        std::chrono::system_clock::time_point timestamp_;
+        std::list<std::string>::iterator list_it_;
+        size_t size_bytes_;
+        CacheDataType data_type_;
     };
 
     size_t estimate_entry_size(const std::string& key, const nlohmann::json& result) const {
@@ -270,11 +270,11 @@ class CacheShard {
     void evict_entry(const std::string& key, CacheStats& stats) {
         auto it = cache_map_.find(key);
         if (it != cache_map_.end()) {
-            memory_usage_bytes_ -= it->second.size_bytes;
+            memory_usage_bytes_ -= it->second.size_bytes_;
             negative_cache_.erase(key);
-            cache_list_.erase(it->second.list_it);
+            cache_list_.erase(it->second.list_it_);
             cache_map_.erase(it);
-            stats.evictions++;
+            stats.evictions_++;
         }
     }
 
@@ -298,19 +298,19 @@ class CacheShard {
 };
 
 struct ShardStats {
-    size_t shard_index;
-    size_t size;
-    size_t memory_usage_bytes;
-    double get_memory_usage_mb() const { return memory_usage_bytes / (1024.0 * 1024.0); }
-    uint64_t hits;
-    uint64_t misses;
-    double hit_rate;
+    size_t shard_index_;
+    size_t size_;
+    size_t memory_usage_bytes_;
+    double get_memory_usage_mb() const { return memory_usage_bytes_ / (1024.0 * 1024.0); }
+    uint64_t hits_;
+    uint64_t misses_;
+    double hit_rate_;
 };
 
 struct CacheHeatMap {
-    std::vector<std::pair<std::string, uint64_t>> hot_keys;
-    std::vector<size_t> shard_distribution;
-    uint64_t total_accesses;
+    std::vector<std::pair<std::string, uint64_t>> hot_keys_;
+    std::vector<size_t> shard_distribution_;
+    uint64_t total_accesses_;
 };
 
 class IPCache {
@@ -360,7 +360,7 @@ class IPCache {
         for (const auto& shard : shards_) {
             combined += shard->get_local_stats();
         }
-        combined.memory_usage_bytes = get_total_memory_usage();
+        combined.memory_usage_bytes_ = get_total_memory_usage();
         return combined;
     }
 
@@ -370,12 +370,12 @@ class IPCache {
 
         for (size_t i = 0; i < shard_count_; ++i) {
             ShardStats stats;
-            stats.shard_index = i;
-            stats.size = shards_[i]->size();
-            stats.memory_usage_bytes = shards_[i]->memory_usage();
-            stats.hits = 0;
-            stats.misses = 0;
-            stats.hit_rate = 0.0;
+            stats.shard_index_ = i;
+            stats.size_ = shards_[i]->size();
+            stats.memory_usage_bytes_ = shards_[i]->memory_usage();
+            stats.hits_ = 0;
+            stats.misses_ = 0;
+            stats.hit_rate_ = 0.0;
             shard_stats.push_back(stats);
         }
 
@@ -385,7 +385,7 @@ class IPCache {
     CacheHeatMap get_heat_map(size_t top_n = 10) const {
         std::lock_guard<std::mutex> lock(heatmap_mutex_);
         CacheHeatMap heat_map;
-        heat_map.total_accesses = get_stats().total_lookups;
+        heat_map.total_accesses_ = get_stats().total_lookups_;
 
         std::vector<std::pair<std::string, uint64_t>> sorted_keys;
         sorted_keys.reserve(key_access_counts_.size());
@@ -397,12 +397,12 @@ class IPCache {
                           sorted_keys.end(),
                           [](const auto& a, const auto& b) { return a.second > b.second; });
 
-        heat_map.hot_keys.assign(sorted_keys.begin(),
+        heat_map.hot_keys_.assign(sorted_keys.begin(),
                                  sorted_keys.begin() + std::min(top_n, sorted_keys.size()));
 
-        heat_map.shard_distribution.reserve(shard_count_);
+        heat_map.shard_distribution_.reserve(shard_count_);
         for (const auto& shard : shards_) {
-            heat_map.shard_distribution.push_back(shard->size());
+            heat_map.shard_distribution_.push_back(shard->size());
         }
 
         return heat_map;
