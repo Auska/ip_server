@@ -43,7 +43,7 @@ struct ServerConfig {
 
     // Logging configuration
     bool enable_file_logging_  = false;
-    std::string log_file_path_ = "logs/ip_server.log";  // Overridden by XDG paths
+    std::string log_file_path_ = "logs/ip_server.log";  // Overridden by default paths
     std::string log_rotation_type_ = "size";            // "none" or "size"
     size_t log_max_file_size_  = 10 * 1024 * 1024;      // 10 MB
     int log_max_backup_files_  = 5;

@@ -7,7 +7,7 @@
 
 #include "config.h"
 #include "logger.h"
-#include "xdg.h"
+#include "paths.h"
 
 using namespace ip_server;
 
@@ -644,8 +644,8 @@ TEST_F(LoggerTest, DefaultLogConfigValues) {
     auto config = ConfigParser::parse(argc, const_cast<char**>(argv));
 
     EXPECT_FALSE(config.enable_file_logging_);
-    // After XDG enforcement, log_file_path is set to XDG path
-    EXPECT_EQ(config.log_file_path_, xdg::log_file_path().string());
+    // Default log path (no XDG)
+    EXPECT_EQ(config.log_file_path_, paths::log_file_path().string());
     EXPECT_EQ(config.log_rotation_type_, "size");
     EXPECT_EQ(config.log_max_file_size_, 10 * 1024 * 1024);
     EXPECT_EQ(config.log_max_backup_files_, 5);

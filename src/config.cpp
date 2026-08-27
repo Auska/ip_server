@@ -7,7 +7,7 @@
 #include <string_view>
 
 #include "logger.h"
-#include "xdg.h"
+#include "paths.h"
 
 namespace ip_server {
 
@@ -17,12 +17,12 @@ bool parseBoolString(const std::string& value) {
     return value == "true" || value == "1";
 }
 
-void applyXdgDefaults(ServerConfig& config) {
-    config.city_db_path_  = ip_server::xdg::city_db_path().string();
-    config.asn_db_path_   = ip_server::xdg::asn_db_path().string();
-    config.oui_db_path_   = ip_server::xdg::oui_db_path().string();
-    config.config_file_   = ip_server::xdg::config_file();
-    config.log_file_path_ = ip_server::xdg::log_file_path().string();
+void applyDefaultPaths(ServerConfig& config) {
+    config.city_db_path_  = ip_server::paths::city_db_path().string();
+    config.asn_db_path_   = ip_server::paths::asn_db_path().string();
+    config.oui_db_path_   = ip_server::paths::oui_db_path().string();
+    config.config_file_   = ip_server::paths::config_file();
+    config.log_file_path_ = ip_server::paths::log_file_path().string();
 }
 
 }  // namespace
@@ -85,7 +85,7 @@ ServerConfig ConfigParser::handle_config_file(const std::filesystem::path& confi
     if (is_empty) {
         LOG_INFO("Config file is empty, creating default configuration: " + config_file.string());
         ServerConfig cfg;
-        applyXdgDefaults(cfg);
+        applyDefaultPaths(cfg);
         cfg.config_file_ = config_file;
 
         if (save_to_file(cfg, config_file)) {
@@ -118,9 +118,9 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
             std::exit(0);
         }
 
-        applyXdgDefaults(config);
+        applyDefaultPaths(config);
 
-        LOG_INFO("Using XDG paths:");
+        LOG_INFO("Using default paths:");
         LOG_INFO("  Config: " + config.config_file_.string());
         LOG_INFO("  City DB: " + config.city_db_path_);
         LOG_INFO("  ASN DB: " + config.asn_db_path_);
@@ -343,7 +343,7 @@ void ConfigParser::apply_cli_overrides(const cxxopts::ParseResult& result, Serve
         config.enable_file_logging_ =
             parseBoolString(result["enable-file-logging"].as<std::string>());
         if (config.enable_file_logging_ && config.log_file_path_ == "logs/ip_server.log")
-            config.log_file_path_ = ip_server::xdg::log_file_path().string();
+            config.log_file_path_ = ip_server::paths::log_file_path().string();
     }
     if (result.contains("log-file")) {
         config.log_file_path_       = result["log-file"].as<std::string>();

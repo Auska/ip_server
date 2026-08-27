@@ -10,7 +10,7 @@
 #include "metrics.h"
 #include "service/ip_geo_service.h"
 #include "service/mac_lookup_service.h"
-#include "xdg.h"
+#include "paths.h"
 
 namespace ip_server {
 
@@ -122,7 +122,7 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        xdg::ensure_directories();
+        paths::ensure_directories();
 
         if (!config.config_file_.empty() && !std::filesystem::exists(config.config_file_)) {
             LOG_INFO("Creating default config file: " + config.config_file_.string());

@@ -19,7 +19,7 @@
 - 命令行参数解析（host, port, threads, 数据库路径）
 - 新参数解析（速率限制、批量大小限制）
 - 无效参数处理
-- XDG 目录支持
+- 默认路径支持（$HOME/.config/ip_local 存放配置/数据库/日志）
 
 **新增测试**:
 - `ParseEnableRateLimiter` - 测试速率限制开关

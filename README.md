@@ -15,7 +15,7 @@
 - 速率限制防止 API 滥用
 - API 密钥认证支持
 - 基于 spdlog 的日志系统，支持文件日志轮转
-- 遵循 XDG 目录标准
+- 默认使用 $HOME/.config/ip_local/ 存放配置、数据库与日志
 - **代理头支持**：自动从 X-Forwarded-For 和 X-Real-IP 提取真实客户端 IP
 
 ## 技术栈
@@ -135,22 +135,19 @@ cmake --build . -j$(nproc)
 
 - `master_oui.db` - IEEE OUI 注册表（包含制造商信息）
 
-**默认数据库路径** (使用 XDG 标准):
-- City DB: `~/.local/share/ip-server/databases/GeoLite2-City.mmdb`
-- ASN DB: `~/.local/share/ip-server/databases/GeoLite2-ASN.mmdb`
-- OUI DB: `~/.local/share/ip-server/databases/master_oui.db`
-
-**传统路径** (使用 `--no-xdg`):
-- `db/GeoLite2-City.mmdb`
-- `db/GeoLite2-ASN.mmdb`
-- `db/master_oui.db`
+**默认数据库路径** (`$HOME/.config/ip_local/`):
+- City DB: `~/.config/ip_local/databases/GeoLite2-City.mmdb`
+- ASN DB: `~/.config/ip_local/databases/GeoLite2-ASN.mmdb`
+- OUI DB: `~/.config/ip_local/databases/master_oui.db`
+- 配置: `~/.config/ip_local/config.json`
+- 日志: `~/.config/ip_local/logs/ip_server.log`
 
 ## 使用方法
 
 ### 启动服务
 
 ```bash
-# 使用默认配置（端口 8080，使用 XDG 目录标准）
+# 使用默认配置（端口 8080）
 ./build/bin/ip_server
 
 # 自定义端口
@@ -504,7 +501,7 @@ ip_local/
 │   ├── rate_limiter.h/cpp     # 速率限制
 │   ├── auth.h/cpp             # API 认证
 │   ├── metrics.h/cpp          # 性能指标
-│   └── xdg.h/cpp              # XDG 目录标准
+│   └── paths.h/cpp            # 默认目录（$HOME/.config/ip_local）
 ├── tests/                      # 测试目录
 │   ├── test_main.cpp          # 测试主程序
 │   ├── test_config.cpp        # 配置测试
@@ -645,6 +642,6 @@ find src tests -name "*.cpp" -o -name "*.h" | xargs clang-format -Werror --dry-r
 - cpp-httplib: https://github.com/yhirose/cpp-httplib
 - nlohmann/json: https://github.com/nlohmann/json
 - spdlog: https://github.com/gabime/spdlog
-- XDG Base Directory Specification: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+
 - Google Test: https://google.github.io/googletest/
 - Google Benchmark: https://github.com/google/benchmark

@@ -61,13 +61,12 @@
 
 **Impact**: Any change to routing, auth, rate limiting, or thread management requires modifying this single file, causing merge conflicts and high risk of regressions. Estimated cost: **5-8 hours/month** in coordination overhead（较原 8-12 小时下降）。
 
-### 1.2 Singleton Pattern (Logger, XDGPaths)
+### 1.2 Singleton Pattern (Logger)
 
-**Classes**: `Logger` (singleton via `static` local), `XDGPaths` (singleton)
+**Classes**: `Logger` (singleton via `static` local)
 
 **Impact**: 
 - Unit tests cannot mock or replace the logger — all tests that exercise log output must rely on side effects
-- Integration tests requiring custom XDG paths must set real environment variables
 - Estimated cost: **4-6 hours/month** working around testability limitations
 
 **Recommendation**: Introduce dependency injection via interface/abstract base, with a static default for production use.
@@ -258,7 +257,7 @@ In `handle_lookup_post()` (line 496), each item >10 in a batch spawns a new OS t
 
 | # | Item | Effort | Savings | ROI |
 |---|------|--------|---------|-----|
-| 10 | Dependency injection for Logger/XDGPaths | 12h | Enables unit testing of all log paths | Medium |
+| 10 | Dependency injection for Logger | 12h | Enables unit testing of all log paths | Medium |
 | 11 | Sharded rate limiter | 16h | Scales to 100k+ concurrent IPs | Low (edge case) |
 | 12 | Streaming percentile metrics | 8h | Reduces health check CPU by 80% | Low |
 | 13 | API documentation (OpenAPI spec) | 16h | First-class API docs for clients | Medium |

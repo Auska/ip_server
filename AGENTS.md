@@ -42,7 +42,7 @@ ip_local/
 │   ├── auth.h/cpp             # API 认证（SHA-256 哈希 + 可信代理）
 │   ├── metrics.h/cpp          # 性能指标
 │   ├── logger.h/cpp           # 日志系统 + signal-safe 日志
-│   └── xdg.h/cpp              # XDG 目录标准
+│   └── paths.h/cpp            # 默认目录（$HOME/.config/ip_local）
 ├── tests/                      # 测试代码（9 个测试文件 + 2 个基准测试，250 个测试）
 │   ├── test_main.cpp          # gtest 入口
 │   ├── test_utils.h           # 测试共享工具（find_project_root）
@@ -133,7 +133,7 @@ main()
   |
   +-- ConfigParser::parse()              # 命令行/配置文件解析
   +-- Logger::instance().set_config()     # 日志初始化
-  +-- XDGPaths::instance().ensure_directories()  # XDG 目录创建
+  +-- paths::ensure_directories()  # 创建默认目录（$HOME/.config/ip_local）
   |
   +-- Application（构造函数组装组件）
         |
