@@ -19,7 +19,6 @@ constexpr size_t DEFAULT_MAX_MEMORY = 100 * 1024 * 1024;
 
 enum class CacheDataType {
     IP_GEOLOCATION,
-    IP_ASN,
     MAC_OUI,
     NEGATIVE
 };
@@ -52,9 +51,8 @@ struct CacheStats {
 class CacheShard {
    public:
     explicit CacheShard(size_t max_size = 100,
-                        std::chrono::seconds default_ttl = std::chrono::seconds(3600),
                         size_t max_memory_bytes = cache_constants::DEFAULT_SHARD_MEMORY)
-        : max_size_(max_size), default_ttl_(default_ttl), max_memory_bytes_(max_memory_bytes) {}
+        : max_size_(max_size), max_memory_bytes_(max_memory_bytes) {}
 
     std::optional<nlohmann::json> get(const std::string& key) {
         std::unique_lock<std::shared_mutex> lock(mutex_);
@@ -161,7 +159,7 @@ class CacheShard {
         if (it != ttl_config_.end()) {
             return it->second;
         }
-        return default_ttl_;
+        return std::chrono::seconds(3600);
     }
 
     void evict_entry(const std::string& key, CacheStats& stats) {
@@ -186,7 +184,6 @@ class CacheShard {
     std::unordered_map<CacheDataType, std::chrono::seconds> ttl_config_;
     mutable std::shared_mutex mutex_;
     size_t max_size_;
-    std::chrono::seconds default_ttl_;
     size_t max_memory_bytes_;
     size_t memory_usage_bytes_{0};
     CacheStats stats_;
@@ -195,7 +192,6 @@ class CacheShard {
 class IPCache {
    public:
     explicit IPCache(size_t max_size = 10000, size_t shard_count = 8,
-                     std::chrono::seconds default_ttl = std::chrono::seconds(3600),
                      size_t max_memory_bytes = cache_constants::DEFAULT_MAX_MEMORY)
         : shard_count_(shard_count) {
         size_t shard_size = (max_size + shard_count - 1) / shard_count;
@@ -203,7 +199,7 @@ class IPCache {
         shards_.reserve(shard_count);
 
         for (size_t i = 0; i < shard_count_; ++i) {
-            shards_.push_back(std::make_unique<CacheShard>(shard_size, default_ttl, shard_memory));
+            shards_.push_back(std::make_unique<CacheShard>(shard_size, shard_memory));
         }
 
         configure_default_ttls();
@@ -263,7 +259,6 @@ class IPCache {
     void configure_default_ttls() {
         for (auto& shard : shards_) {
             shard->set_ttl(CacheDataType::IP_GEOLOCATION, std::chrono::seconds(3600));
-            shard->set_ttl(CacheDataType::IP_ASN, std::chrono::seconds(86400));
             shard->set_ttl(CacheDataType::MAC_OUI, std::chrono::seconds(86400 * 7));
             shard->set_ttl(CacheDataType::NEGATIVE, std::chrono::seconds(300));
         }

@@ -17,10 +17,7 @@ Metrics::Metrics()
       cache_hits_(0),
       cache_misses_(0),
       total_errors_(0),
-      start_time_(std::chrono::steady_clock::now()),
-      city_db_open_(false),
-      asn_db_open_(false),
-      oui_db_open_(false) {
+      start_time_(std::chrono::steady_clock::now()) {
     LOG_INFO("Metrics collector initialized");
 }
 
@@ -66,9 +63,9 @@ Metrics::Stats Metrics::get_stats() const {
             (static_cast<double>(stats.total_errors_) / stats.total_requests_) * 100.0;
     }
 
-    stats.city_db_open_ = city_db_open_.load();
-    stats.asn_db_open_  = asn_db_open_.load();
-    stats.oui_db_open_  = oui_db_open_.load();
+    stats.city_db_open_ = city_db_open_;
+    stats.asn_db_open_  = asn_db_open_;
+    stats.oui_db_open_  = oui_db_open_;
 
     {
         std::scoped_lock const lock(mutex_);
@@ -90,16 +87,10 @@ Metrics::Stats Metrics::get_stats() const {
     return stats;
 }
 
-void Metrics::set_city_db_status(bool open) {
-    city_db_open_.store(open);
-}
-
-void Metrics::set_asn_db_status(bool open) {
-    asn_db_open_.store(open);
-}
-
-void Metrics::set_oui_db_status(bool open) {
-    oui_db_open_.store(open);
+void Metrics::set_db_status(bool city_open, bool asn_open, bool oui_open) {
+    city_db_open_ = city_open;
+    asn_db_open_  = asn_open;
+    oui_db_open_  = oui_open;
 }
 
 double Metrics::calculate_percentile(double percentile) const {

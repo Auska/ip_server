@@ -10,7 +10,7 @@ namespace ip_server {
 
 IPGeoService::IPGeoService(const std::string& city_db_path, const std::string& asn_db_path,
                            size_t cache_size, size_t shard_count, size_t max_memory_bytes)
-    : cache_(cache_size, shard_count, std::chrono::seconds(3600), max_memory_bytes) {
+    : cache_(cache_size, shard_count, max_memory_bytes) {
     if (!city_db_.open(city_db_path)) {
         throw std::runtime_error("Failed to open City database: " + city_db_path);
     }

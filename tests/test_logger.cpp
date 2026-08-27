@@ -645,7 +645,7 @@ TEST_F(LoggerTest, DefaultLogConfigValues) {
 
     EXPECT_FALSE(config.enable_file_logging_);
     // After XDG enforcement, log_file_path is set to XDG path
-    EXPECT_EQ(config.log_file_path_, XDGPaths::log_file_path().string());
+    EXPECT_EQ(config.log_file_path_, xdg::log_file_path().string());
     EXPECT_EQ(config.log_rotation_type_, "size");
     EXPECT_EQ(config.log_max_file_size_, 10 * 1024 * 1024);
     EXPECT_EQ(config.log_max_backup_files_, 5);

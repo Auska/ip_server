@@ -18,11 +18,11 @@ bool parseBoolString(const std::string& value) {
 }
 
 void applyXdgDefaults(ServerConfig& config) {
-    config.city_db_path_  = ip_server::XDGPaths::city_db_path().string();
-    config.asn_db_path_   = ip_server::XDGPaths::asn_db_path().string();
-    config.oui_db_path_   = ip_server::XDGPaths::oui_db_path().string();
-    config.config_file_   = ip_server::XDGPaths::config_file();
-    config.log_file_path_ = ip_server::XDGPaths::log_file_path().string();
+    config.city_db_path_  = ip_server::xdg::city_db_path().string();
+    config.asn_db_path_   = ip_server::xdg::asn_db_path().string();
+    config.oui_db_path_   = ip_server::xdg::oui_db_path().string();
+    config.config_file_   = ip_server::xdg::config_file();
+    config.log_file_path_ = ip_server::xdg::log_file_path().string();
 }
 
 }  // namespace
@@ -264,7 +264,7 @@ void ConfigParser::from_json(ServerConfig& config, const nlohmann::json& j) {
             if (j[key].is_boolean())
                 field = j[key].get<bool>();
             else if (j[key].is_string())
-                field = (j[key].get<std::string>() == "true" || j[key].get<std::string>() == "1");
+                field = parseBoolString(j[key].get<std::string>());
         }
     };
 
@@ -343,7 +343,7 @@ void ConfigParser::apply_cli_overrides(const cxxopts::ParseResult& result, Serve
         config.enable_file_logging_ =
             parseBoolString(result["enable-file-logging"].as<std::string>());
         if (config.enable_file_logging_ && config.log_file_path_ == "logs/ip_server.log")
-            config.log_file_path_ = ip_server::XDGPaths::log_file_path().string();
+            config.log_file_path_ = ip_server::xdg::log_file_path().string();
     }
     if (result.contains("log-file")) {
         config.log_file_path_       = result["log-file"].as<std::string>();

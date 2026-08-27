@@ -40,9 +40,7 @@ class Metrics {
 
     Stats get_stats() const;
 
-    void set_city_db_status(bool open);
-    void set_asn_db_status(bool open);
-    void set_oui_db_status(bool open);
+    void set_db_status(bool city_open, bool asn_open, bool oui_open);
 
    private:
     mutable std::mutex mutex_;
@@ -57,9 +55,9 @@ class Metrics {
     std::chrono::steady_clock::time_point start_time_;
     std::deque<std::chrono::steady_clock::time_point> request_timestamps_;
 
-    std::atomic<bool> city_db_open_;
-    std::atomic<bool> asn_db_open_;
-    std::atomic<bool> oui_db_open_;
+    bool city_db_open_{false};
+    bool asn_db_open_{false};
+    bool oui_db_open_{false};
 
     double calculate_percentile(double percentile) const;
 

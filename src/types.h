@@ -23,8 +23,7 @@ struct LookupResult {
     LookupResult& operator=(const LookupResult&) = delete;
 };
 
-/// RAII timer that records elapsed time in milliseconds.
-/// Call elapsed() for early-read, or let destructor write to output on scope exit.
+/// RAII timer that records elapsed time in milliseconds; read with elapsed().
 class ScopedTimer {
    public:
     ScopedTimer() : start_(std::chrono::high_resolution_clock::now()) {}

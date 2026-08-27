@@ -463,7 +463,7 @@ TEST(CacheEdgeTest, StatsAfterClear) {
 }
 
 TEST(CacheEdgeTest, StatsEvictionTracking) {
-    IPCache cache(5, 1, std::chrono::seconds(3600));
+    IPCache cache(5, 1);
 
     for (int i = 0; i < 6; ++i) {
         cache.put("ip" + std::to_string(i), nlohmann::json{{"found", true}});
@@ -571,7 +571,7 @@ TEST(CacheEdgeTest, MemoryUsageTracking) {
 
 TEST(CacheEdgeTest, MemoryBasedEviction) {
     // Small memory limit (1KB)
-    IPCache cache(10000, 8, std::chrono::seconds(3600), 1024);
+    IPCache cache(10000, 8, 1024);
 
     for (int i = 0; i < 100; ++i) {
         cache.put("8.8.8." + std::to_string(i % 255), nlohmann::json{{"found", true}});
@@ -646,7 +646,7 @@ TEST(CacheEdgeTest, ConcurrentReadWritePerformance) {
 
 TEST(CacheEdgeTest, MemoryLimitRespected) {
     const size_t memory_limit = 50 * 1024;  // 50KB
-    IPCache cache(10000, 4, std::chrono::seconds(3600), memory_limit);
+    IPCache cache(10000, 4, memory_limit);
 
     for (int i = 0; i < 2000; ++i) {
         std::string const key = "10." + std::to_string(i / 256) + "." + std::to_string(i % 256);
@@ -674,7 +674,7 @@ TEST(CacheEdgeTest, MemoryTracking) {
 // ─── Cache edge-case tests ────────────────────────────────────────
 
 TEST(CacheEdgeTest, ZeroSizeCache) {
-    IPCache cache(0, 1, std::chrono::seconds(3600), 1024);
+    IPCache cache(0, 1, 1024);
     EXPECT_EQ(cache.size(), 0);
 
     // Putting into zero-size cache should not crash
@@ -683,7 +683,7 @@ TEST(CacheEdgeTest, ZeroSizeCache) {
 }
 
 TEST(CacheEdgeTest, SingleShardCache) {
-    IPCache cache(100, 1, std::chrono::seconds(3600), 1024 * 1024);
+    IPCache cache(100, 1, 1024 * 1024);
     EXPECT_EQ(cache.shard_count(), 1);
 
     cache.put("key1", nlohmann::json{{"data", 1}});
@@ -699,7 +699,7 @@ TEST(CacheEdgeTest, SingleShardCache) {
 }
 
 TEST(CacheEdgeTest, ZeroTTLEntry) {
-    IPCache cache(100, 4, std::chrono::seconds(0), 1024 * 1024);
+    IPCache cache(100, 4, 1024 * 1024);
 
     // Override the per-type TTLs that configure_default_ttls() sets
     cache.set_ttl(CacheDataType::IP_GEOLOCATION, std::chrono::seconds(0));
@@ -712,7 +712,7 @@ TEST(CacheEdgeTest, ZeroTTLEntry) {
 }
 
 TEST(CacheEdgeTest, ConcurrentPutSameKey) {
-    IPCache cache(1000, 8, std::chrono::seconds(3600), 10 * 1024 * 1024);
+    IPCache cache(1000, 8, 10 * 1024 * 1024);
     std::string key = "concurrent-key";
 
     std::vector<std::thread> threads;
@@ -727,13 +727,13 @@ TEST(CacheEdgeTest, ConcurrentPutSameKey) {
 }
 
 TEST(CacheEdgeTest, ClearEmptyCache) {
-    IPCache cache(100, 4, std::chrono::seconds(3600), 1024 * 1024);
+    IPCache cache(100, 4, 1024 * 1024);
     EXPECT_NO_THROW(cache.clear());
     EXPECT_EQ(cache.size(), 0);
 }
 
 TEST(CacheEdgeTest, NegativeCacheThenOverwrite) {
-    IPCache cache(100, 4, std::chrono::seconds(3600), 1024 * 1024);
+    IPCache cache(100, 4, 1024 * 1024);
 
     // Put negative cache entry
     cache.put("test-key", nlohmann::json{{"found", false}}, CacheDataType::NEGATIVE);
@@ -770,7 +770,7 @@ TEST(CacheEdgeTest, CacheStatsOperatorPlusEquals) {
 
 TEST(CacheEdgeTest, LargeShardCount) {
     // Shard count > 64 is unusual but shouldn't crash
-    IPCache cache(1000, 128, std::chrono::seconds(3600), 10 * 1024 * 1024);
+    IPCache cache(1000, 128, 10 * 1024 * 1024);
     EXPECT_EQ(cache.shard_count(), 128);
 
     cache.put("test", nlohmann::json{{"data", 1}});

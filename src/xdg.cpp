@@ -8,14 +8,18 @@
 
 #include "logger.h"
 
-namespace ip_server {
+namespace ip_server::xdg {
 
-std::string XDGPaths::get_env(const char* name, const std::string& default_value) {
+namespace {
+
+constexpr const char* APP_NAME = "ip-server";
+
+std::string get_env(const char* name, const std::string& default_value) {
     const char* value = std::getenv(name);
     return (value != nullptr) ? value : default_value;
 }
 
-std::filesystem::path XDGPaths::get_home() {
+std::filesystem::path get_home() {
     const char* home = std::getenv("HOME");
     if (home != nullptr) {
         return home;
@@ -31,7 +35,9 @@ std::filesystem::path XDGPaths::get_home() {
     return "/tmp";
 }
 
-std::filesystem::path XDGPaths::config_home() {
+}  // namespace
+
+std::filesystem::path config_home() {
     std::string path = get_env("XDG_CONFIG_HOME", "");
     if (!path.empty()) {
         return path;
@@ -39,7 +45,7 @@ std::filesystem::path XDGPaths::config_home() {
     return get_home() / ".config";
 }
 
-std::filesystem::path XDGPaths::data_home() {
+std::filesystem::path data_home() {
     std::string path = get_env("XDG_DATA_HOME", "");
     if (!path.empty()) {
         return path;
@@ -47,7 +53,7 @@ std::filesystem::path XDGPaths::data_home() {
     return get_home() / ".local" / "share";
 }
 
-std::filesystem::path XDGPaths::cache_home() {
+std::filesystem::path cache_home() {
     std::string path = get_env("XDG_CACHE_HOME", "");
     if (!path.empty()) {
         return path;
@@ -55,39 +61,39 @@ std::filesystem::path XDGPaths::cache_home() {
     return get_home() / ".cache";
 }
 
-std::filesystem::path XDGPaths::app_config_dir() {
+std::filesystem::path app_config_dir() {
     return config_home() / APP_NAME;
 }
 
-std::filesystem::path XDGPaths::app_data_dir() {
+std::filesystem::path app_data_dir() {
     return data_home() / APP_NAME;
 }
 
-std::filesystem::path XDGPaths::app_cache_dir() {
+std::filesystem::path app_cache_dir() {
     return cache_home() / APP_NAME;
 }
 
-std::filesystem::path XDGPaths::config_file() {
+std::filesystem::path config_file() {
     return app_config_dir() / "config.json";
 }
 
-std::filesystem::path XDGPaths::database_dir() {
+std::filesystem::path database_dir() {
     return app_data_dir() / "databases";
 }
 
-std::filesystem::path XDGPaths::city_db_path() {
+std::filesystem::path city_db_path() {
     return database_dir() / "GeoLite2-City.mmdb";
 }
 
-std::filesystem::path XDGPaths::asn_db_path() {
+std::filesystem::path asn_db_path() {
     return database_dir() / "GeoLite2-ASN.mmdb";
 }
 
-std::filesystem::path XDGPaths::oui_db_path() {
+std::filesystem::path oui_db_path() {
     return database_dir() / "master_oui.db";
 }
 
-std::filesystem::path XDGPaths::log_file_path() {
+std::filesystem::path log_file_path() {
     std::string const state_path = get_env("XDG_STATE_HOME", "");
     if (!state_path.empty()) {
         return std::filesystem::path(state_path) / APP_NAME / "logs" / "ip_server.log";
@@ -96,37 +102,19 @@ std::filesystem::path XDGPaths::log_file_path() {
     return data_home() / APP_NAME / "logs" / "ip_server.log";
 }
 
-void XDGPaths::ensure_directories() {
+void ensure_directories() {
+    const std::filesystem::path dirs[] = {app_config_dir(), app_data_dir(), app_cache_dir(),
+                                          database_dir(), log_file_path().parent_path()};
     std::error_code ec;
-
-    std::filesystem::create_directories(app_config_dir(), ec);
-    if (ec) {
-        LOG_WARNING("Failed to create config directory: " + ec.message());
-    }
-
-    std::filesystem::create_directories(app_data_dir(), ec);
-    if (ec) {
-        LOG_WARNING("Failed to create data directory: " + ec.message());
-    }
-
-    std::filesystem::create_directories(app_cache_dir(), ec);
-    if (ec) {
-        LOG_WARNING("Failed to create cache directory: " + ec.message());
-    }
-
-    std::filesystem::create_directories(database_dir(), ec);
-    if (ec) {
-        LOG_WARNING("Failed to create database directory: " + ec.message());
-    }
-
-    // Create log directory
-    std::filesystem::path const log_dir = log_file_path().parent_path();
-    std::filesystem::create_directories(log_dir, ec);
-    if (ec) {
-        LOG_WARNING("Failed to create log directory: " + ec.message());
+    for (const auto& dir : dirs) {
+        std::filesystem::create_directories(dir, ec);
+        if (ec) {
+            LOG_WARNING("Failed to create directory: " + dir.string() + ": " + ec.message());
+            ec.clear();
+        }
     }
 
     LOG_INFO("XDG directories ensured");
 }
 
-}  // namespace ip_server
+}  // namespace ip_server::xdg

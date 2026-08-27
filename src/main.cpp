@@ -33,8 +33,7 @@ extern "C" void handle_signal(int sig) {
 class Application {
    public:
     Application(const ServerConfig& config)
-        : config_(config),
-          geo_service_(config.city_db_path_, config.asn_db_path_, config.cache_size_),
+        : geo_service_(config.city_db_path_, config.asn_db_path_, config.cache_size_),
           mac_service_(config.oui_db_path_, config.cache_size_),
           http_server_(config.host_, config.port_, config.thread_pool_size_,
                        config.enable_rate_limiter_, config.max_requests_per_minute_,
@@ -62,9 +61,8 @@ class Application {
         sigaction(SIGTERM, &sa, nullptr);
 
         if (auto* metrics = http_server_.get_metrics()) {
-            metrics->set_city_db_status(geo_service_.is_city_db_open());
-            metrics->set_asn_db_status(geo_service_.is_asn_db_open());
-            metrics->set_oui_db_status(mac_service_.is_oui_db_open());
+            metrics->set_db_status(geo_service_.is_city_db_open(), geo_service_.is_asn_db_open(),
+                                   mac_service_.is_oui_db_open());
         }
 
         // Use the global shutdown flag so the signal handler (C function pointer)
@@ -81,7 +79,6 @@ class Application {
     }
 
    private:
-    ServerConfig config_;
     IPGeoService geo_service_;
     MACLookupService mac_service_;
     IPGeoHTTPServer http_server_;
@@ -125,7 +122,7 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        ip_server::XDGPaths::ensure_directories();
+        xdg::ensure_directories();
 
         if (!config.config_file_.empty() && !std::filesystem::exists(config.config_file_)) {
             LOG_INFO("Creating default config file: " + config.config_file_.string());
