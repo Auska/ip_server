@@ -38,3 +38,6 @@ Thumbs.db
 
 # Test executables
 ip_server_tests
+
+# pi agent runtime state
+.pi/
