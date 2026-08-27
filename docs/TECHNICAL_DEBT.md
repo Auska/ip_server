@@ -3,14 +3,20 @@
 **Audit Date**: 2026-07-30  
 **Review Date**: 2026-07-31  
 **Version**: 2.0.0  
-**Total Source**: 9,831 LOC (4,211 src/ + 5,620 tests/)  
-**Test Coverage Ratio**: 133% test lines vs source lines
+**Total Source**: 8,863 LOC (3,676 src/ + 5,187 tests/)  
+**Test Coverage Ratio**: 141% test lines vs source lines
 
 > **2026-07-31 复核说明**：以下项目已在本轮复核中确认解决，标记为 ✅：
 > - §1.1 `IPGeoHTTPServer` 上帝类（密码处理/输入验证已拆分，767 → 551 行）
 > - §3.1 已知失败测试（274 个测试全部通过）
 > - §3.2 跳过的数据库依赖测试（db/ 文件就位，0 个跳过）
 > - §5.1 IPv6 手动解析（改用 `getaddrinfo()` 系统级验证）
+>
+> **2026-08-28 复核说明**（ponytail 精简审计后更新）：
+> - 死代码清理：`CacheStats::reset()`、`IPCache::max_memory_bytes_`、`RateLimiter::last_access_`、`XDGPaths::state_home()`、两处恒 false 的 `cache_hit` 局部变量已删除；`ScopedTimer` 移除未使用的 out-param 析构写入；日志 `RotationType::NONE` 改用 spdlog `basic_file_sink`；JSON 响应辅助函数移至 `password_handler.h`（消除循环包含）——13 文件净 −29 行
+> - 行为修正：MAC 查询错误结果不再作为 NEGATIVE 缓存 5 分钟；`/` 端点列表补全 `/password/generate`
+> - 实测 **250/250 测试通过**，`xmake check` 0 警告 0 错误（此前文档口径 274 偏高，已更正）
+> - §4.1/§4.3 描述的代码（`is_trusted_proxy`、`BloomFilter`）在仓库中不存在，已移除相关章节
 
 ---
 
@@ -124,7 +130,7 @@ All 9 dependencies use `add_requires("...")` without version pins:
 [  FAILED  ] PasswordGeneratorTest.GenerateWithExcludeSimilarFalse
 ```
 
-> **2026-07-31 更新**：原失败测试 `GenerateWithExcludeSimilarFalse` 已通过。当前 **274 个测试全部 PASSED**，0 个失败。测试总数由 216 增至 274（边界值/异常场景测试扩充，见 commit `da54d3e`）。
+> **2026-07-31 更新**：原失败测试 `GenerateWithExcludeSimilarFalse` 已通过。当前 **250 个测试全部 PASSED**，0 个失败（2026-08-28 实测计数，此前存档口径 274 偏高）。测试总数由 216 起历经边界值/异常场景扩充（见 commit `da54d3e`），现为 250 个。
 
 ### 3.2 Skipped Tests (Database-Dependent) ✅ 已解决
 
@@ -134,7 +140,7 @@ All 9 dependencies use `add_requires("...")` without version pins:
 | `MACDatabaseTest` | 0 | OUI .db 已就位于项目 `db/` |
 | `MACLookupServiceTest` | 0 | OUI .db 已就位于项目 `db/` |
 | `HTTPServerTest` | 0 | MaxMind .mmdb 已就位于项目 `db/` |
-| **Total** | **0** | **全部 274 个测试可运行** |
+| **Total** | **0** | **全部 250 个测试可运行** |
 
 > **2026-07-31 更新**：数据库文件已纳入项目 `db/` 目录，测试通过 `tests/test_utils.h::find_project_root()` 自动解析路径，不再需要手工下载。**0 个测试被跳过**。
 >
@@ -154,11 +160,13 @@ All 9 dependencies use `add_requires("...")` without version pins:
 
 ## 4. Code Structure Debt (Severity: Low, Improving)
 
-### 4.1 Duplicated Trusted Proxy Logic
+### 4.1 Trusted Proxy Handling ✅ 已收敛
 
-**Files**: `src/auth.h` lines 35-46, `src/http_server.cpp` lines 252-257
+**Files**: `src/http_server.cpp`（`get_real_client_ip()`，~252 行）
 
-Both `APIAuth` and `IPGeoHTTPServer` implement `is_trusted_proxy()` independently. This was partially reduced in the previous refactoring round but the `APIAuth` copy remains.
+代理头（`X-Forwarded-For` / `X-Real-IP`）解析统一收敛于 `IPGeoHTTPServer::get_real_client_ip()` 单点；`APIAuth` 不含代理逻辑。
+
+> **2026-08-28 更新**：此前文档所述 `is_trusted_proxy()` 重复实现在本仓库中不存在，已更正。当前实现信任所有来源的代理头（代码中已标注 `ponytail:` 注释）；若公网部署需防伪造，应在 `APIAuth` 增加可信代理配置。
 
 ### 4.2 DIP Violation — Concrete Database Dependencies
 
@@ -170,9 +178,9 @@ IPGeoService → CityDatabase (concrete)
 
 No abstract interface for databases makes it impossible to swap implementations (e.g., for testing). Each service owns concrete database instances by value.
 
-### 4.3 Bloom Filter Bitset Memory
+### 4.3 ~~Bloom Filter Bitset Memory~~（已移除）
 
-`BloomFilter` uses `std::array<std::atomic_flag, Bits>` — for 65536 bits this is 8KB (fine), but `estimated_size()` does an O(Bits) scan every call, which is wasteful for a probabilistic data structure. Could use a running count or sampled estimate.
+> **2026-08-28 更新**：本条描述的 `BloomFilter` 组件在仓库中不存在（全库零引用），疑似外部文档草稿残留，已删除。缓存层仅 `IPCache`/`CacheShard`（分片 LRU + 内存感知驱逐）。
 
 ---
 
