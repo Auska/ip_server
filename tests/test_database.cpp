@@ -424,9 +424,9 @@ TEST_F(DatabaseTest, LookupResultDataIntegrity) {
 // ============================================================================
 
 TEST_F(DatabaseTest, CacheStatsInitialization) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+    IPCache cache(1000);
 
-    auto stats = service.get_cache_stats();
+    auto stats = cache.get_stats();
 
     EXPECT_EQ(stats.total_lookups_, 0);
     EXPECT_EQ(stats.hits_, 0);
@@ -440,124 +440,90 @@ TEST_F(DatabaseTest, CacheStatsHitRate) {
     IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
 
     // First lookup - miss
-    service.lookup("8.8.8.8");
+    auto first = service.lookup("8.8.8.8");
+    EXPECT_FALSE(first.cache_hit_);
 
     // Second lookup - hit
-    service.lookup("8.8.8.8");
-
-    auto stats = service.get_cache_stats();
-    EXPECT_EQ(stats.total_lookups_, 2);
-    EXPECT_EQ(stats.hits_, 1);
-    EXPECT_EQ(stats.misses_, 1);
-    EXPECT_DOUBLE_EQ(stats.hit_rate(), 50.0);
+    auto second = service.lookup("8.8.8.8");
+    EXPECT_TRUE(second.cache_hit_);
 }
 
-TEST_F(DatabaseTest, CacheStatsAfterClear) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+TEST(CacheEdgeTest, StatsAfterClear) {
+    IPCache cache(1000);
 
-    // Perform some lookups
-    service.lookup("8.8.8.8");
-    service.lookup("1.1.1.1");
-    service.lookup("8.8.8.8");  // Cache hit
+    cache.put("8.8.8.8", nlohmann::json{{"found", true}});
+    cache.put("1.1.1.1", nlohmann::json{{"found", true}});
+    EXPECT_TRUE(cache.get("8.8.8.8").has_value());
+    EXPECT_GT(cache.get_stats().hits_, 0);
 
-    auto stats_before = service.get_cache_stats();
-    EXPECT_GT(stats_before.total_lookups_, 0);
-    EXPECT_GT(stats_before.hits_, 0);
+    cache.clear();
 
-    // Clear cache
-    service.clear_cache();
-
-    // Lookups should still be cached but cache is empty
-    auto cache_size = service.get_cache_size();
-    EXPECT_EQ(cache_size, 0);
-
-    // Next lookup should be a miss
-    auto result = service.lookup("8.8.8.8");
-    EXPECT_FALSE(result.cache_hit_);
+    EXPECT_EQ(cache.size(), 0);
+    EXPECT_FALSE(cache.get("8.8.8.8").has_value());
 }
 
-TEST_F(DatabaseTest, CacheStatsEvictionTracking) {
-    // Create service with small cache (5 entries)
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 5);
+TEST(CacheEdgeTest, StatsEvictionTracking) {
+    IPCache cache(5, 1, std::chrono::seconds(3600));
 
-    // Use known public DNS server IPs that are definitely in the database
-    std::vector<std::string> known_ips = {"8.8.8.8",        "1.1.1.1",   "9.9.9.9",
-                                          "208.67.222.222", "64.6.64.6", "185.228.168.9"};
-
-    // Fill cache with more entries than cache size
-    for (const auto& ip : known_ips) {
-        auto result = service.lookup(ip);
-        // Verify the IP was found in database
-        ASSERT_TRUE(result.data_.value("found", false)) << "IP " << ip << " not found in database";
+    for (int i = 0; i < 6; ++i) {
+        cache.put("ip" + std::to_string(i), nlohmann::json{{"found", true}});
     }
 
-    auto stats = service.get_cache_stats();
-    // With 6 lookups and cache size 5, we should have at least 1 eviction
-    EXPECT_GT(stats.evictions_, 0) << "Expected evictions but got " << stats.evictions_
-                                   << ". Cache size: " << service.get_cache_size();
+    // With 6 puts and cache size 5, we should have at least 1 eviction
+    EXPECT_GT(cache.get_stats().evictions_, 0);
 }
 
-TEST_F(DatabaseTest, CacheShardDistribution) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+TEST(CacheEdgeTest, ShardDistribution) {
+    IPCache cache(1000);
 
-    // Perform lookups on many different IPs using known public DNS servers
     std::vector<std::string> test_ips = {"8.8.8.8",        "1.1.1.1",        "9.9.9.9",
                                          "208.67.222.222", "208.67.220.220", "64.6.64.6",
                                          "64.6.65.6"};
+    for (const auto& ip : test_ips) {
+        cache.put(ip, nlohmann::json{{"found", true}});
+    }
     for (int i = 0; i < 100; ++i) {
         // Cycle through test IPs to get cache hits
-        service.lookup(test_ips[i % test_ips.size()]);
+        cache.get(test_ips[i % test_ips.size()]);
     }
 
-    // Verify cache is being used
-    auto cache_size = service.get_cache_size();
-    EXPECT_GT(cache_size, 0);
-    EXPECT_LE(cache_size, 1000);
+    EXPECT_GT(cache.size(), 0);
+    EXPECT_LE(cache.size(), 1000);
 
-    // Verify stats are updated
-    auto stats = service.get_cache_stats();
+    auto stats = cache.get_stats();
     EXPECT_EQ(stats.total_lookups_, 100);
-    // First batch_size lookups are misses, rest are hits
     EXPECT_GT(stats.hits_, 0);
 }
 
-TEST_F(DatabaseTest, CacheConcurrentAccess) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+TEST(CacheEdgeTest, ConcurrentAccess) {
+    IPCache cache(1000);
 
-    std::vector<std::string> test_ips;
+    std::vector<std::future<bool>> futures;
     for (int i = 0; i < 50; ++i) {
-        test_ips.push_back("192.168.1." + std::to_string(i));
+        futures.push_back(std::async(std::launch::async, [&cache, i]() {
+            std::string ip = "192.168.1." + std::to_string(i);
+            bool const missed = !cache.get(ip).has_value();
+            cache.put(ip, nlohmann::json{{"found", true}});
+            return missed;
+        }));
     }
 
-    std::vector<std::future<LookupResult>> futures;
-
-    // Launch concurrent lookups to test sharded cache
-    for (const auto& ip : test_ips) {
-        futures.push_back(
-            std::async(std::launch::async, [&service, ip]() { return service.lookup(ip); }));
-    }
-
-    // Wait for all results
     for (auto& future : futures) {
-        auto result = future.get();
-        EXPECT_TRUE(result.data_.contains("ip"));
-        EXPECT_TRUE(result.data_.contains("found"));
+        EXPECT_TRUE(future.get());
     }
 
-    // Verify stats
-    auto stats = service.get_cache_stats();
+    auto stats = cache.get_stats();
     EXPECT_EQ(stats.total_lookups_, 50);
     EXPECT_EQ(stats.hits_, 0);
     EXPECT_EQ(stats.misses_, 50);
 }
 
-TEST_F(DatabaseTest, CacheConcurrencyStress) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+TEST(CacheEdgeTest, ConcurrencyStress) {
+    IPCache cache(1000);
 
     const int num_threads        = 4;
     const int lookups_per_thread = 25;
 
-    // Use known public DNS servers to ensure all IPs are in database
     std::vector<std::string> known_ips = {"8.8.8.8",        "1.1.1.1",        "9.9.9.9",
                                           "208.67.222.222", "208.67.220.220", "64.6.64.6",
                                           "64.6.65.6",      "185.228.168.9",  "185.228.169.9",
@@ -567,11 +533,12 @@ TEST_F(DatabaseTest, CacheConcurrencyStress) {
     std::vector<std::thread> threads;
 
     for (int t = 0; t < num_threads; ++t) {
-        threads.emplace_back([&service, t, lookups_per_thread, &known_ips]() {
+        threads.emplace_back([&cache, t, lookups_per_thread, &known_ips]() {
             for (int i = 0; i < lookups_per_thread; ++i) {
                 // Each thread uses unique subset of known IPs
                 size_t ip_index = (t * lookups_per_thread + i) % known_ips.size();
-                service.lookup(known_ips[ip_index]);
+                cache.get(known_ips[ip_index]);
+                cache.put(known_ips[ip_index], nlohmann::json{{"found", true}});
             }
         });
     }
@@ -580,56 +547,38 @@ TEST_F(DatabaseTest, CacheConcurrencyStress) {
         thread.join();
     }
 
-    // Verify stats
-    auto stats = service.get_cache_stats();
-    // Allow for some queries to fail (not in database)
-    EXPECT_GE(stats.total_lookups_, num_threads * lookups_per_thread * 0.9);
-    EXPECT_GT(stats.concurrent_accesses_, 0);
+    auto stats = cache.get_stats();
+    EXPECT_EQ(stats.total_lookups_, num_threads * lookups_per_thread);
     // Hits may occur if same IP is queried multiple times across threads
     EXPECT_GT(stats.misses_, 0);
-}
-
-TEST_F(DatabaseTest, CacheAverageEntrySize) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
-
-    // Perform lookups
-    service.lookup("8.8.8.8");
-    service.lookup("1.1.1.1");
-
-    auto stats = service.get_cache_stats();
-    EXPECT_GT(stats.avg_entry_size_, 0.0);
 }
 
 // ============================================================================
 // Enhanced Cache Tests (New Features)
 // ============================================================================
 
-TEST_F(DatabaseTest, CacheMemoryUsageTracking) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+TEST(CacheEdgeTest, MemoryUsageTracking) {
+    IPCache cache(1000);
 
-    // Perform lookups
-    service.lookup("8.8.8.8");
-    service.lookup("1.1.1.1");
-    service.lookup("9.9.9.9");
+    cache.put("8.8.8.8", nlohmann::json{{"found", true}});
+    cache.put("1.1.1.1", nlohmann::json{{"found", true}});
+    cache.put("9.9.9.9", nlohmann::json{{"found", true}});
 
-    auto stats = service.get_cache_stats();
+    auto stats = cache.get_stats();
     EXPECT_GT(stats.memory_usage_bytes_, 0);
     EXPECT_GT(stats.get_memory_usage_mb(), 0.0);
 }
 
-TEST_F(DatabaseTest, CacheMemoryBasedEviction) {
-    // Create service with small memory limit (1KB)
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 10000, 8, 1024);
+TEST(CacheEdgeTest, MemoryBasedEviction) {
+    // Small memory limit (1KB)
+    IPCache cache(10000, 8, std::chrono::seconds(3600), 1024);
 
-    // Fill cache with many entries until memory limit is reached
     for (int i = 0; i < 100; ++i) {
-        service.lookup("8.8.8." + std::to_string(i % 255));
+        cache.put("8.8.8." + std::to_string(i % 255), nlohmann::json{{"found", true}});
     }
 
-    auto stats = service.get_cache_stats();
-    // Memory usage should be close to limit (within some tolerance)
     // Allow 4x overhead due to estimation and data structure overhead
-    EXPECT_LT(stats.memory_usage_bytes_, 1024 * 4);
+    EXPECT_LT(cache.get_stats().memory_usage_bytes_, 1024 * 4);
 }
 
 TEST_F(DatabaseTest, CacheNegativeCaching) {
@@ -646,28 +595,21 @@ TEST_F(DatabaseTest, CacheNegativeCaching) {
     auto result2 = service.lookup("10.0.0.1");
     EXPECT_TRUE(result2.cache_hit_);
     EXPECT_EQ(result2.data_.dump(), result1.data_.dump());
-
-    auto stats = service.get_cache_stats();
-    EXPECT_GT(stats.hits_, 0);
 }
 
-TEST_F(DatabaseTest, CacheTTLConfiguration) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+TEST(CacheEdgeTest, TTLConfiguration) {
+    IPCache cache(1000);
 
-    // Test TTL configuration
-    service.set_cache_ttl(CacheDataType::IP_GEOLOCATION, std::chrono::seconds(7200));
-    service.set_cache_ttl(CacheDataType::NEGATIVE, std::chrono::seconds(60));
+    cache.set_ttl(CacheDataType::IP_GEOLOCATION, std::chrono::seconds(7200));
+    cache.set_ttl(CacheDataType::NEGATIVE, std::chrono::seconds(60));
 
-    // Perform lookups
-    service.lookup("8.8.8.8");
+    cache.put("8.8.8.8", nlohmann::json{{"found", true}});
 
-    // Cache should work normally
-    auto result1 = service.lookup("8.8.8.8");
-    EXPECT_TRUE(result1.cache_hit_);
+    EXPECT_TRUE(cache.get("8.8.8.8").has_value());
 }
 
-TEST_F(DatabaseTest, ConcurrentReadWritePerformance) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 10000, 16);
+TEST(CacheEdgeTest, ConcurrentReadWritePerformance) {
+    IPCache cache(10000, 16);
 
     const int num_readers           = 8;
     const int num_writers           = 4;
@@ -677,19 +619,20 @@ TEST_F(DatabaseTest, ConcurrentReadWritePerformance) {
 
     // Reader threads
     for (int i = 0; i < num_readers; ++i) {
-        threads.emplace_back([&service, operations_per_thread]() {
+        threads.emplace_back([&cache, operations_per_thread]() {
             for (int j = 0; j < operations_per_thread; ++j) {
-                service.lookup("8.8.8.8");
-                service.lookup("1.1.1.1");
+                cache.get("8.8.8.8");
+                cache.get("1.1.1.1");
             }
         });
     }
 
     // Writer threads
     for (int i = 0; i < num_writers; ++i) {
-        threads.emplace_back([&service, operations_per_thread, i]() {
+        threads.emplace_back([&cache, operations_per_thread, i]() {
             for (int j = 0; j < operations_per_thread; ++j) {
-                service.lookup("192.168." + std::to_string(i) + "." + std::to_string(j));
+                cache.put("192.168." + std::to_string(i) + "." + std::to_string(j),
+                          nlohmann::json{{"found", true}});
             }
         });
     }
@@ -698,36 +641,32 @@ TEST_F(DatabaseTest, ConcurrentReadWritePerformance) {
         thread.join();
     }
 
-    auto stats = service.get_cache_stats();
-    EXPECT_GT(stats.total_lookups_, 0);
-    EXPECT_GT(stats.concurrent_accesses_, 0);
+    EXPECT_GT(cache.get_stats().total_lookups_, 0);
 }
 
-TEST_F(DatabaseTest, CacheMemoryLimitRespected) {
+TEST(CacheEdgeTest, MemoryLimitRespected) {
     const size_t memory_limit = 50 * 1024;  // 50KB
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 10000, 4, memory_limit);
+    IPCache cache(10000, 4, std::chrono::seconds(3600), memory_limit);
 
-    // Add many entries to exceed memory limit
-    for (int i = 0; i < 200; ++i) {
-        service.lookup("8.8.8." + std::to_string(i % 255));
+    for (int i = 0; i < 2000; ++i) {
+        std::string const key = "10." + std::to_string(i / 256) + "." + std::to_string(i % 256);
+        cache.put(key, nlohmann::json{{"found", true}});
     }
 
-    auto stats        = service.get_cache_stats();
-    auto memory_usage = service.get_cache_memory_usage();
+    auto stats = cache.get_stats();
 
     // Memory usage should be close to or below limit (allowing for some overhead)
-    EXPECT_LT(memory_usage, memory_limit * 2);
+    EXPECT_LT(stats.memory_usage_bytes_, memory_limit * 2);
     EXPECT_GT(stats.evictions_, 0);  // Should have evicted some entries
 }
 
-TEST_F(DatabaseTest, MACLookupServiceMemoryTracking) {
-    MACLookupService service(oui_db_path.string(), 1000);
+TEST(CacheEdgeTest, MemoryTracking) {
+    IPCache cache(1000);
 
-    // Perform MAC lookups
-    service.lookup("00:1A:2B:3C:4D:5E");
-    service.lookup("F4:EA:B5:12:34:56");
+    cache.put("00:1A:2B:3C:4D:5E", nlohmann::json{{"found", true}});
+    cache.put("F4:EA:B5:12:34:56", nlohmann::json{{"found", true}});
 
-    auto stats = service.get_cache_stats();
+    auto stats = cache.get_stats();
     EXPECT_GT(stats.memory_usage_bytes_, 0);
     EXPECT_GT(stats.get_memory_usage_mb(), 0.0);
 }
@@ -812,15 +751,13 @@ TEST(CacheEdgeTest, NegativeCacheThenOverwrite) {
 TEST(CacheEdgeTest, CacheStatsOperatorPlusEquals) {
     CacheStats a, b;
 
-    a.total_lookups_  = 10;
-    a.hits_           = 8;
-    a.avg_entry_size_ = 100.0;
-    a.entry_count_    = 5;
+    a.total_lookups_ = 10;
+    a.hits_          = 8;
+    a.evictions_     = 2;
 
-    b.total_lookups_  = 20;
-    b.hits_           = 15;
-    b.avg_entry_size_ = 200.0;
-    b.entry_count_    = 10;
+    b.total_lookups_ = 20;
+    b.hits_          = 15;
+    b.evictions_     = 3;
 
     CacheStats combined;
     combined += a;
@@ -828,29 +765,7 @@ TEST(CacheEdgeTest, CacheStatsOperatorPlusEquals) {
 
     EXPECT_EQ(combined.total_lookups_, 30);
     EXPECT_EQ(combined.hits_, 23);
-
-    // Weighted average: (100*5 + 200*10) / 15 = (500 + 2000) / 15 = 166.67
-    EXPECT_NEAR(combined.avg_entry_size_, 166.67, 0.01);
-    EXPECT_EQ(combined.entry_count_, 15);
-}
-
-TEST(CacheEdgeTest, CacheStatsOperatorPlusEqualsZero) {
-    CacheStats a, b;
-
-    a.total_lookups_  = 10;
-    a.avg_entry_size_ = 100.0;
-    a.entry_count_    = 5;
-
-    // Adding empty stats should not change anything
-    a += b;
-    EXPECT_EQ(a.total_lookups_, 10);
-    EXPECT_EQ(a.avg_entry_size_, 100.0);
-    EXPECT_EQ(a.entry_count_, 5);
-
-    // Adding to empty should copy
-    CacheStats c;
-    c += a;
-    EXPECT_EQ(c.total_lookups_, 10);
+    EXPECT_EQ(combined.evictions_, 5);
 }
 
 TEST(CacheEdgeTest, LargeShardCount) {

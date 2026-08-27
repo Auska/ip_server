@@ -89,11 +89,4 @@ nlohmann::json MaxMindDatabase::perform_lookup(const std::string& ip_address, in
     return json_result;
 }
 
-nlohmann::json MaxMindDatabase::lookup(const std::string& ip_address) const {
-    int gai_error  = 0;
-    int mmdb_error = 0;
-    MMDB_lookup_result_s result;
-    return perform_lookup(ip_address, gai_error, mmdb_error, result);
-}
-
 }  // namespace ip_server

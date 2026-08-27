@@ -838,129 +838,70 @@ class CacheHitRateBenchmark : public benchmark::Fixture {
 BENCHMARK_DEFINE_F(CacheHitRateBenchmark, CacheHitRate_90Percent)(benchmark::State& state) {
     // 90% cache hit rate simulation
     size_t hot_ips = test_ips_.size();
+    size_t hits    = 0;
 
     for (auto _ : state) {
         for (size_t i = 0; i < 100; ++i) {
             // 90% hot, 10% cold
             if (i < 90) {
-                service_->lookup(test_ips_[i % hot_ips]);
+                hits += service_->lookup(test_ips_[i % hot_ips]).cache_hit_;
             } else {
                 std::string cold_ip =
                     "10.0." + std::to_string((i / 256) % 256) + "." + std::to_string(i % 256);
-                service_->lookup(cold_ip);
+                hits += service_->lookup(cold_ip).cache_hit_;
             }
         }
     }
 
-    auto stats = service_->get_cache_stats();
     state.SetItemsProcessed(state.iterations() * 100);
-    state.counters["hit_rate"] = stats.hit_rate();
+    state.counters["hit_rate"] = hits * 100.0 / (static_cast<double>(state.iterations()) * 100.0);
 }
 BENCHMARK_REGISTER_F(CacheHitRateBenchmark, CacheHitRate_90Percent);
 
 BENCHMARK_DEFINE_F(CacheHitRateBenchmark, CacheHitRate_95Percent)(benchmark::State& state) {
     // 95% cache hit rate simulation
     size_t hot_ips = test_ips_.size();
+    size_t hits    = 0;
 
     for (auto _ : state) {
         for (size_t i = 0; i < 100; ++i) {
             // 95% hot, 5% cold
             if (i < 95) {
-                service_->lookup(test_ips_[i % hot_ips]);
+                hits += service_->lookup(test_ips_[i % hot_ips]).cache_hit_;
             } else {
                 std::string cold_ip =
                     "10.0." + std::to_string((i / 256) % 256) + "." + std::to_string(i % 256);
-                service_->lookup(cold_ip);
+                hits += service_->lookup(cold_ip).cache_hit_;
             }
         }
     }
 
-    auto stats = service_->get_cache_stats();
     state.SetItemsProcessed(state.iterations() * 100);
-    state.counters["hit_rate"] = stats.hit_rate();
+    state.counters["hit_rate"] = hits * 100.0 / (static_cast<double>(state.iterations()) * 100.0);
 }
 BENCHMARK_REGISTER_F(CacheHitRateBenchmark, CacheHitRate_95Percent);
 
 BENCHMARK_DEFINE_F(CacheHitRateBenchmark, CacheHitRate_99Percent)(benchmark::State& state) {
     // 99% cache hit rate simulation
     size_t hot_ips = test_ips_.size();
+    size_t hits    = 0;
 
     for (auto _ : state) {
         for (size_t i = 0; i < 100; ++i) {
             // 99% hot, 1% cold
             if (i < 99) {
-                service_->lookup(test_ips_[i % hot_ips]);
+                hits += service_->lookup(test_ips_[i % hot_ips]).cache_hit_;
             } else {
                 std::string cold_ip =
                     "10.0." + std::to_string((i / 256) % 256) + "." + std::to_string(i % 256);
-                service_->lookup(cold_ip);
+                hits += service_->lookup(cold_ip).cache_hit_;
             }
         }
     }
 
-    auto stats = service_->get_cache_stats();
     state.SetItemsProcessed(state.iterations() * 100);
-    state.counters["hit_rate"] = stats.hit_rate();
+    state.counters["hit_rate"] = hits * 100.0 / (static_cast<double>(state.iterations()) * 100.0);
 }
 BENCHMARK_REGISTER_F(CacheHitRateBenchmark, CacheHitRate_99Percent);
-
-// ============================================================================
-// Cache Stats Performance Benchmarks
-// ============================================================================
-
-class CacheStatsBenchmark : public benchmark::Fixture {
-   protected:
-    void SetUp(::benchmark::State& state) override {
-        auto project_root = find_project_root();
-        city_db_path      = project_root / "db" / "GeoLite2-City.mmdb";
-        asn_db_path       = project_root / "db" / "GeoLite2-ASN.mmdb";
-
-        if (!std::filesystem::exists(city_db_path) || !std::filesystem::exists(asn_db_path)) {
-            state.SkipWithError("Database files not found");
-            return;
-        }
-
-        service_ =
-            std::make_unique<IPGeoService>(city_db_path.string(), asn_db_path.string(), 10000);
-
-        // Populate cache
-        for (int i = 0; i < 100; ++i) {
-            service_->lookup("8.8.8." + std::to_string(i % 255));
-        }
-    }
-
-    void TearDown(const ::benchmark::State& /*state*/) override {
-        service_.reset();  // Explicitly destroy service while Logger is still alive
-    }
-
-    std::filesystem::path city_db_path;
-    std::filesystem::path asn_db_path;
-    std::unique_ptr<IPGeoService> service_;
-};
-
-BENCHMARK_F(CacheStatsBenchmark, CacheStats_GetStats)(benchmark::State& state) {
-    for (auto _ : state) {
-        auto stats = service_->get_cache_stats();
-        benchmark::DoNotOptimize(stats);
-    }
-    state.SetItemsProcessed(state.iterations());
-}
-
-BENCHMARK_F(CacheStatsBenchmark, CacheStats_GetCacheSize)(benchmark::State& state) {
-    for (auto _ : state) {
-        auto size = service_->get_cache_size();
-        benchmark::DoNotOptimize(size);
-    }
-    state.SetItemsProcessed(state.iterations());
-}
-
-BENCHMARK_F(CacheStatsBenchmark, CacheStats_HitRateCalculation)(benchmark::State& state) {
-    for (auto _ : state) {
-        auto stats = service_->get_cache_stats();
-        auto rate  = stats.hit_rate();
-        benchmark::DoNotOptimize(rate);
-    }
-    state.SetItemsProcessed(state.iterations());
-}
 
 BENCHMARK_MAIN();

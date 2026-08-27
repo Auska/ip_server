@@ -28,13 +28,10 @@ class RateLimiter {
     struct MemoryStats {
         size_t ip_record_count_;
         size_t total_timestamps_;
-        size_t estimated_memory_bytes_;
         uint64_t total_requests_;
         uint64_t total_rate_limited_;
     };
     MemoryStats get_memory_stats() const;
-
-    void reset_stats();
 
    private:
     struct IPRecord {
@@ -46,8 +43,6 @@ class RateLimiter {
     void cleanup_old_timestamps(IPRecord& record) const;
 
     void evict_lru();
-
-    size_t estimate_memory_usage() const;
 
     int max_requests_;
     std::chrono::seconds window_;

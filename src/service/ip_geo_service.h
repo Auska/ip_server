@@ -1,6 +1,5 @@
 #pragma once
 
-#include <chrono>
 #include <string>
 
 #include "cache.h"
@@ -24,13 +23,6 @@ class IPGeoService {
 
     bool is_city_db_open() const { return city_db_.is_open(); }
     bool is_asn_db_open() const { return asn_db_.is_open(); }
-
-    CacheStats get_cache_stats() const { return cache_.get_stats(); }
-    size_t get_cache_size() const { return cache_.size(); }
-    size_t get_cache_memory_usage() const { return cache_.get_total_memory_usage(); }
-    void clear_cache() { cache_.clear(); }
-
-    void set_cache_ttl(CacheDataType type, std::chrono::seconds ttl) { cache_.set_ttl(type, ttl); }
 
    private:
     static void merge_city_result(nlohmann::json& result, const nlohmann::json& city_result);

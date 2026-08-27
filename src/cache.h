@@ -30,10 +30,7 @@ struct CacheStats {
     uint64_t misses_{0};
     uint64_t evictions_{0};
     uint64_t expired_entries_{0};
-    uint64_t concurrent_accesses_{0};
     uint64_t memory_usage_bytes_{0};
-    uint64_t entry_count_{0};
-    double avg_entry_size_{0.0};
 
     double hit_rate() const {
         return total_lookups_ > 0 ? (static_cast<double>(hits_) / total_lookups_) * 100.0 : 0.0;
@@ -47,30 +44,16 @@ struct CacheStats {
         misses_ = 0;
         evictions_ = 0;
         expired_entries_ = 0;
-        concurrent_accesses_ = 0;
         memory_usage_bytes_ = 0;
-        entry_count_ = 0;
-        avg_entry_size_ = 0.0;
     }
 
     CacheStats& operator+=(const CacheStats& o) {
-        if (o.entry_count_ == 0) return *this;
-        if (entry_count_ == 0) {
-            *this = o;
-            return *this;
-        }
-        uint64_t const total = entry_count_ + o.entry_count_;
-        avg_entry_size_ = (avg_entry_size_ * static_cast<double>(entry_count_)
-                          + o.avg_entry_size_ * static_cast<double>(o.entry_count_))
-                         / static_cast<double>(total);
         total_lookups_ += o.total_lookups_;
         hits_ += o.hits_;
         misses_ += o.misses_;
         evictions_ += o.evictions_;
         expired_entries_ += o.expired_entries_;
-        concurrent_accesses_ += o.concurrent_accesses_;
         memory_usage_bytes_ += o.memory_usage_bytes_;
-        entry_count_ = total;
         return *this;
     }
 };
@@ -86,7 +69,6 @@ class CacheShard {
         std::unique_lock<std::shared_mutex> lock(mutex_);
 
         stats_.total_lookups_++;
-        stats_.concurrent_accesses_++;
 
         auto it = cache_map_.find(key);
         if (it == cache_map_.end()) {
@@ -116,9 +98,6 @@ class CacheShard {
         std::unique_lock<std::shared_mutex> lock(mutex_);
 
         size_t entry_size = estimate_entry_size(key, result);
-        stats_.avg_entry_size_ =
-            (stats_.avg_entry_size_ * (cache_map_.size()) + entry_size) / (cache_map_.size() + 1);
-        stats_.entry_count_ = cache_map_.size() + 1;
 
         auto it = cache_map_.find(key);
         if (it != cache_map_.end()) {
@@ -167,9 +146,6 @@ class CacheShard {
         std::shared_lock<std::shared_mutex> lock(mutex_);
         return stats_;
     }
-
-    size_t max_size() const { return max_size_; }
-    size_t max_memory_bytes() const { return max_memory_bytes_; }
 
     void set_ttl(CacheDataType type, std::chrono::seconds ttl) {
         std::unique_lock<std::shared_mutex> lock(mutex_);
@@ -285,16 +261,6 @@ class IPCache {
     }
 
     size_t shard_count() const { return shard_count_; }
-
-    size_t max_size() const {
-        size_t total = 0;
-        for (const auto& shard : shards_) {
-            total += shard->max_size();
-        }
-        return total;
-    }
-
-    size_t max_memory_bytes() const { return max_memory_bytes_; }
 
     void set_ttl(CacheDataType type, std::chrono::seconds ttl) {
         for (auto& shard : shards_) {

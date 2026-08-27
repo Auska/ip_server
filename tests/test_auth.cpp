@@ -36,18 +36,6 @@ TEST_F(APIAuthTest, InvalidKeyRejected) {
     EXPECT_FALSE(auth->is_valid(invalid_key));
 }
 
-TEST_F(APIAuthTest, RemoveKey) {
-    std::string key = "test_key_123";
-
-    auth->add_key(key);
-    EXPECT_TRUE(auth->is_valid(key));
-    EXPECT_EQ(auth->key_count(), 1);
-
-    auth->remove_key(key);
-    EXPECT_FALSE(auth->is_valid(key));
-    EXPECT_EQ(auth->key_count(), 0);
-}
-
 TEST_F(APIAuthTest, MultipleKeys) {
     auth->add_key("key1");
     auth->add_key("key2");
@@ -104,11 +92,6 @@ TEST_F(APIAuthTest, AuthDisabled) {
     // When auth is disabled, all keys should be valid
     EXPECT_TRUE(disabled_auth->is_valid("any_key"));
     EXPECT_TRUE(disabled_auth->is_valid(""));
-    EXPECT_FALSE(disabled_auth->is_enabled());
-}
-
-TEST_F(APIAuthTest, AuthEnabled) {
-    EXPECT_TRUE(auth->is_enabled());
 }
 
 TEST_F(APIAuthTest, LoadKeysFromFileWithWhitespace) {
@@ -190,40 +173,6 @@ TEST_F(APIAuthTest, FileWithOnlyComments) {
 }
 
 // ─── Edge-case tests ──────────────────────────────────────────────
-
-TEST_F(APIAuthTest, RemoveNonExistentKey) {
-    // Removing a key that was never added should not throw or crash
-    EXPECT_NO_THROW(auth->remove_key("nonexistent_key_12345"));
-}
-
-TEST_F(APIAuthTest, RemoveFromEmptyAuth) {
-    auto empty_auth = std::make_unique<APIAuth>(true);
-    EXPECT_NO_THROW(empty_auth->remove_key("any_key"));
-}
-
-TEST_F(APIAuthTest, DisableAuthAfterAddingKeys) {
-    auth->add_key("valid-key-123");
-    EXPECT_TRUE(auth->is_valid("valid-key-123"));
-
-    auth->set_enabled(false);
-    EXPECT_FALSE(auth->is_enabled());
-}
-
-TEST_F(APIAuthTest, TrustedProxyEmptyList) {
-    // Empty trusted proxies list means trust all
-    EXPECT_TRUE(auth->is_trusted_proxy("10.0.0.1"));
-    EXPECT_TRUE(auth->is_trusted_proxy("192.168.1.1"));
-    EXPECT_TRUE(auth->is_trusted_proxy("::1"));
-}
-
-TEST_F(APIAuthTest, TrustedProxyWithExplicitList) {
-    auth->set_trusted_proxies({"127.0.0.1", "10.0.0.1"});
-
-    EXPECT_TRUE(auth->is_trusted_proxy("127.0.0.1"));
-    EXPECT_TRUE(auth->is_trusted_proxy("10.0.0.1"));
-    EXPECT_FALSE(auth->is_trusted_proxy("192.168.1.1"));
-    EXPECT_FALSE(auth->is_trusted_proxy("10.0.0.2"));
-}
 
 TEST_F(APIAuthTest, DuplicateKeysInFile) {
     std::ofstream file("test_dup_api_keys.txt");

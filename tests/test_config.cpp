@@ -8,7 +8,7 @@ class ConfigTest : public ::testing::Test {
    protected:
     void SetUp() override {
         // Reset to default before each test
-        default_config = ConfigParser::default_config();
+        default_config = ServerConfig{};
     }
 
     ServerConfig default_config;

@@ -15,13 +15,11 @@ class Metrics {
 
     void record_request(bool cache_hit, double latency_ms);
     void record_error();
-    void record_cache_eviction();
 
     struct Stats {
         uint64_t total_requests_;
         uint64_t cache_hits_;
         uint64_t cache_misses_;
-        uint64_t cache_evictions_;
         uint64_t total_errors_;
 
         double cache_hit_rate_;
@@ -52,13 +50,12 @@ class Metrics {
     std::atomic<uint64_t> total_requests_;
     std::atomic<uint64_t> cache_hits_;
     std::atomic<uint64_t> cache_misses_;
-    std::atomic<uint64_t> cache_evictions_;
     std::atomic<uint64_t> total_errors_;
 
     std::deque<double> latencies_;
 
     std::chrono::steady_clock::time_point start_time_;
-    std::deque<std::pair<std::chrono::steady_clock::time_point, uint64_t>> request_timestamps_;
+    std::deque<std::chrono::steady_clock::time_point> request_timestamps_;
 
     std::atomic<bool> city_db_open_;
     std::atomic<bool> asn_db_open_;

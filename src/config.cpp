@@ -27,14 +27,6 @@ void applyXdgDefaults(ServerConfig& config) {
 
 }  // namespace
 
-ServerConfig ConfigParser::default_config() {
-    ServerConfig config;
-    config.host_             = "0.0.0.0";
-    config.port_             = 8080;
-    config.thread_pool_size_ = 4;
-    return config;
-}
-
 cxxopts::Options ConfigParser::create_option_parser() {
     cxxopts::Options options("ip_server", "IP Geolocation & AS Lookup Service");
 
@@ -79,7 +71,7 @@ cxxopts::Options ConfigParser::create_option_parser() {
                                   cxxopts::value<size_t>()->default_value(
                                       "10"))("log-max-backups", "Maximum number of backup log files",
         cxxopts::value<int>()->default_value(
-            "5"))("log-level", "Log level: trace, debug, info, warn, error, critical, off",
+            "5"))("log-level", "Log level: debug, info, warn, error",
                   cxxopts::value<std::string>()->default_value("info"));
 
     return options;
@@ -92,7 +84,7 @@ ServerConfig ConfigParser::handle_config_file(const std::filesystem::path& confi
 
     if (is_empty) {
         LOG_INFO("Config file is empty, creating default configuration: " + config_file.string());
-        ServerConfig cfg = default_config();
+        ServerConfig cfg;
         applyXdgDefaults(cfg);
         cfg.config_file_ = config_file;
 
@@ -101,7 +93,7 @@ ServerConfig ConfigParser::handle_config_file(const std::filesystem::path& confi
             return cfg;
         }
         LOG_WARNING("Failed to create default config file, using built-in defaults");
-        return default_config();
+        return ServerConfig{};
     }
 
     try {
@@ -110,12 +102,12 @@ ServerConfig ConfigParser::handle_config_file(const std::filesystem::path& confi
         return cfg;
     } catch (const std::exception& e) {
         LOG_WARNING("Failed to load config file: " + std::string(e.what()));
-        return default_config();
+        return ServerConfig{};
     }
 }
 
 ServerConfig ConfigParser::parse(int argc, char* argv[]) {
-    ServerConfig config = default_config();
+    ServerConfig config;
 
     try {
         auto options = create_option_parser();
@@ -307,7 +299,7 @@ void ConfigParser::from_json(ServerConfig& config, const nlohmann::json& j) {
 }
 
 ServerConfig ConfigParser::load_from_file(const std::filesystem::path& config_file) {
-    ServerConfig config = default_config();
+    ServerConfig config;
 
     std::ifstream file(config_file);
     if (!file.is_open()) {

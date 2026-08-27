@@ -1,6 +1,5 @@
 #pragma once
 
-#include <chrono>
 #include <string>
 
 #include "cache.h"
@@ -21,13 +20,6 @@ class MACLookupService {
     LookupResult lookup(const std::string& mac_address) const;
 
     bool is_oui_db_open() const { return oui_db_.is_open(); }
-
-    CacheStats get_cache_stats() const { return cache_.get_stats(); }
-    size_t get_cache_size() const { return cache_.size(); }
-    size_t get_cache_memory_usage() const { return cache_.get_total_memory_usage(); }
-    void clear_cache() { cache_.clear(); }
-
-    void set_cache_ttl(CacheDataType type, std::chrono::seconds ttl) { cache_.set_ttl(type, ttl); }
 
    private:
     OUIDatabase oui_db_;

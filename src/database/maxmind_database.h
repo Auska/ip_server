@@ -24,8 +24,6 @@ class MaxMindDatabase {
     void close();
     bool is_open() const { return is_open_.load(std::memory_order_acquire); }
 
-    nlohmann::json lookup(const std::string& ip_address) const;
-
    protected:
     MMDB_s mmdb_{};
     std::atomic<bool> is_open_{false};

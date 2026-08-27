@@ -54,7 +54,6 @@ struct ServerConfig {
 class ConfigParser {
    public:
     static ServerConfig parse(int argc, char* argv[]);
-    static ServerConfig default_config();
     static ServerConfig load_from_file(const std::filesystem::path& config_file);
     static bool save_to_file(const ServerConfig& config, const std::filesystem::path& config_file);
     static void validate(const ServerConfig& config);

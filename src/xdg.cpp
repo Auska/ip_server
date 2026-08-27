@@ -75,10 +75,6 @@ std::filesystem::path XDGPaths::app_cache_dir() {
     return cache_home() / APP_NAME;
 }
 
-std::filesystem::path XDGPaths::app_state_dir() {
-    return state_home() / APP_NAME;
-}
-
 std::filesystem::path XDGPaths::config_file() {
     return app_config_dir() / "config.json";
 }
@@ -100,16 +96,12 @@ std::filesystem::path XDGPaths::oui_db_path() {
 }
 
 std::filesystem::path XDGPaths::log_file_path() {
-    // Use XDG state home for logs (or data home as fallback)
-    std::filesystem::path log_dir;
     std::string const state_path = get_env("XDG_STATE_HOME", "");
     if (!state_path.empty()) {
-        log_dir = std::filesystem::path(state_path) / APP_NAME / "logs";
-    } else {
-        // Fallback to data home
-        log_dir = data_home() / APP_NAME / "logs";
+        return std::filesystem::path(state_path) / APP_NAME / "logs" / "ip_server.log";
     }
-    return log_dir / "ip_server.log";
+    // Fallback to data home when XDG_STATE_HOME is unset
+    return data_home() / APP_NAME / "logs" / "ip_server.log";
 }
 
 void XDGPaths::ensure_directories() {

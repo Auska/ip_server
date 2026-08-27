@@ -16,7 +16,6 @@ Metrics::Metrics()
     : total_requests_(0),
       cache_hits_(0),
       cache_misses_(0),
-      cache_evictions_(0),
       total_errors_(0),
       start_time_(std::chrono::steady_clock::now()),
       city_db_open_(false),
@@ -40,10 +39,10 @@ void Metrics::record_request(bool cache_hit, double latency_ms) {
     }
 
     auto now = std::chrono::steady_clock::now();
-    request_timestamps_.emplace_back(now, total_requests_.load());
+    request_timestamps_.push_back(now);
 
     auto cutoff = now - std::chrono::seconds(60);
-    while (!request_timestamps_.empty() && request_timestamps_.front().first < cutoff) {
+    while (!request_timestamps_.empty() && request_timestamps_.front() < cutoff) {
         request_timestamps_.pop_front();
     }
 }
@@ -52,17 +51,12 @@ void Metrics::record_error() {
     total_errors_++;
 }
 
-void Metrics::record_cache_eviction() {
-    cache_evictions_++;
-}
-
 Metrics::Stats Metrics::get_stats() const {
     Stats stats{};
 
     stats.total_requests_  = total_requests_.load();
     stats.cache_hits_      = cache_hits_.load();
     stats.cache_misses_    = cache_misses_.load();
-    stats.cache_evictions_ = cache_evictions_.load();
     stats.total_errors_    = total_errors_.load();
 
     if (stats.total_requests_ > 0) {
@@ -127,18 +121,15 @@ double Metrics::calculate_qps() const {
         return 0.0;
     }
 
-    auto oldest = request_timestamps_.front();
-    auto newest = request_timestamps_.back();
-
-    auto duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(newest.first - oldest.first).count();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        request_timestamps_.back() - request_timestamps_.front())
+                        .count();
 
     if (duration == 0) {
         return 0.0;
     }
 
-    uint64_t const request_delta = newest.second - oldest.second;
-    return (static_cast<double>(request_delta) / duration) * 1000.0;
+    return (static_cast<double>(request_timestamps_.size() - 1) / duration) * 1000.0;
 }
 
 }  // namespace ip_server

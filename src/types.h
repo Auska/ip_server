@@ -15,19 +15,8 @@ struct LookupResult {
     LookupResult(const nlohmann::json& d, bool hit, double latency)
         : data_(d), cache_hit_(hit), latency_ms_(latency) {}
 
-    // Move constructor
-    LookupResult(LookupResult&& other) noexcept
-        : data_(std::move(other.data_)), cache_hit_(other.cache_hit_), latency_ms_(other.latency_ms_) {}
-
-    // Move assignment
-    LookupResult& operator=(LookupResult&& other) noexcept {
-        if (this != &other) {
-            data_       = std::move(other.data_);
-            cache_hit_  = other.cache_hit_;
-            latency_ms_ = other.latency_ms_;
-        }
-        return *this;
-    }
+    LookupResult(LookupResult&&) noexcept            = default;
+    LookupResult& operator=(LookupResult&&) noexcept = default;
 
     // Disable copy to enforce move semantics
     LookupResult(const LookupResult&)            = delete;

@@ -17,7 +17,6 @@ class XDGPaths {
     static std::filesystem::path app_config_dir();
     static std::filesystem::path app_data_dir();
     static std::filesystem::path app_cache_dir();
-    static std::filesystem::path app_state_dir();
 
     // Get default config file path
     static std::filesystem::path config_file();

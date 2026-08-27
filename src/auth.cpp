@@ -62,16 +62,6 @@ void APIAuth::add_key(const std::string& key) {
     }
 }
 
-void APIAuth::remove_key(const std::string& key) {
-    std::scoped_lock const lock(mutex_);
-    std::string const key_hash = hash_key(key);
-    std::string const key_id   = generate_key_id(key_hash);
-
-    if (api_key_hashes_.erase(key_hash) > 0) {
-        LOG_INFO("Removed API key: " + key_id);
-    }
-}
-
 bool APIAuth::is_valid(const std::string& key) const {
     if (!enabled_) {
         return true;

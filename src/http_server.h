@@ -68,7 +68,6 @@ class IPGeoHTTPServer {
 
     bool start(std::atomic<bool>& shutdown_requested);
     void stop();
-    bool is_running() const;
 
    private:
     void setup_routes();

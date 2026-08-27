@@ -104,48 +104,20 @@ void RateLimiter::cleanup() {
     }
 }
 
-size_t RateLimiter::estimate_memory_usage() const {
-    size_t total = 0;
-
-    total += ip_records_.size() * sizeof(std::pair<std::string, IPRecord>);
-
-    for (const auto& [ip, record] : ip_records_) {
-        total += ip.size() * sizeof(char);
-        total += record.timestamps_.size() * sizeof(std::chrono::steady_clock::time_point);
-        total += sizeof(std::deque<std::chrono::steady_clock::time_point>);
-    }
-
-    total += lru_list_.size() * sizeof(std::string);
-
-    return total;
-}
-
 RateLimiter::MemoryStats RateLimiter::get_memory_stats() const {
     std::scoped_lock const lock(mutex_);
 
     MemoryStats stats{};
-    stats.ip_record_count_        = ip_records_.size();
-    stats.total_timestamps_       = 0;
-    stats.estimated_memory_bytes_ = 0;
-    stats.total_requests_         = total_requests_.load();
-    stats.total_rate_limited_     = total_rate_limited_.load();
+    stats.ip_record_count_    = ip_records_.size();
+    stats.total_timestamps_   = 0;
+    stats.total_requests_     = total_requests_.load();
+    stats.total_rate_limited_ = total_rate_limited_.load();
 
     for (const auto& [ip, record] : ip_records_) {
         stats.total_timestamps_ += record.timestamps_.size();
     }
 
-    stats.estimated_memory_bytes_ = estimate_memory_usage();
-
     return stats;
-}
-
-void RateLimiter::reset_stats() {
-    std::scoped_lock const lock(mutex_);
-
-    total_requests_     = 0;
-    total_rate_limited_ = 0;
-
-    LOG_INFO("Rate limiter statistics reset");
 }
 
 }  // namespace ip_server

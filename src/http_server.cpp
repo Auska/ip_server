@@ -30,9 +30,8 @@ IPGeoHTTPServer::IPGeoHTTPServer(std::string host, uint16_t port, int thread_poo
       enable_rate_limiter_(enable_rate_limiter),
       max_batch_size_(max_batch_size),
       enable_api_auth_(enable_api_auth),
-      password_handler_(nullptr) {
-    metrics_          = std::make_unique<Metrics>();
-    password_handler_ = PasswordHandler(metrics_.get());
+      metrics_(std::make_unique<Metrics>()),
+      password_handler_(metrics_.get()) {
 
     if (enable_rate_limiter_) {
         rate_limiter_ =
@@ -147,28 +146,27 @@ void IPGeoHTTPServer::setup_cors() {
     server_.Options(".*", [](const httplib::Request&, httplib::Response&) { return; });
 }
 
+// ponytail: X-Forwarded-For/X-Real-IP trusted from all clients — no trusted-proxy
+// config exists; add one in APIAuth if header spoofing becomes a concern.
 std::string IPGeoHTTPServer::get_real_client_ip(const httplib::Request& req) const {
-    bool is_trusted = !api_auth_ || api_auth_->is_trusted_proxy(req.remote_addr);
-    if (is_trusted) {
-        auto xff = req.get_header_value("X-Forwarded-For");
-        if (!xff.empty()) {
-            size_t const comma_pos = xff.find(',');
-            if (comma_pos != std::string::npos) {
-                std::string first_ip = xff.substr(0, comma_pos);
-                size_t const start   = first_ip.find_first_not_of(" \t");
-                size_t const end     = first_ip.find_last_not_of(" \t");
-                if (start != std::string::npos && end != std::string::npos) {
-                    return first_ip.substr(start, end - start + 1);
-                }
-                return first_ip;
+    auto xff = req.get_header_value("X-Forwarded-For");
+    if (!xff.empty()) {
+        size_t const comma_pos = xff.find(',');
+        if (comma_pos != std::string::npos) {
+            std::string first_ip = xff.substr(0, comma_pos);
+            size_t const start   = first_ip.find_first_not_of(" \t");
+            size_t const end     = first_ip.find_last_not_of(" \t");
+            if (start != std::string::npos && end != std::string::npos) {
+                return first_ip.substr(start, end - start + 1);
             }
-            return xff;
+            return first_ip;
         }
+        return xff;
+    }
 
-        auto xri = req.get_header_value("X-Real-IP");
-        if (!xri.empty()) {
-            return xri;
-        }
+    auto xri = req.get_header_value("X-Real-IP");
+    if (!xri.empty()) {
+        return xri;
     }
 
     return req.remote_addr;
@@ -227,8 +225,7 @@ void IPGeoHTTPServer::handle_health(const httplib::Request&, httplib::Response& 
 
     health["cache"] = {{"hits", stats.cache_hits_},
                        {"misses", stats.cache_misses_},
-                       {"hit_rate_percent", round(stats.cache_hit_rate_ * 100) / 100},
-                       {"evictions", stats.cache_evictions_}};
+                       {"hit_rate_percent", round(stats.cache_hit_rate_ * 100) / 100}};
 
     health["errors"] = {{"total", stats.total_errors_},
                         {"rate_percent", round(stats.error_rate_ * 100) / 100}};
@@ -500,10 +497,6 @@ void IPGeoHTTPServer::stop() {
     server_.stop();
 }
 
-bool IPGeoHTTPServer::is_running() const {
-    return server_.is_running();
-}
-
 void IPGeoHTTPServer::cleanup_thread_func(std::atomic<bool>& shutdown_requested) {
     LOG_INFO("Rate limiter cleanup thread running");
 
@@ -522,8 +515,7 @@ void IPGeoHTTPServer::cleanup_thread_func(std::atomic<bool>& shutdown_requested)
 
             auto stats = rate_limiter_->get_memory_stats();
             LOG_INFO("Rate limiter memory stats: " + std::to_string(stats.ip_record_count_)
-                     + " IP records, " + std::to_string(stats.total_timestamps_) + " timestamps, "
-                     + std::to_string(stats.estimated_memory_bytes_ / 1024) + " KB");
+                     + " IP records, " + std::to_string(stats.total_timestamps_) + " timestamps");
         }
     }
 

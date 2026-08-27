@@ -243,7 +243,6 @@ TEST_F(RateLimiterTest, MemoryStats) {
     EXPECT_EQ(stats.ip_record_count_, 2);
     EXPECT_EQ(stats.total_timestamps_, 5);
     EXPECT_EQ(stats.total_requests_, 5);
-    EXPECT_GT(stats.estimated_memory_bytes_, 0);
     EXPECT_EQ(stats.total_rate_limited_, 0);
 }
 
@@ -330,58 +329,11 @@ TEST_F(RateLimiterTest, LRUEviction) {
     EXPECT_LT(small_limiter->get_remaining(ip1), 5);
 }
 
-TEST_F(RateLimiterTest, ResetStats) {
-    std::string ip = "192.168.1.1";
-
-    // Make some requests
-    for (int i = 0; i < 3; i++) {
-        limiter->is_allowed(ip);
-    }
-
-    // Make one rate limited request
-    for (int i = 0; i < 6; i++) {
-        limiter->is_allowed(ip);
-    }
-
-    auto stats_before = limiter->get_memory_stats();
-    EXPECT_GT(stats_before.total_requests_, 0);
-    EXPECT_GT(stats_before.total_rate_limited_, 0);
-
-    // Reset stats
-    limiter->reset_stats();
-
-    auto stats_after = limiter->get_memory_stats();
-    EXPECT_EQ(stats_after.total_requests_, 0);
-    EXPECT_EQ(stats_after.total_rate_limited_, 0);
-}
-
 TEST_F(RateLimiterTest, GetRemainingForNonExistentIP) {
     std::string ip = "192.168.1.999";
 
     // IP that hasn't made any requests should have full quota
     EXPECT_EQ(limiter->get_remaining(ip), 5);
-}
-
-TEST_F(RateLimiterTest, MemoryEstimation) {
-    // Create limiter with many IPs
-    auto large_limiter = std::make_unique<RateLimiter>(10, std::chrono::seconds(60), 1000);
-
-    // Add 100 IPs with 5 requests each
-    for (int i = 0; i < 100; i++) {
-        std::string ip = "192.168.1." + std::to_string(i);
-        for (int j = 0; j < 5; j++) {
-            large_limiter->is_allowed(ip);
-        }
-    }
-
-    auto stats = large_limiter->get_memory_stats();
-
-    EXPECT_EQ(stats.ip_record_count_, 100);
-    EXPECT_EQ(stats.total_timestamps_, 500);
-    EXPECT_GT(stats.estimated_memory_bytes_, 0);
-
-    // Memory should be reasonable (less than 1 MB for 100 IPs)
-    EXPECT_LT(stats.estimated_memory_bytes_, 1024 * 1024);
 }
 
 // ─── Edge-case tests ──────────────────────────────────────────────
@@ -430,17 +382,6 @@ TEST_F(RateLimiterTest, CleanupOnEmptyRecords) {
     EXPECT_TRUE(cleanup_limiter->is_allowed("10.0.0.1"));
     EXPECT_NO_THROW(cleanup_limiter->cleanup());
     EXPECT_NO_THROW(cleanup_limiter->cleanup());
-}
-
-TEST_F(RateLimiterTest, ResetStatsThenContinue) {
-    std::string ip = "10.0.0.1";
-
-    EXPECT_TRUE(limiter->is_allowed(ip));
-    limiter->reset_stats();
-
-    // After reset, the IP record still exists — same quota as before
-    EXPECT_TRUE(limiter->is_allowed(ip));
-    EXPECT_EQ(limiter->get_remaining(ip), 3);
 }
 
 TEST_F(RateLimiterTest, HighContentionDifferentIPs) {

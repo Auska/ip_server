@@ -388,15 +388,6 @@ TEST_F(MACLookupServiceTest, CacheSizeZero) {
     EXPECT_TRUE(result.data_.contains("found"));
 }
 
-TEST_F(MACLookupServiceTest, GetCacheStatsEmpty) {
-    MACLookupService service(oui_db_path.string(), 100);
-
-    auto stats = service.get_cache_stats();
-    EXPECT_EQ(stats.total_lookups_, 0);
-    EXPECT_EQ(stats.hits_, 0);
-    EXPECT_EQ(stats.misses_, 0);
-}
-
 TEST_F(MACLookupServiceTest, LookupSameMACRepeatedly) {
     MACLookupService service(oui_db_path.string(), 100);
 
