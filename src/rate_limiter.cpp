@@ -44,7 +44,6 @@ bool RateLimiter::is_allowed(const std::string& ip_address) {
 
         lru_list_.push_front(ip_address);
         IPRecord record;
-        record.last_access_ = now;
         record.timestamps_.push_back(now);
         record.lru_it_ = lru_list_.begin();
         ip_records_.emplace(ip_address, std::move(record));
@@ -54,8 +53,6 @@ bool RateLimiter::is_allowed(const std::string& ip_address) {
     IPRecord& record = it->second;
 
     lru_list_.splice(lru_list_.begin(), lru_list_, record.lru_it_);
-    record.last_access_ = now;
-
     cleanup_old_timestamps(record);
 
     if (record.timestamps_.size() < static_cast<size_t>(max_requests_)) {

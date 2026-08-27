@@ -3,7 +3,6 @@
 #include <chrono>
 #include <stdexcept>
 
-#include "http_server.h"
 #include "logger.h"
 #include "password_generator.h"
 #include "types.h"

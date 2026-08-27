@@ -18,7 +18,6 @@ namespace ip_server {
 class RateLimiter;
 class APIAuth;
 class Metrics;
-class PasswordHandler;
 
 namespace constants {
 constexpr int DEFAULT_THREAD_POOL_SIZE = 4;
@@ -27,22 +26,6 @@ constexpr int DEFAULT_MAX_BATCH_SIZE = 100;
 constexpr int CLEANUP_INTERVAL_SECONDS = 300;
 constexpr size_t DEFAULT_RATE_LIMITER_MAX_IPS = 10000;
 }  // namespace constants
-
-// Shared JSON response helpers (used by IPGeoHTTPServer and PasswordHandler)
-inline void send_json_response(httplib::Response& res, const nlohmann::json& data,
-                               int status = 200) {
-    res.status = status;
-    res.set_content(data.dump(), "application/json");
-}
-
-inline void send_error_response(httplib::Response& res, int status, const std::string& error,
-                                const std::string& message) {
-    nlohmann::json error_json;
-    error_json["error"]   = error;
-    error_json["message"] = message;
-    res.status            = status;
-    res.set_content(error_json.dump(), "application/json");
-}
 
 class IPGeoHTTPServer {
    public:

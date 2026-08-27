@@ -2,6 +2,7 @@
 
 #include <spdlog/formatter.h>
 #include <spdlog/pattern_formatter.h>
+#include <spdlog/sinks/basic_file_sink.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -74,9 +75,8 @@ void Logger::setup_sinks() {
                                                                        config_.max_file_size_,
                                                                        config_.max_backup_files_);
         } else {
-            file_sink = std::make_shared<
-                spdlog::sinks::rotating_file_sink_mt>(config_.log_file_path_.string(),
-                                                      std::numeric_limits<size_t>::max(), 0);
+            file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(
+                config_.log_file_path_.string());
         }
 
         file_sink->set_formatter(makeFormatter());

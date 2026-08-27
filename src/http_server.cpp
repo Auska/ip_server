@@ -198,7 +198,7 @@ void IPGeoHTTPServer::handle_root(const httplib::Request&, httplib::Response& re
     nlohmann::json info;
     info["service"]   = "IP Geolocation & AS Lookup Service";
     info["version"]   = "2.0.0";
-    info["endpoints"] = nlohmann::json::array({"/", "/lookup", "/health"});
+    info["endpoints"] = nlohmann::json::array({"/", "/lookup", "/health", "/password/generate"});
     info["description"] =
         "Use /lookup with 'ip=' or 'mac=' parameter for single queries, or "
         "'ips'/'macs' array for batch queries";

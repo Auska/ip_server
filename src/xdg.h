@@ -11,7 +11,6 @@ class XDGPaths {
     static std::filesystem::path config_home() ;
     static std::filesystem::path data_home() ;
     static std::filesystem::path cache_home() ;
-    static std::filesystem::path state_home() ;
 
     // Get application-specific paths
     static std::filesystem::path app_config_dir();

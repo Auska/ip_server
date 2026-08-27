@@ -22,7 +22,6 @@ MACLookupService::MACLookupService(const std::string& oui_db_path, size_t cache_
 
 LookupResult MACLookupService::lookup(const std::string& mac_address) const {
     ScopedTimer timer;
-    bool cache_hit = false;
 
     if (auto cached = cache_.get(mac_address)) {
         LOG_DEBUG("Cache hit for MAC: " + mac_address);
@@ -34,19 +33,22 @@ LookupResult MACLookupService::lookup(const std::string& mac_address) const {
     try {
         result = oui_db_.lookup(mac_address);
 
-        if (result.value("found", false)) {
-            cache_.put(mac_address, result, CacheDataType::MAC_OUI);
-        } else {
-            cache_.put(mac_address, result, CacheDataType::NEGATIVE);
+        // Don't cache errors as negatives
+        if (!result.contains("error")) {
+            if (result.value("found", false)) {
+                cache_.put(mac_address, result, CacheDataType::MAC_OUI);
+            } else {
+                cache_.put(mac_address, result, CacheDataType::NEGATIVE);
+            }
+            LOG_DEBUG("Cached result for MAC: " + mac_address);
         }
-        LOG_DEBUG("Cached result for MAC: " + mac_address);
 
     } catch (const std::exception& e) {
         LOG_ERROR("Error during MAC lookup: " + std::string(e.what()));
         result["error"] = e.what();
     }
 
-    return LookupResult(result, cache_hit, timer.elapsed());
+    return LookupResult(result, false, timer.elapsed());
 }
 
 }  // namespace ip_server

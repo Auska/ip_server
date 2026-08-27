@@ -36,7 +36,6 @@ class RateLimiter {
    private:
     struct IPRecord {
         std::deque<std::chrono::steady_clock::time_point> timestamps_;
-        std::chrono::steady_clock::time_point last_access_;
         std::list<std::string>::iterator lru_it_;
     };
 

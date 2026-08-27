@@ -38,15 +38,6 @@ struct CacheStats {
 
     double get_memory_usage_mb() const { return memory_usage_bytes_ / (1024.0 * 1024.0); }
 
-    void reset() {
-        total_lookups_ = 0;
-        hits_ = 0;
-        misses_ = 0;
-        evictions_ = 0;
-        expired_entries_ = 0;
-        memory_usage_bytes_ = 0;
-    }
-
     CacheStats& operator+=(const CacheStats& o) {
         total_lookups_ += o.total_lookups_;
         hits_ += o.hits_;
@@ -206,7 +197,7 @@ class IPCache {
     explicit IPCache(size_t max_size = 10000, size_t shard_count = 8,
                      std::chrono::seconds default_ttl = std::chrono::seconds(3600),
                      size_t max_memory_bytes = cache_constants::DEFAULT_MAX_MEMORY)
-        : shard_count_(shard_count), max_memory_bytes_(max_memory_bytes) {
+        : shard_count_(shard_count) {
         size_t shard_size = (max_size + shard_count - 1) / shard_count;
         size_t shard_memory = (max_memory_bytes + shard_count - 1) / shard_count;
         shards_.reserve(shard_count);
@@ -284,7 +275,6 @@ class IPCache {
 
     std::vector<std::unique_ptr<CacheShard>> shards_;
     size_t shard_count_;
-    size_t max_memory_bytes_;
 };
 
 }  // namespace ip_server

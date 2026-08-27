@@ -55,14 +55,6 @@ std::filesystem::path XDGPaths::cache_home() {
     return get_home() / ".cache";
 }
 
-std::filesystem::path XDGPaths::state_home() {
-    std::string path = get_env("XDG_STATE_HOME", "");
-    if (!path.empty()) {
-        return path;
-    }
-    return get_home() / ".local" / "state";
-}
-
 std::filesystem::path XDGPaths::app_config_dir() {
     return config_home() / APP_NAME;
 }

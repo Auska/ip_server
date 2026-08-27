@@ -27,12 +27,7 @@ struct LookupResult {
 /// Call elapsed() for early-read, or let destructor write to output on scope exit.
 class ScopedTimer {
    public:
-    explicit ScopedTimer(double* out_ms = nullptr)
-        : out_(out_ms), start_(std::chrono::high_resolution_clock::now()) {}
-
-    ~ScopedTimer() {
-        if (out_) *out_ = elapsed();
-    }
+    ScopedTimer() : start_(std::chrono::high_resolution_clock::now()) {}
 
     double elapsed() const {
         auto end = std::chrono::high_resolution_clock::now();
@@ -43,7 +38,6 @@ class ScopedTimer {
     ScopedTimer& operator=(const ScopedTimer&) = delete;
 
    private:
-    double* out_;
     std::chrono::high_resolution_clock::time_point const start_;
 };
 
