@@ -26,8 +26,6 @@ class IPGeoService {
     bool is_asn_db_open() const { return asn_db_.is_open(); }
 
     CacheStats get_cache_stats() const { return cache_.get_stats(); }
-    std::vector<ShardStats> get_shard_stats() const { return cache_.get_shard_stats(); }
-    CacheHeatMap get_heat_map(size_t top_n = 10) const { return cache_.get_heat_map(top_n); }
     size_t get_cache_size() const { return cache_.size(); }
     size_t get_cache_memory_usage() const { return cache_.get_total_memory_usage(); }
     void clear_cache() { cache_.clear(); }
@@ -41,7 +39,6 @@ class IPGeoService {
     CityDatabase city_db_;
     ASNDatabase asn_db_;
     mutable IPCache cache_;
-    bool cache_enabled_ = true;
 };
 
 }  // namespace ip_server

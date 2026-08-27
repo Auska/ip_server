@@ -73,14 +73,11 @@ cxxopts::Options ConfigParser::create_option_parser() {
                                                          "logs/ip_server.log"))(
         "log-enable-stdout", "Enable stdout logging",
         cxxopts::value<std::string>()->default_value(
-            "true"))("log-rotation", "Log rotation type: none, size, time, both",
+            "true"))("log-rotation", "Log rotation type: none or size",
                      cxxopts::value<std::string>()->default_value(
                          "size"))("log-max-size", "Maximum log file size in MB",
                                   cxxopts::value<size_t>()->default_value(
-                                      "10"))("log-rotation-interval",
-                                             "Time interval in minutes for time-based rotation",
-                                             cxxopts::value<int>()->default_value("1440"))(
-        "log-max-backups", "Maximum number of backup log files",
+                                      "10"))("log-max-backups", "Maximum number of backup log files",
         cxxopts::value<int>()->default_value(
             "5"))("log-level", "Log level: trace, debug, info, warn, error, critical, off",
                   cxxopts::value<std::string>()->default_value("info"));
@@ -223,7 +220,7 @@ void ConfigParser::validate(const ServerConfig& config) {
     // Validate logging configuration
     if (config.enable_file_logging_) {
         static constexpr auto valid_rotation_types =
-            std::to_array<std::string_view>({"none", "size", "time", "both"});
+            std::to_array<std::string_view>({"none", "size"});
         bool valid_rotation = false;
         for (const auto& t : valid_rotation_types) {
             if (config.log_rotation_type_ == t) {
@@ -233,8 +230,7 @@ void ConfigParser::validate(const ServerConfig& config) {
         }
         if (!valid_rotation) {
             LOG_ERROR("Invalid log rotation type: " + config.log_rotation_type_);
-            throw std::runtime_error(
-                "Invalid log rotation type: must be none, size, time, or both");
+            throw std::runtime_error("Invalid log rotation type: must be none or size");
         }
 
         if (config.log_max_file_size_ < MIN_LOG_FILE_SIZE
@@ -244,15 +240,6 @@ void ConfigParser::validate(const ServerConfig& config) {
                       + std::to_string(MAX_LOG_FILE_SIZE / (1024 * 1024)) + " GB, got: "
                       + std::to_string(config.log_max_file_size_ / (1024 * 1024)) + " MB");
             throw std::runtime_error("Invalid log max file size");
-        }
-
-        if (config.log_rotation_interval_minutes_ < MIN_ROTATION_INTERVAL
-            || config.log_rotation_interval_minutes_ > MAX_ROTATION_INTERVAL) {
-            LOG_ERROR("Log rotation interval must be between "
-                      + std::to_string(MIN_ROTATION_INTERVAL) + " and "
-                      + std::to_string(MAX_ROTATION_INTERVAL)
-                      + " minutes, got: " + std::to_string(config.log_rotation_interval_minutes_));
-            throw std::runtime_error("Invalid log rotation interval");
         }
 
         if (config.log_max_backup_files_ < MIN_BACKUP_FILES
@@ -316,7 +303,6 @@ void ConfigParser::from_json(ServerConfig& config, const nlohmann::json& j) {
             raw = std::stoull(j["log_max_file_size"].get<std::string>());
         config.log_max_file_size_ = raw * 1024 * 1024;
     }
-    readInt("log_rotation_interval_minutes", config.log_rotation_interval_minutes_);
     readInt("log_max_backup_files", config.log_max_backup_files_);
 }
 
@@ -376,7 +362,6 @@ void ConfigParser::apply_cli_overrides(const cxxopts::ParseResult& result, Serve
     set_str("log-rotation", config.log_rotation_type_);
     if (result.contains("log-max-size"))
         config.log_max_file_size_ = result["log-max-size"].as<size_t>() * 1024 * 1024;
-    set_int("log-rotation-interval", config.log_rotation_interval_minutes_);
     set_int("log-max-backups", config.log_max_backup_files_);
     set_str("log-level", config.log_level_);
 }
@@ -408,8 +393,7 @@ bool ConfigParser::save_to_file(const ServerConfig& config,
         j["log_rotation"]        = config.log_rotation_type_;
         j["log_max_file_size"] =
             config.log_max_file_size_ / (static_cast<size_t>(1024 * 1024));  // Convert to MB
-        j["log_rotation_interval_minutes"] = config.log_rotation_interval_minutes_;
-        j["log_max_backup_files"]          = config.log_max_backup_files_;
+        j["log_max_backup_files"] = config.log_max_backup_files_;
         j["log_level"]                     = config.log_level_;
 
         // Write to file with pretty formatting
@@ -456,14 +440,10 @@ void ConfigParser::log_config(const ServerConfig& config) {
     if (config.enable_file_logging_) {
         LOG_INFO("  Log File: " + config.log_file_path_);
         LOG_INFO("  Log Rotation: " + config.log_rotation_type_);
-        if (config.log_rotation_type_ == "size" || config.log_rotation_type_ == "both") {
+        if (config.log_rotation_type_ == "size") {
             LOG_INFO("  Max File Size: "
                      + std::to_string(config.log_max_file_size_ / static_cast<size_t>(1024 * 1024))
                      + " MB");
-        }
-        if (config.log_rotation_type_ == "time" || config.log_rotation_type_ == "both") {
-            LOG_INFO("  Rotation Interval: " + std::to_string(config.log_rotation_interval_minutes_)
-                     + " minutes");
         }
         LOG_INFO("  Max Backup Files: " + std::to_string(config.log_max_backup_files_));
     }

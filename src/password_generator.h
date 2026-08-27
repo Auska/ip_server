@@ -26,15 +26,6 @@ class PasswordGenerator {
     /// Maximum number of passwords that can be generated in a single batch call.
     static constexpr int MAX_BATCH = 100;
 
-    PasswordGenerator();
-    ~PasswordGenerator() = default;
-
-    PasswordGenerator(const PasswordGenerator&)            = delete;
-    PasswordGenerator& operator=(const PasswordGenerator&) = delete;
-
-    PasswordGenerator(PasswordGenerator&&) noexcept            = default;
-    PasswordGenerator& operator=(PasswordGenerator&&) noexcept = default;
-
     static PasswordResult generate(const PasswordConfig& config);
     static std::vector<PasswordResult> generate_batch(const PasswordConfig& config, int count);
 
@@ -47,7 +38,6 @@ class PasswordGenerator {
     };
 
     static CharacterSets build_character_sets(const PasswordConfig& config);
-    static std::string build_character_pool(const PasswordConfig& config);
     static double calculate_entropy(const std::string& password, int pool_size);
     static std::string get_strength_rating(double entropy);
 

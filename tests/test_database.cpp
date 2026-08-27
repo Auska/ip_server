@@ -648,60 +648,7 @@ TEST_F(DatabaseTest, CacheNegativeCaching) {
     EXPECT_EQ(result2.data_.dump(), result1.data_.dump());
 
     auto stats = service.get_cache_stats();
-    EXPECT_GT(stats.negative_hits_, 0);
-}
-
-TEST_F(DatabaseTest, CacheShardStatistics) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000, 8);
-
-    // Perform lookups
-    for (int i = 0; i < 100; ++i) {
-        service.lookup("8.8.8." + std::to_string(i % 255));
-    }
-
-    auto shard_stats = service.get_shard_stats();
-    EXPECT_EQ(shard_stats.size(), 8);
-
-    // Verify all shards have some entries
-    size_t total_shard_entries = 0;
-    for (const auto& stat : shard_stats) {
-        total_shard_entries += stat.size_;
-        EXPECT_GE(stat.shard_index_, 0);
-        EXPECT_LT(stat.shard_index_, 8);
-    }
-
-    EXPECT_GT(total_shard_entries, 0);
-}
-
-TEST_F(DatabaseTest, CacheHeatMapGeneration) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
-
-    // Perform multiple lookups on the same IPs to create hot keys
-    for (int i = 0; i < 50; ++i) {
-        service.lookup("8.8.8.8");  // Very hot - 50 times
-        service.lookup("1.1.1.1");  // Hot - 50 times
-        if (i % 2 == 0) {
-            service.lookup("9.9.9.9");  // Warm - 25 times
-        }
-        if (i % 10 == 0) {
-            service.lookup("208.67.222.222");  // Less hot - 5 times
-        }
-    }
-
-    // Add extra lookups to make 8.8.8.8 hotter than 1.1.1.1
-    for (int i = 0; i < 10; ++i) {
-        service.lookup("8.8.8.8");
-    }
-
-    auto heat_map = service.get_heat_map(3);
-
-    EXPECT_EQ(heat_map.hot_keys_.size(), 3);
-    EXPECT_GT(heat_map.total_accesses_, 0);
-    EXPECT_EQ(heat_map.shard_distribution_.size(), 8);
-
-    // Top key should be 8.8.8.8 (most accessed)
-    EXPECT_EQ(heat_map.hot_keys_[0].first, "8.8.8.8");
-    EXPECT_GT(heat_map.hot_keys_[0].second, heat_map.hot_keys_[1].second);
+    EXPECT_GT(stats.hits_, 0);
 }
 
 TEST_F(DatabaseTest, CacheTTLConfiguration) {
@@ -783,23 +730,6 @@ TEST_F(DatabaseTest, MACLookupServiceMemoryTracking) {
     auto stats = service.get_cache_stats();
     EXPECT_GT(stats.memory_usage_bytes_, 0);
     EXPECT_GT(stats.get_memory_usage_mb(), 0.0);
-
-    auto shard_stats = service.get_shard_stats();
-    EXPECT_EQ(shard_stats.size(), 8);
-}
-
-TEST_F(DatabaseTest, MACLookupServiceHeatMap) {
-    MACLookupService service(oui_db_path.string(), 1000);
-
-    // Perform multiple lookups on same MAC addresses
-    for (int i = 0; i < 30; ++i) {
-        service.lookup("00:1A:2B:3C:4D:5E");
-        service.lookup("F4:EA:B5:12:34:56");
-    }
-
-    auto heat_map = service.get_heat_map(2);
-    EXPECT_EQ(heat_map.hot_keys_.size(), 2);
-    EXPECT_GT(heat_map.total_accesses_, 0);
 }
 
 // ─── Cache edge-case tests ────────────────────────────────────────
@@ -855,15 +785,6 @@ TEST(CacheEdgeTest, ConcurrentPutSameKey) {
     // At least one thread's value should be stored
     auto val = cache.get(key);
     EXPECT_TRUE(val.has_value());
-}
-
-TEST(CacheEdgeTest, GetHeatMapEmptyCache) {
-    IPCache cache(100, 4, std::chrono::seconds(3600), 1024 * 1024);
-    auto heat_map = cache.get_heat_map(10);
-
-    EXPECT_TRUE(heat_map.hot_keys_.empty());
-    EXPECT_EQ(heat_map.shard_distribution_.size(), 4);
-    EXPECT_EQ(heat_map.total_accesses_, 0);
 }
 
 TEST(CacheEdgeTest, ClearEmptyCache) {
@@ -930,20 +851,6 @@ TEST(CacheEdgeTest, CacheStatsOperatorPlusEqualsZero) {
     CacheStats c;
     c += a;
     EXPECT_EQ(c.total_lookups_, 10);
-}
-
-TEST(CacheEdgeTest, DisableHeatMap) {
-    IPCache cache(100, 4, std::chrono::seconds(3600), 1024 * 1024, false);
-
-    // Put and get entries
-    cache.put("key1", nlohmann::json{{"data", 1}});
-    cache.get("key1");
-    cache.get("key1");
-
-    // Heat map should still be accessible (but could be empty)
-    auto heat_map = cache.get_heat_map();
-    // The behavior may vary — just verify no crash
-    EXPECT_NO_THROW(cache.get_heat_map());
 }
 
 TEST(CacheEdgeTest, LargeShardCount) {

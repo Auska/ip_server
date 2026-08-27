@@ -19,11 +19,6 @@ class PasswordHandler {
     void handle_post(const httplib::Request& req, httplib::Response& res);
 
    private:
-    static void send_error_response(httplib::Response& res, int status,
-                                    const std::string& error, const std::string& message);
-    static void send_json_response(httplib::Response& res, const nlohmann::json& data,
-                                   int status = 200);
-
     Metrics* metrics_;
 };
 

@@ -19,12 +19,10 @@ constexpr int    MIN_RATE_LIMIT            = 1;
 constexpr int    MAX_RATE_LIMIT            = 10000;
 constexpr int    MIN_BATCH_SIZE            = 1;
 constexpr int    MAX_BATCH_SIZE            = 1000;
-constexpr size_t MIN_LOG_FILE_SIZE         = 1 * 1024 * 1024;       // 1 MB
-constexpr size_t MAX_LOG_FILE_SIZE         = 1 * 1024 * 1024 * 1024; // 1 GB
-constexpr int    MIN_ROTATION_INTERVAL     = 1;
-constexpr int    MAX_ROTATION_INTERVAL     = 10080;                 // 1 week
-constexpr int    MIN_BACKUP_FILES          = 0;
-constexpr int    MAX_BACKUP_FILES          = 100;
+constexpr size_t MIN_LOG_FILE_SIZE = 1 * 1024 * 1024;        // 1 MB
+constexpr size_t MAX_LOG_FILE_SIZE = 1 * 1024 * 1024 * 1024;  // 1 GB
+constexpr int    MIN_BACKUP_FILES  = 0;
+constexpr int    MAX_BACKUP_FILES  = 100;
 }  // namespace config_limits
 
 struct ServerConfig {
@@ -44,13 +42,12 @@ struct ServerConfig {
     std::string default_api_key_;
 
     // Logging configuration
-    bool enable_file_logging_          = false;
-    std::string log_file_path_         = "logs/ip_server.log";  // Overridden by XDG paths
-    std::string log_rotation_type_     = "size";                // "none", "size", "time", "both"
-    size_t log_max_file_size_          = 10 * 1024 * 1024;      // 10 MB
-    int log_rotation_interval_minutes_ = 1440;                  // 24 hours
-    int log_max_backup_files_          = 5;
-    bool log_enable_stdout_            = true;
+    bool enable_file_logging_  = false;
+    std::string log_file_path_ = "logs/ip_server.log";  // Overridden by XDG paths
+    std::string log_rotation_type_ = "size";            // "none" or "size"
+    size_t log_max_file_size_  = 10 * 1024 * 1024;      // 10 MB
+    int log_max_backup_files_  = 5;
+    bool log_enable_stdout_    = true;
     std::string log_level_ = "info";  // "trace", "debug", "info", "warn", "error", "critical", "off"
 };
 

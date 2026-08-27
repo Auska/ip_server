@@ -19,10 +19,6 @@ thread_local std::mt19937_64 password_gen = [] {
 
 }  // namespace
 
-PasswordGenerator::PasswordGenerator() {
-    LOG_INFO("PasswordGenerator initialized with secure seed");
-}
-
 bool PasswordGenerator::validate_config(const PasswordConfig& config, std::string& error_message) {
     if (config.length_ < 8) {
         error_message = "Password length must be at least 8 characters";
@@ -89,8 +85,8 @@ std::vector<PasswordResult> PasswordGenerator::generate_batch(const PasswordConf
         throw std::runtime_error("Count must be positive");
     }
 
-    if (count > 100) {
-        throw std::runtime_error("Batch count cannot exceed 100");
+    if (count > MAX_BATCH) {
+        throw std::runtime_error("Batch count cannot exceed MAX_BATCH");
     }
 
     std::vector<PasswordResult> results;
@@ -129,10 +125,6 @@ PasswordGenerator::CharacterSets PasswordGenerator::build_character_sets(
     addSet(SYMBOLS, nullptr, config.symbols_);
 
     return sets;
-}
-
-std::string PasswordGenerator::build_character_pool(const PasswordConfig& config) {
-    return build_character_sets(config).pool_;
 }
 
 double PasswordGenerator::calculate_entropy(const std::string& password, int pool_size) {

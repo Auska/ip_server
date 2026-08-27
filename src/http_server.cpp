@@ -110,21 +110,6 @@ bool IPGeoHTTPServer::authenticate_request(const httplib::Request& req, httplib:
     return true;
 }
 
-void IPGeoHTTPServer::send_error_response(httplib::Response& res, int status,
-                                          const std::string& error, const std::string& message) {
-    nlohmann::json error_json;
-    error_json["error"]   = error;
-    error_json["message"] = message;
-    res.status            = status;
-    res.set_content(error_json.dump(), "application/json");
-}
-
-void IPGeoHTTPServer::send_json_response(httplib::Response& res, const nlohmann::json& data,
-                                         int status) {
-    res.status = status;
-    res.set_content(data.dump(), "application/json");
-}
-
 auto IPGeoHTTPServer::prepare_request(const httplib::Request& req, httplib::Response& res)
     -> std::optional<std::string> {
     if (!authenticate_request(req, res)) {
@@ -248,8 +233,7 @@ void IPGeoHTTPServer::handle_health(const httplib::Request&, httplib::Response& 
     health["errors"] = {{"total", stats.total_errors_},
                         {"rate_percent", round(stats.error_rate_ * 100) / 100}};
 
-    health["system"] = {{"memory_usage_mb", stats.memory_usage_mb_},
-                        {"uptime_seconds", stats.uptime_seconds_}};
+    health["system"] = {{"uptime_seconds", stats.uptime_seconds_}};
 
     res.set_content(health.dump(), "application/json");
 }
@@ -439,7 +423,6 @@ bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
     log_startup_banner();
 
     if (enable_rate_limiter_ && rate_limiter_) {
-        cleanup_thread_running_.store(true);
         cleanup_thread_ = std::jthread(
             [this, &shutdown_requested]() { cleanup_thread_func(shutdown_requested); });
     }
@@ -447,7 +430,6 @@ bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
     bool const result = start_server_and_wait(shutdown_requested);
 
     if (cleanup_thread_.joinable()) {
-        cleanup_thread_running_.store(false);
         cleanup_thread_.request_stop();
     }
 

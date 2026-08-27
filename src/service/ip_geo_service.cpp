@@ -28,12 +28,9 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
     ScopedTimer timer;
     bool cache_hit = false;
 
-    if (cache_enabled_) {
-        auto cached = cache_.get(ip_address);
-        if (cached.has_value()) {
-            LOG_DEBUG("Cache hit for IP: " + ip_address);
-            return LookupResult(cached.value(), true, timer.elapsed());
-        }
+    if (auto cached = cache_.get(ip_address)) {
+        LOG_DEBUG("Cache hit for IP: " + ip_address);
+        return LookupResult(cached.value(), true, timer.elapsed());
     }
 
     nlohmann::json result;
@@ -53,10 +50,8 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
         bool const asn_found  = asn_result.value("found", false);
 
         if (!city_found && !asn_found) {
-            if (cache_enabled_) {
-                cache_.put(ip_address, result, CacheDataType::NEGATIVE);
-                LOG_DEBUG("Cached negative result for IP: " + ip_address);
-            }
+            cache_.put(ip_address, result, CacheDataType::NEGATIVE);
+            LOG_DEBUG("Cached negative result for IP: " + ip_address);
             return LookupResult(result, false, timer.elapsed());
         }
 
@@ -65,10 +60,8 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
         if (city_found) merge_city_result(result, city_result);
         if (asn_found) merge_asn_result(result, asn_result);
 
-        if (cache_enabled_) {
-            cache_.put(ip_address, result, CacheDataType::IP_GEOLOCATION);
-            LOG_DEBUG("Cached result for IP: " + ip_address);
-        }
+        cache_.put(ip_address, result, CacheDataType::IP_GEOLOCATION);
+        LOG_DEBUG("Cached result for IP: " + ip_address);
 
     } catch (const std::exception& e) {
         LOG_ERROR("Error during IP lookup: " + std::string(e.what()));

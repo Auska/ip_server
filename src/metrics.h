@@ -33,7 +33,6 @@ class Metrics {
         double p95_latency_ms_;
         double p99_latency_ms_;
 
-        size_t memory_usage_mb_;
         uint64_t uptime_seconds_;
 
         bool city_db_open_;
@@ -42,8 +41,6 @@ class Metrics {
     };
 
     Stats get_stats() const;
-
-    void reset();
 
     void set_city_db_status(bool open);
     void set_asn_db_status(bool open);

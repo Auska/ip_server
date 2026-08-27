@@ -1,6 +1,5 @@
 #pragma once
 
-#include <spdlog/sinks/daily_file_sink.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
@@ -18,15 +17,14 @@ enum class LogLevel {
     ERROR   = spdlog::level::err
 };
 
-enum class RotationType { NONE, SIZE, TIME, BOTH };
+enum class RotationType { NONE, SIZE };
 
 struct LogConfig {
     bool enable_file_logging_               = false;
     std::filesystem::path log_file_path_    = "logs/ip_server.log";
-    RotationType rotation_type_             = RotationType::SIZE;
-    size_t max_file_size_                   = 10 * 1024 * 1024;            // 10 MB
-    std::chrono::minutes rotation_interval_ = std::chrono::minutes(1440);  // 24 hours
-    int max_backup_files_                   = 5;
+    RotationType rotation_type_ = RotationType::SIZE;
+    size_t max_file_size_       = 10 * 1024 * 1024;  // 10 MB
+    int max_backup_files_       = 5;
     bool enable_stdout_                     = true;
 };
 

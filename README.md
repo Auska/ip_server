@@ -206,7 +206,6 @@ enable_file_logging = true
 log_file = /var/log/ip_server/ip_server.log
 log_rotation = size
 log_max_file_size = 10
-log_rotation_interval_minutes = 1440
 log_max_backup_files = 5
 ```
 
@@ -554,10 +553,10 @@ ip_local/
   - MAC OUI: 7 天
   - 负缓存: 5 分钟
 - **内存限制**: 默认 100MB，支持基于内存限制的智能驱逐
-- **布隆过滤器**: 防止缓存穿透攻击
+
 - **负缓存**: 缓存"未找到"结果减少重复查询
-- **热力图**: 跟踪热点键访问模式
-- **分片统计**: 8 个分片减少锁竞争，每个分片独立统计
+
+- **分片**: 8 个分片减少锁竞争，每个分片独立统计
 
 ### 缓存效果
 

@@ -25,10 +25,24 @@ constexpr int DEFAULT_THREAD_POOL_SIZE = 4;
 constexpr int DEFAULT_MAX_REQUESTS_PER_MINUTE = 100;
 constexpr int DEFAULT_MAX_BATCH_SIZE = 100;
 constexpr int CLEANUP_INTERVAL_SECONDS = 300;
-constexpr int SHUTDOWN_TIMEOUT_SECONDS = 30;
-constexpr size_t MAX_LATENCIES = 1000;
 constexpr size_t DEFAULT_RATE_LIMITER_MAX_IPS = 10000;
 }  // namespace constants
+
+// Shared JSON response helpers (used by IPGeoHTTPServer and PasswordHandler)
+inline void send_json_response(httplib::Response& res, const nlohmann::json& data,
+                               int status = 200) {
+    res.status = status;
+    res.set_content(data.dump(), "application/json");
+}
+
+inline void send_error_response(httplib::Response& res, int status, const std::string& error,
+                                const std::string& message) {
+    nlohmann::json error_json;
+    error_json["error"]   = error;
+    error_json["message"] = message;
+    res.status            = status;
+    res.set_content(error_json.dump(), "application/json");
+}
 
 class IPGeoHTTPServer {
    public:
@@ -60,9 +74,6 @@ class IPGeoHTTPServer {
     void setup_routes();
     void setup_cors();
     bool authenticate_request(const httplib::Request& req, httplib::Response& res);
-    static void send_error_response(httplib::Response& res, int status, const std::string& error,
-                             const std::string& message);
-    static void send_json_response(httplib::Response& res, const nlohmann::json& data, int status = 200);
 
     void handle_root(const httplib::Request& req, httplib::Response& res);
     void handle_health(const httplib::Request& req, httplib::Response& res);
@@ -91,7 +102,6 @@ class IPGeoHTTPServer {
     std::unique_ptr<Metrics> metrics_;
     PasswordHandler password_handler_;
     std::jthread cleanup_thread_;
-    std::atomic<bool> cleanup_thread_running_;
 };
 
 }  // namespace ip_server

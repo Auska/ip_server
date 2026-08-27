@@ -4,34 +4,29 @@
 #include <spdlog/pattern_formatter.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cstring>
 
 namespace ip_server {
 
-// Custom formatter to map level names to match original logger
-class CustomLevelFormatter : public spdlog::custom_flag_formatter {
+namespace {
+
+// Uppercase level name flag: spdlog has no built-in full-word uppercase level.
+class UpperLevelFormatter : public spdlog::custom_flag_formatter {
    public:
-    void format(const spdlog::details::log_msg& msg, const std::tm& /*tm_time*/,
+    void format(const spdlog::details::log_msg& msg, const std::tm&,
                 spdlog::memory_buf_t& dest) override {
-        static constexpr const char* level_names[] = {
-            "TRACE",     // trace
-            "DEBUG",     // debug
-            "INFO ",     // info
-            "WARN ",     // warn
-            "ERROR",     // err
-            "CRITICAL",  // critical
-            "OFF",       // off
-            "UNKNOWN"    // n_levels
-        };
-        size_t idx             = msg.level < 8 ? static_cast<size_t>(msg.level) : 7;
-        const char* level_name = level_names[idx];
-        dest.append(level_name, level_name + std::char_traits<char>::length(level_name));
+        auto level = spdlog::level::to_string_view(msg.level);
+        std::transform(level.begin(), level.end(), std::back_inserter(dest),
+                       [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
     }
 
     [[nodiscard]] std::unique_ptr<custom_flag_formatter> clone() const override {
-        return spdlog::details::make_unique<CustomLevelFormatter>();
+        return spdlog::details::make_unique<UpperLevelFormatter>();
     }
 };
+
+}  // namespace
 
 Logger& Logger::instance() {
     static Logger instance;
@@ -54,7 +49,7 @@ void Logger::setup_sinks() {
 
     auto makeFormatter = [] {
         auto fmt = std::make_unique<spdlog::pattern_formatter>();
-        fmt->add_flag<CustomLevelFormatter>('*').set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%*] %v");
+        fmt->add_flag<UpperLevelFormatter>('*').set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%*] %v");
         return fmt;
     };
 
@@ -72,17 +67,12 @@ void Logger::setup_sinks() {
 
         std::shared_ptr<spdlog::sinks::sink> file_sink;
 
-        if (config_.rotation_type_ == RotationType::SIZE
-            || config_.rotation_type_ == RotationType::BOTH) {
+        if (config_.rotation_type_ == RotationType::SIZE) {
             file_sink =
                 std::make_shared<spdlog::sinks::rotating_file_sink_mt>(config_.log_file_path_
                                                                            .string(),
                                                                        config_.max_file_size_,
                                                                        config_.max_backup_files_);
-        } else if (config_.rotation_type_ == RotationType::TIME) {
-            file_sink =
-                std::make_shared<spdlog::sinks::daily_file_sink_mt>(config_.log_file_path_.string(),
-                                                                    0, 0);
         } else {
             file_sink = std::make_shared<
                 spdlog::sinks::rotating_file_sink_mt>(config_.log_file_path_.string(),

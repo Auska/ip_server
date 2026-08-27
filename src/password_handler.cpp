@@ -1,9 +1,9 @@
 #include "password_handler.h"
 
 #include <chrono>
-#include <optional>
 #include <stdexcept>
 
+#include "http_server.h"
 #include "logger.h"
 #include "password_generator.h"
 #include "types.h"
@@ -133,21 +133,6 @@ void PasswordHandler::handle_post(const httplib::Request& req, httplib::Response
         metrics_->record_error();
         LOG_ERROR("Error generating batch passwords: " + std::string(e.what()));
     }
-}
-
-void PasswordHandler::send_error_response(httplib::Response& res, int status,
-                                          const std::string& error, const std::string& message) {
-    nlohmann::json error_json;
-    error_json["error"]   = error;
-    error_json["message"] = message;
-    res.status            = status;
-    res.set_content(error_json.dump(), "application/json");
-}
-
-void PasswordHandler::send_json_response(httplib::Response& res, const nlohmann::json& data,
-                                         int status) {
-    res.status = status;
-    res.set_content(data.dump(), "application/json");
 }
 
 }  // namespace ip_server

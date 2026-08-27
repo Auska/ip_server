@@ -10,15 +10,6 @@
 
 namespace ip_server {
 
-XDGPaths& XDGPaths::instance() {
-    static XDGPaths instance;
-    return instance;
-}
-
-XDGPaths::XDGPaths() {
-    LOG_INFO("XDG paths initialized");
-}
-
 std::string XDGPaths::get_env(const char* name, const std::string& default_value) {
     const char* value = std::getenv(name);
     return (value != nullptr) ? value : default_value;

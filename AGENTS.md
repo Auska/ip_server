@@ -14,7 +14,7 @@
 - **语言**: C++23
 - **构建系统**: xmake
 - **功能**: IP 地理位置、AS 信息、MAC 地址 OUI 查询、密码生成
-- **测试**: 274 个单元测试，覆盖率 > 90%
+- **测试**: 263 个单元测试，覆盖率 > 90%
 - **性能**: Release 模式缓存命中 ~1.56μs（647k QPS）
 
 ## 项目结构
@@ -37,13 +37,13 @@ ip_local/
 │   ├── http_server.h/cpp      # HTTP 服务器
 │   ├── password_handler.h/cpp # 密码生成 HTTP 处理器（独立类）
 │   ├── password_generator.h/cpp  # 密码生成器（多熵源随机）
-│   ├── cache.h                # LRU 缓存（分片+读写锁+热力图）
+│   ├── cache.h                # LRU 缓存（分片+读写锁）
 │   ├── rate_limiter.h/cpp     # 速率限制（O(1) LRU）
 │   ├── auth.h/cpp             # API 认证（SHA-256 哈希 + 可信代理）
 │   ├── metrics.h/cpp          # 性能指标
 │   ├── logger.h/cpp           # 日志系统 + signal-safe 日志
 │   └── xdg.h/cpp              # XDG 目录标准
-├── tests/                      # 测试代码（9 个测试文件 + 2 个基准测试，274 个测试）
+├── tests/                      # 测试代码（9 个测试文件 + 2 个基准测试，263 个测试）
 │   ├── test_main.cpp          # gtest 入口
 │   ├── test_utils.h           # 测试共享工具（find_project_root）
 │   └── ...                    # test_auth/config/database/http_server/logger/
@@ -140,7 +140,7 @@ main()
         +-- IPGeoService(city_db + asn_db + IPCache)
         |     +-- CityDatabase : MaxMindDatabase
         |     +-- ASNDatabase  : MaxMindDatabase
-        |     +-- IPCache (8 分片, 100MB, 热力图)
+        |     +-- IPCache (8 分片, 100MB)
         |
         +-- MACLookupService(oui_db + IPCache)
         |     +-- OUIDatabase (SQLite3 + 预编译语句)
@@ -202,13 +202,13 @@ main()
 - **锁**: `std::shared_mutex`，惰性过期（get 时检查 TTL）
 - **差异化 TTL**: IP 1h, ASN 24h, MAC 7d, 负缓存 5min
 - **内存限制**: IP 服务默认 100MB, MAC 服务默认 50MB，内存感知驱逐
-- **热力图**: `IPCache` 追踪每个 key 访问计数（mutex 保护），支持 top-N 热点查询
-- **布隆过滤器**: 可选 BloomFilter 预过滤减少不必要的缓存查找
+
+
 
 ## 测试组织
 
 - **框架**: Google Test，10 个测试套件（APIAuthTest / ConfigTest / RateLimiterTest / HTTPServerTest / DatabaseTest / CacheEdgeTest / PasswordGeneratorTest / MACDatabaseTest / MACLookupServiceTest / LoggerTest）
-- **测试总数**: 274 个，全部通过（`CacheEdgeTest` 定义于 `test_database.cpp`）
+- **测试总数**: 263 个，全部通过（`CacheEdgeTest` 定义于 `test_database.cpp`）
 - **测试数据**: 测试链接了全部项目源码，可直接实例化内部类，无需 mock
 - **数据库文件**: MaxMind (.mmdb) 和 OUI (.db) 置于项目 `db/` 目录，测试自动路径解析
 - **共享工具**: `tests/test_utils.h` 提供 `find_project_root()` 等测试通用函数

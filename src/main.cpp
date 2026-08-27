@@ -101,18 +101,10 @@ int main(int argc, char* argv[]) {
             log_config.log_file_path_       = config.log_file_path_;
             log_config.enable_stdout_       = config.log_enable_stdout_;
 
-            if (config.log_rotation_type_ == "size")
-                log_config.rotation_type_ = RotationType::SIZE;
-            else if (config.log_rotation_type_ == "time")
-                log_config.rotation_type_ = RotationType::TIME;
-            else if (config.log_rotation_type_ == "both")
-                log_config.rotation_type_ = RotationType::BOTH;
-            else
-                log_config.rotation_type_ = RotationType::NONE;
+            log_config.rotation_type_ =
+                config.log_rotation_type_ == "size" ? RotationType::SIZE : RotationType::NONE;
 
             log_config.max_file_size_ = config.log_max_file_size_;
-            log_config.rotation_interval_ =
-                std::chrono::minutes(config.log_rotation_interval_minutes_);
             log_config.max_backup_files_ = config.log_max_backup_files_;
 
             Logger::instance().set_config(log_config);

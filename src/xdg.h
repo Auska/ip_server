@@ -7,8 +7,6 @@ namespace ip_server {
 
 class XDGPaths {
    public:
-    static XDGPaths& instance();
-
     // Get XDG base directories
     static std::filesystem::path config_home() ;
     static std::filesystem::path data_home() ;
@@ -39,10 +37,8 @@ class XDGPaths {
     static void ensure_directories() ;
 
    private:
-    XDGPaths();
-
-    static std::string get_env(const char* name, const std::string& default_value) ;
-    static std::filesystem::path get_home() ;
+    static std::string get_env(const char* name, const std::string& default_value);
+    static std::filesystem::path get_home();
 
     static constexpr const char* APP_NAME = "ip-server";
 };

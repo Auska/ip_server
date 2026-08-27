@@ -24,12 +24,9 @@ LookupResult MACLookupService::lookup(const std::string& mac_address) const {
     ScopedTimer timer;
     bool cache_hit = false;
 
-    if (cache_enabled_) {
-        auto cached = cache_.get(mac_address);
-        if (cached.has_value()) {
-            LOG_DEBUG("Cache hit for MAC: " + mac_address);
-            return LookupResult(cached.value(), true, timer.elapsed());
-        }
+    if (auto cached = cache_.get(mac_address)) {
+        LOG_DEBUG("Cache hit for MAC: " + mac_address);
+        return LookupResult(cached.value(), true, timer.elapsed());
     }
 
     nlohmann::json result;
@@ -37,14 +34,12 @@ LookupResult MACLookupService::lookup(const std::string& mac_address) const {
     try {
         result = oui_db_.lookup(mac_address);
 
-        if (cache_enabled_) {
-            if (result.value("found", false)) {
-                cache_.put(mac_address, result, CacheDataType::MAC_OUI);
-            } else {
-                cache_.put(mac_address, result, CacheDataType::NEGATIVE);
-            }
-            LOG_DEBUG("Cached result for MAC: " + mac_address);
+        if (result.value("found", false)) {
+            cache_.put(mac_address, result, CacheDataType::MAC_OUI);
+        } else {
+            cache_.put(mac_address, result, CacheDataType::NEGATIVE);
         }
+        LOG_DEBUG("Cached result for MAC: " + mac_address);
 
     } catch (const std::exception& e) {
         LOG_ERROR("Error during MAC lookup: " + std::string(e.what()));

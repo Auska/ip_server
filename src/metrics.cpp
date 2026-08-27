@@ -89,28 +89,11 @@ Metrics::Stats Metrics::get_stats() const {
 
     stats.current_qps_ = calculate_qps();
 
-    stats.memory_usage_mb_ = 0;
-
     auto now = std::chrono::steady_clock::now();
     stats.uptime_seconds_ =
         std::chrono::duration_cast<std::chrono::seconds>(now - start_time_).count();
 
     return stats;
-}
-
-void Metrics::reset() {
-    std::scoped_lock const lock(mutex_);
-
-    total_requests_  = 0;
-    cache_hits_      = 0;
-    cache_misses_    = 0;
-    cache_evictions_ = 0;
-    total_errors_    = 0;
-    latencies_.clear();
-    request_timestamps_.clear();
-    start_time_ = std::chrono::steady_clock::now();
-
-    LOG_INFO("Metrics reset");
 }
 
 void Metrics::set_city_db_status(bool open) {

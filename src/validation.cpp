@@ -1,28 +1,13 @@
 #include "validation.h"
 
+#include <arpa/inet.h>
 #include <netdb.h>
-#include <sys/socket.h>
-
-#include <cstring>
 
 namespace ip_server {
 
 bool isValidIpv4(const std::string& ip) {
-    int octets = 0, val = 0, digits = 0;
-    for (char c : ip) {
-        if (c == '.') {
-            if (++octets > 3 || digits == 0) return false;
-            val    = 0;
-            digits = 0;
-        } else if (c >= '0' && c <= '9') {
-            val = val * 10 + (c - '0');
-            if (val > 255) return false;
-            digits++;
-        } else {
-            return false;
-        }
-    }
-    return octets == 3 && digits > 0;
+    struct in_addr addr {};
+    return inet_pton(AF_INET, ip.c_str(), &addr) == 1;
 }
 
 bool isValidIpv6(const std::string& ip) {
@@ -30,8 +15,7 @@ bool isValidIpv6(const std::string& ip) {
         return false;
     }
 
-    struct addrinfo hints{};
-    std::memset(&hints, 0, sizeof(hints));
+    struct addrinfo hints {};
     hints.ai_family = AF_INET6;
     hints.ai_flags  = AI_NUMERICHOST;
 

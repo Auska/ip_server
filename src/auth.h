@@ -51,7 +51,6 @@ class APIAuth {
 
     bool enabled_;
     std::unordered_set<std::string> api_key_hashes_;
-    std::unordered_map<std::string, std::string> key_id_map_;
     std::vector<std::string> trusted_proxies_;
     mutable std::mutex mutex_;
 };

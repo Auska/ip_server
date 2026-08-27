@@ -56,7 +56,6 @@ void APIAuth::add_key(const std::string& key) {
     std::string const key_id   = generate_key_id(key_hash);
 
     if (api_key_hashes_.insert(key_hash).second) {
-        key_id_map_[key_hash] = key_id;
         LOG_INFO("Added API key: " + key_id);
     } else {
         LOG_WARNING("API key already exists: " + key_id);
@@ -69,7 +68,6 @@ void APIAuth::remove_key(const std::string& key) {
     std::string const key_id   = generate_key_id(key_hash);
 
     if (api_key_hashes_.erase(key_hash) > 0) {
-        key_id_map_.erase(key_hash);
         LOG_INFO("Removed API key: " + key_id);
     }
 }
@@ -97,7 +95,6 @@ bool APIAuth::load_keys_from_file(const std::string& filepath) {
 
     std::scoped_lock const lock(mutex_);
     api_key_hashes_.clear();
-    key_id_map_.clear();
 
     std::string line;
     size_t count = 0;
@@ -115,7 +112,6 @@ bool APIAuth::load_keys_from_file(const std::string& filepath) {
             std::string const key_id   = generate_key_id(key_hash);
 
             if (api_key_hashes_.insert(key_hash).second) {
-                key_id_map_[key_hash] = key_id;
                 count++;
             }
         }
