@@ -417,10 +417,9 @@ bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
     log_startup_banner();
 
     if (enable_rate_limiter_ && rate_limiter_) {
-        cleanup_thread_ =
-            std::jthread([this, &shutdown_requested](std::stop_token stop_token) {
-                cleanup_thread_func(shutdown_requested, stop_token);
-            });
+        cleanup_thread_ = std::jthread([this](std::stop_token stop_token) {
+            cleanup_thread_func(stop_token);
+        });
     }
 
     bool const result = start_server_and_wait(shutdown_requested);
@@ -491,18 +490,19 @@ void IPGeoHTTPServer::stop() {
     server_.stop();
 }
 
-void IPGeoHTTPServer::cleanup_thread_func(std::atomic<bool>& shutdown_requested,
-                                              std::stop_token stop_token) {
+void IPGeoHTTPServer::cleanup_thread_func(std::stop_token stop_token) {
     LOG_INFO("Rate limiter cleanup thread running");
 
-    std::condition_variable_any cleanup_cv;
-    std::mutex cleanup_mutex;
-    while (!shutdown_requested.load() && !stop_token.stop_requested()) {
-        std::unique_lock lock(cleanup_mutex);
-        (void)cleanup_cv.wait_for(  // ponytail: 300s sleep, woken early on stop/shutdown
-            lock, stop_token, std::chrono::seconds(constants::CLEANUP_INTERVAL_SECONDS),
-            [&] { return shutdown_requested.load() || stop_token.stop_requested(); });
-        if (rate_limiter_ && !shutdown_requested.load() && !stop_token.stop_requested()) {
+    std::mutex mutex;
+    std::condition_variable_any cv;
+    while (!stop_token.stop_requested()) {
+        std::unique_lock lock(mutex);
+        // ponytail: 300s sleep, woken early by stop_token; request_stop() in
+        // start() covers every shutdown path, no extra flag needed here.
+        (void)cv.wait_for(lock, stop_token,
+                          std::chrono::seconds(constants::CLEANUP_INTERVAL_SECONDS),
+                          [] { return false; });
+        if (!stop_token.stop_requested()) {
             rate_limiter_->cleanup();
         }
     }

@@ -60,7 +60,7 @@ class IPGeoHTTPServer {
 
     std::string get_real_client_ip(const httplib::Request& req) const;
 
-    void cleanup_thread_func(std::atomic<bool>& shutdown_requested, std::stop_token stop_token);
+    void cleanup_thread_func(std::stop_token stop_token);
     void log_startup_banner() const;
     bool start_server_and_wait(std::atomic<bool>& shutdown_requested);
 

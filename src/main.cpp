@@ -54,11 +54,10 @@ bool run_application(const ServerConfig& config) {
 
     // Use the global shutdown flag so the signal handler (C function pointer)
     // can communicate with the server's wait loop.
+    // start() blocks until shutdown and stops the server itself.
     bool const result = http_server.start(g_shutdown_requested);
 
-    if (g_shutdown_requested.load()) {
-        LOG_INFO("Performing graceful shutdown...");
-        http_server.stop();
+    if (result) {
         LOG_INFO("Application shutdown complete");
     }
 

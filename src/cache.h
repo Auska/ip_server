@@ -146,20 +146,13 @@ class CacheShard {
         return key.size() * 2 + result.dump().size();
     }
 
-    void evict_entry(const std::string& key, CacheStats& stats) {
-        auto it = cache_map_.find(key);
-        if (it != cache_map_.end()) {
-            memory_usage_bytes_ -= it->second.size_bytes_;
-            cache_list_.erase(it->second.list_it_);
-            cache_map_.erase(it);
-            stats.evictions_++;
-        }
-    }
-
     void evict_if_needed(size_t new_entry_size, CacheStats& stats) {
         while (!cache_list_.empty() && (memory_usage_bytes_ + new_entry_size > max_memory_bytes_)) {
-            auto oldest = cache_list_.back();
-            evict_entry(oldest, stats);
+            auto node = cache_map_.find(cache_list_.back());
+            memory_usage_bytes_ -= node->second.size_bytes_;
+            cache_list_.erase(node->second.list_it_);
+            cache_map_.erase(node);
+            stats.evictions_++;
         }
     }
 
