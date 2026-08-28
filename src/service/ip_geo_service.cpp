@@ -40,8 +40,8 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
 
         result["found"] = true;
 
-        if (city_found) merge_city_result(result, city_result);
-        if (asn_found) merge_asn_result(result, asn_result);
+        if (city_found) result.update(city_result);
+        if (asn_found) result.update(asn_result);
 
         cache_.put(ip_address, result, CacheDataType::IP_GEOLOCATION);
         LOG_DEBUG("Cached result for IP: " + ip_address);
@@ -52,22 +52,6 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
     }
 
     return LookupResult(result, false);
-}
-
-void IPGeoService::merge_city_result(nlohmann::json& result, const nlohmann::json& city_result) {
-    if (city_result.contains("country")) result["country"] = city_result["country"];
-    if (city_result.contains("country_code")) result["country_code"] = city_result["country_code"];
-    if (city_result.contains("city")) result["city"] = city_result["city"];
-    if (city_result.contains("continent")) result["continent"] = city_result["continent"];
-    if (city_result.contains("latitude")) result["latitude"] = city_result["latitude"];
-    if (city_result.contains("longitude")) result["longitude"] = city_result["longitude"];
-    if (city_result.contains("timezone")) result["timezone"] = city_result["timezone"];
-}
-
-void IPGeoService::merge_asn_result(nlohmann::json& result, const nlohmann::json& asn_result) {
-    if (asn_result.contains("as_organization"))
-        result["as_organization"] = asn_result["as_organization"];
-    if (asn_result.contains("as_number")) result["as_number"] = asn_result["as_number"];
 }
 
 }  // namespace ip_server

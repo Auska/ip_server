@@ -17,6 +17,7 @@
 > - 行为修正：MAC 查询错误结果不再作为 NEGATIVE 缓存 5 分钟；`/` 端点列表补全 `/password/generate`
 > - 实测 **250/250 测试通过**，`xmake check` 0 警告 0 错误（此前文档口径 274 偏高，已更正）
 > - §4.1/§4.3 描述的代码（`is_trusted_proxy`、`BloomFilter`）在仓库中不存在，已移除相关章节
+> - ponytail-audit 全量修复：validate() 收敛为 check_range、IP 合并用 json::update()、缓存 TTL 改静态 switch、LogConfig 聚合初始化、删除 TEST_SUMMARY.md / IPCache::get_total_memory_usage() / 重复的 DEFAULT_RATE_LIMITER_MAX_IPS、基准测试剥离 gtest 依赖
 
 ---
 

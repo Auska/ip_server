@@ -75,16 +75,12 @@ int main(int argc, char* argv[]) {
 
         auto config = ConfigParser::parse(argc, argv);
 
-        {
-            LogConfig log_config;
-            log_config.enable_file_logging_ = config.enable_file_logging_;
-            log_config.log_file_path_       = config.log_file_path_;
-            log_config.enable_stdout_       = config.log_enable_stdout_;
-            log_config.rotation_type_       = config.log_rotation_type_;
-            log_config.max_file_size_       = config.log_max_file_size_;
-            log_config.max_backup_files_    = config.log_max_backup_files_;
-            init_logging(log_config);
-        }
+        init_logging({.enable_file_logging_ = config.enable_file_logging_,
+                      .log_file_path_ = config.log_file_path_,
+                      .rotation_type_ = config.log_rotation_type_,
+                      .max_file_size_ = config.log_max_file_size_,
+                      .max_backup_files_ = config.log_max_backup_files_,
+                      .enable_stdout_ = config.log_enable_stdout_});
 
         set_log_level(config.log_level_);
 

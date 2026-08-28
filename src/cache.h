@@ -67,7 +67,7 @@ class CacheShard {
         }
 
         auto now = std::chrono::system_clock::now();
-        auto ttl = get_ttl_for_type(it->second.data_type_);
+        auto ttl = ttl_for_type(it->second.data_type_);
         if (now - it->second.timestamp_ > ttl) {
             size_t entry_size = it->second.size_bytes_;
             cache_list_.erase(it->second.list_it_);
@@ -120,9 +120,17 @@ class CacheShard {
         return stats_;
     }
 
-    void set_ttl(CacheDataType type, std::chrono::seconds ttl) {
-        std::unique_lock<std::shared_mutex> lock(mutex_);
-        ttl_config_[type] = ttl;
+    /// Fixed TTL per entry type. Change here, not at runtime.
+    static std::chrono::seconds ttl_for_type(CacheDataType type) {
+        switch (type) {
+        case CacheDataType::IP_GEOLOCATION:
+            return std::chrono::seconds(3600);
+        case CacheDataType::MAC_OUI:
+            return std::chrono::seconds(7 * 24 * 3600);
+        case CacheDataType::NEGATIVE:
+            return std::chrono::seconds(300);
+        }
+        return std::chrono::seconds(3600);
     }
 
    private:
@@ -136,14 +144,6 @@ class CacheShard {
 
     size_t estimate_entry_size(const std::string& key, const nlohmann::json& result) const {
         return key.size() * 2 + result.dump().size();
-    }
-
-    std::chrono::seconds get_ttl_for_type(CacheDataType type) const {
-        auto it = ttl_config_.find(type);
-        if (it != ttl_config_.end()) {
-            return it->second;
-        }
-        return std::chrono::seconds(3600);
     }
 
     void evict_entry(const std::string& key, CacheStats& stats) {
@@ -165,7 +165,6 @@ class CacheShard {
 
     std::unordered_map<std::string, CacheEntry> cache_map_;
     std::list<std::string> cache_list_;
-    std::unordered_map<CacheDataType, std::chrono::seconds> ttl_config_;
     mutable std::shared_mutex mutex_;
     size_t max_memory_bytes_;
     size_t memory_usage_bytes_{0};
@@ -184,8 +183,6 @@ class IPCache {
         for (size_t i = 0; i < shard_count_; ++i) {
             shards_.push_back(std::make_unique<CacheShard>(shard_memory));
         }
-
-        configure_default_ttls();
     }
 
     std::optional<nlohmann::json> get(const std::string& key) {
@@ -203,28 +200,12 @@ class IPCache {
         CacheStats combined;
         for (const auto& shard : shards_) {
             combined += shard->get_local_stats();
+            combined.memory_usage_bytes_ += shard->memory_usage();
         }
-        combined.memory_usage_bytes_ = get_total_memory_usage();
         return combined;
     }
 
-    size_t get_total_memory_usage() const {
-        size_t total = 0;
-        for (const auto& shard : shards_) {
-            total += shard->memory_usage();
-        }
-        return total;
-    }
-
    private:
-    void configure_default_ttls() {
-        for (auto& shard : shards_) {
-            shard->set_ttl(CacheDataType::IP_GEOLOCATION, std::chrono::seconds(3600));
-            shard->set_ttl(CacheDataType::MAC_OUI, std::chrono::seconds(86400 * 7));
-            shard->set_ttl(CacheDataType::NEGATIVE, std::chrono::seconds(300));
-        }
-    }
-
     size_t get_shard_index(const std::string& key) const {
         return std::hash<std::string>{}(key) % shard_count_;
     }

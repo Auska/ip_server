@@ -25,7 +25,6 @@ class Metrics;
 
 namespace constants {
 constexpr int CLEANUP_INTERVAL_SECONDS = 300;
-constexpr size_t DEFAULT_RATE_LIMITER_MAX_IPS = 10000;
 }  // namespace constants
 
 class IPGeoHTTPServer {

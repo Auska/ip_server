@@ -30,9 +30,8 @@ IPGeoHTTPServer::IPGeoHTTPServer(const ServerConfig& config)
       password_handler_(metrics_.get(), max_batch_size_) {
 
     if (enable_rate_limiter_) {
-        rate_limiter_ =
-            std::make_unique<RateLimiter>(config.max_requests_per_minute_, std::chrono::seconds(60),
-                                          constants::DEFAULT_RATE_LIMITER_MAX_IPS);
+        rate_limiter_ = std::make_unique<RateLimiter>(config.max_requests_per_minute_,
+                                                      std::chrono::seconds(60));
         LOG_INFO("Rate limiter enabled: " + std::to_string(config.max_requests_per_minute_)
                  + " requests per minute");
     }

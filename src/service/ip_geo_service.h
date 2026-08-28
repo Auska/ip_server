@@ -22,9 +22,6 @@ class IPGeoService {
     CacheStats cache_stats() const { return cache_.get_stats(); }
 
    private:
-    static void merge_city_result(nlohmann::json& result, const nlohmann::json& city_result);
-    static void merge_asn_result(nlohmann::json& result, const nlohmann::json& asn_result);
-
     CityDatabase city_db_;
     ASNDatabase asn_db_;
     mutable IPCache cache_;

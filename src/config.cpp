@@ -139,46 +139,26 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
 void ConfigParser::validate(const ServerConfig& config) {
     using namespace config_limits;
 
-    // Validate port range
-    if (config.port_ < MIN_PORT) {
-        LOG_ERROR("Port must be between " + std::to_string(MIN_PORT) + " and "
-                  + std::to_string(MAX_PORT) + ", got: " + std::to_string(config.port_));
-        throw std::runtime_error("Invalid port number: must be between " + std::to_string(MIN_PORT)
-                                 + " and " + std::to_string(MAX_PORT));
-    }
-
-    // Validate thread pool size
-    if (config.thread_pool_size_ < MIN_THREAD_POOL || config.thread_pool_size_ > MAX_THREAD_POOL) {
-        LOG_ERROR("Thread pool size must be between " + std::to_string(MIN_THREAD_POOL) + " and "
-                  + std::to_string(MAX_THREAD_POOL)
-                  + ", got: " + std::to_string(config.thread_pool_size_));
-        throw std::runtime_error("Invalid thread pool size: must be between "
-                                 + std::to_string(MIN_THREAD_POOL) + " and "
-                                 + std::to_string(MAX_THREAD_POOL));
-    }
-
-    // Validate rate limiter settings
-    if (config.enable_rate_limiter_) {
-        if (config.max_requests_per_minute_ < MIN_RATE_LIMIT
-            || config.max_requests_per_minute_ > MAX_RATE_LIMIT) {
-            LOG_ERROR("Max requests per minute must be between " + std::to_string(MIN_RATE_LIMIT)
-                      + " and " + std::to_string(MAX_RATE_LIMIT)
-                      + ", got: " + std::to_string(config.max_requests_per_minute_));
-            throw std::runtime_error("Invalid max requests per minute: must be between "
-                                     + std::to_string(MIN_RATE_LIMIT) + " and "
-                                     + std::to_string(MAX_RATE_LIMIT));
+    auto check_range = [](const char* name, auto value, long long min, long long max) {
+        long long const v = static_cast<long long>(value);
+        if (v < min || v > max) {
+            std::string const range = std::to_string(min) + " and " + std::to_string(max);
+            LOG_ERROR(std::string(name) + " must be between " + range + ", got: "
+                      + std::to_string(v));
+            throw std::runtime_error("Invalid " + std::string(name) + ": must be between "
+                                     + range);
         }
+    };
+
+    check_range("Port", config.port_, MIN_PORT, MAX_PORT);
+    check_range("Thread pool size", config.thread_pool_size_, MIN_THREAD_POOL, MAX_THREAD_POOL);
+
+    if (config.enable_rate_limiter_) {
+        check_range("Max requests per minute", config.max_requests_per_minute_, MIN_RATE_LIMIT,
+                    MAX_RATE_LIMIT);
     }
 
-    // Validate batch size limit
-    if (config.max_batch_size_ < MIN_BATCH_SIZE || config.max_batch_size_ > MAX_BATCH_SIZE) {
-        LOG_ERROR("Max batch size must be between " + std::to_string(MIN_BATCH_SIZE) + " and "
-                  + std::to_string(MAX_BATCH_SIZE)
-                  + ", got: " + std::to_string(config.max_batch_size_));
-        throw std::runtime_error("Invalid max batch size: must be between "
-                                 + std::to_string(MIN_BATCH_SIZE) + " and "
-                                 + std::to_string(MAX_BATCH_SIZE));
-    }
+    check_range("Max batch size", config.max_batch_size_, MIN_BATCH_SIZE, MAX_BATCH_SIZE);
 
     // Validate database paths
     for (const auto& [name, path] :
@@ -197,22 +177,10 @@ void ConfigParser::validate(const ServerConfig& config) {
             throw std::runtime_error("Invalid log rotation type: must be none or size");
         }
 
-        if (config.log_max_file_size_ < MIN_LOG_FILE_SIZE
-            || config.log_max_file_size_ > MAX_LOG_FILE_SIZE) {
-            LOG_ERROR("Log max file size must be between "
-                      + std::to_string(MIN_LOG_FILE_SIZE / (1024 * 1024)) + " MB and "
-                      + std::to_string(MAX_LOG_FILE_SIZE / (1024 * 1024)) + " GB, got: "
-                      + std::to_string(config.log_max_file_size_ / (1024 * 1024)) + " MB");
-            throw std::runtime_error("Invalid log max file size");
-        }
-
-        if (config.log_max_backup_files_ < MIN_BACKUP_FILES
-            || config.log_max_backup_files_ > MAX_BACKUP_FILES) {
-            LOG_ERROR("Log max backup files must be between " + std::to_string(MIN_BACKUP_FILES)
-                      + " and " + std::to_string(MAX_BACKUP_FILES)
-                      + ", got: " + std::to_string(config.log_max_backup_files_));
-            throw std::runtime_error("Invalid log max backup files");
-        }
+        check_range("Log max file size (MB)", config.log_max_file_size_ / (1024 * 1024),
+                    MIN_LOG_FILE_SIZE / (1024 * 1024), MAX_LOG_FILE_SIZE / (1024 * 1024));
+        check_range("Log max backup files", config.log_max_backup_files_, MIN_BACKUP_FILES,
+                    MAX_BACKUP_FILES);
     }
 
     LOG_INFO("Configuration validation passed");
