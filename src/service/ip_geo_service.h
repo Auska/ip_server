@@ -12,8 +12,7 @@ namespace ip_server {
 class IPGeoService {
    public:
     explicit IPGeoService(const std::string& city_db_path, const std::string& asn_db_path,
-                          size_t cache_size = 10000, size_t shard_count = 8,
-                          size_t max_memory_bytes = 100 * 1024 * 1024);
+                          size_t cache_size = 10000);
     ~IPGeoService() = default;
 
     IPGeoService(const IPGeoService&) = delete;

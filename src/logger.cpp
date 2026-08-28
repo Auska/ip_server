@@ -1,145 +1,51 @@
 #include "logger.h"
 
-#include <spdlog/formatter.h>
-#include <spdlog/pattern_formatter.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <unistd.h>
 
-#include <algorithm>
 #include <cstring>
+#include <filesystem>
+#include <vector>
 
 namespace ip_server {
 
-namespace {
-
-// Uppercase level name flag: spdlog has no built-in full-word uppercase level.
-class UpperLevelFormatter : public spdlog::custom_flag_formatter {
-   public:
-    void format(const spdlog::details::log_msg& msg, const std::tm&,
-                spdlog::memory_buf_t& dest) override {
-        auto level = spdlog::level::to_string_view(msg.level);
-        std::transform(level.begin(), level.end(), std::back_inserter(dest),
-                       [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
-    }
-
-    [[nodiscard]] std::unique_ptr<custom_flag_formatter> clone() const override {
-        return spdlog::details::make_unique<UpperLevelFormatter>();
-    }
-};
-
-}  // namespace
-
-Logger& Logger::instance() {
-    static Logger instance;
-    return instance;
-}
-
-Logger::Logger() {
-    setup_sinks();
-}
-
-Logger::~Logger() {
-    if (logger_) {
-        logger_->flush();
-    }
-    spdlog::shutdown();
-}
-
-void Logger::setup_sinks() {
+void init_logging(const LogConfig& config) {
     std::vector<spdlog::sink_ptr> sinks;
 
-    auto makeFormatter = [] {
-        auto fmt = std::make_unique<spdlog::pattern_formatter>();
-        fmt->add_flag<UpperLevelFormatter>('*').set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%*] %v");
-        return fmt;
-    };
-
-    if (config_.enable_stdout_) {
-        auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-        stdout_sink->set_formatter(makeFormatter());
-        sinks.push_back(stdout_sink);
+    if (config.enable_stdout_) {
+        sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
     }
 
-    if (config_.enable_file_logging_) {
-        std::filesystem::path const log_dir = config_.log_file_path_.parent_path();
+    if (config.enable_file_logging_) {
+        std::filesystem::path const log_dir =
+            std::filesystem::path(config.log_file_path_).parent_path();
         if (!log_dir.empty() && !std::filesystem::exists(log_dir)) {
             std::filesystem::create_directories(log_dir);
         }
 
-        std::shared_ptr<spdlog::sinks::sink> file_sink;
-
-        if (config_.rotation_type_ == RotationType::SIZE) {
-            file_sink =
-                std::make_shared<spdlog::sinks::rotating_file_sink_mt>(config_.log_file_path_
-                                                                           .string(),
-                                                                       config_.max_file_size_,
-                                                                       config_.max_backup_files_);
+        if (config.rotation_type_ == "size") {
+            sinks.push_back(std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
+                config.log_file_path_, config.max_file_size_, config.max_backup_files_));
         } else {
-            file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(
-                config_.log_file_path_.string());
+            sinks.push_back(
+                std::make_shared<spdlog::sinks::basic_file_sink_mt>(config.log_file_path_));
         }
-
-        file_sink->set_formatter(makeFormatter());
-        sinks.push_back(file_sink);
     }
 
-    // Create logger with combined sinks
-    logger_ = std::make_shared<spdlog::logger>("ip_server", sinks.begin(), sinks.end());
-    logger_->set_level(static_cast<spdlog::level::level_enum>(level_));
-    logger_->flush_on(spdlog::level::err);
-
-    // Register as default logger
-    spdlog::set_default_logger(logger_);
+    auto logger = std::make_shared<spdlog::logger>("ip_server", sinks.begin(), sinks.end());
+    logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
+    logger->flush_on(spdlog::level::err);
+    spdlog::set_default_logger(logger);
 }
 
-void Logger::set_level(LogLevel level) {
-    level_ = level;
-    if (logger_) {
-        logger_->set_level(static_cast<spdlog::level::level_enum>(level));
-    }
+void set_log_level(const std::string& level) {
+    spdlog::set_level(spdlog::level::from_str(level));
 }
 
-void Logger::set_config(const LogConfig& config) {
-    config_ = config;
-    setup_sinks();  // Reconfigure sinks
-}
-
-void Logger::debug(const std::string& message) {
-    log(LogLevel::DEBUG, message);
-}
-
-void Logger::info(const std::string& message) {
-    log(LogLevel::INFO, message);
-}
-
-void Logger::warning(const std::string& message) {
-    log(LogLevel::WARNING, message);
-}
-
-void Logger::error(const std::string& message) {
-    log(LogLevel::ERROR, message);
-}
-
-void Logger::flush() {
-    if (logger_) {
-        logger_->flush();
-    }
-}
-
-void Logger::log(LogLevel level, const std::string& message) {
-    if (!logger_) {
-        return;
-    }
-
-    auto spdlog_level = static_cast<spdlog::level::level_enum>(level);
-    logger_->log(spdlog_level, message);
-}
-
-void Logger::signal_safe_log(const char* signal_name) const {
+void signal_safe_log(const char* signal_name) {
     // Only async-signal-safe operations: write(2) to stderr.
     static constexpr char prefix[] = "[SIGNAL] Received ";
     static constexpr char suffix[] = ", shutting down gracefully...\n";
-    // write is async-signal-safe per POSIX.
     ::write(STDERR_FILENO, prefix, sizeof(prefix) - 1);
     ::write(STDERR_FILENO, signal_name, std::strlen(signal_name));
     ::write(STDERR_FILENO, suffix, sizeof(suffix) - 1);

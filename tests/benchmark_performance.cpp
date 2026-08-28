@@ -489,7 +489,7 @@ BENCHMARK_REGISTER_F(MemoryBenchmark, Memory_RateLimiterWithEntries)
 class AuthBenchmark : public benchmark::Fixture {};
 
 BENCHMARK_F(AuthBenchmark, APIAuth_IsValid)(benchmark::State& state) {
-    APIAuth auth(true);
+    APIAuth auth;
 
     // Add keys
     for (int i = 0; i < 1000; ++i) {
@@ -507,7 +507,7 @@ BENCHMARK_F(AuthBenchmark, APIAuth_IsValid)(benchmark::State& state) {
 
 BENCHMARK_F(AuthBenchmark, APIAuth_LoadKeysFromFile)(benchmark::State& state) {
     for (auto _ : state) {
-        APIAuth auth(true);
+        APIAuth auth;
         auth.add_key("test_key_1");
         auth.add_key("test_key_2");
         benchmark::DoNotOptimize(auth);

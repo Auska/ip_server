@@ -10,8 +10,7 @@ namespace ip_server {
 
 class MACLookupService {
    public:
-    explicit MACLookupService(const std::string& oui_db_path, size_t cache_size = 10000,
-                              size_t shard_count = 8, size_t max_memory_bytes = 50 * 1024 * 1024);
+    explicit MACLookupService(const std::string& oui_db_path, size_t cache_size = 10000);
     ~MACLookupService() = default;
 
     MACLookupService(const MACLookupService&) = delete;

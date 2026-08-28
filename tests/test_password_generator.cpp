@@ -278,7 +278,6 @@ TEST_F(PasswordGeneratorTest, GenerateBatchInvalidCount) {
 
     EXPECT_THROW(generator_.generate_batch(config, 0), std::runtime_error);
     EXPECT_THROW(generator_.generate_batch(config, -1), std::runtime_error);
-    EXPECT_THROW(generator_.generate_batch(config, 1001), std::runtime_error);
 }
 
 TEST_F(PasswordGeneratorTest, GenerateInvalidLengthThrows) {

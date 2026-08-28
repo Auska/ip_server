@@ -19,40 +19,36 @@
 
 namespace ip_server {
 
-IPGeoHTTPServer::IPGeoHTTPServer(std::string host, uint16_t port, int thread_pool_size,
-                                 bool enable_rate_limiter, int max_requests_per_minute,
-                                 int max_batch_size, bool enable_api_auth,
-                                 const std::string& api_keys_file,
-                                 const std::string& default_api_key)
-    : host_(std::move(host)),
-      port_(port),
-      thread_pool_size_(thread_pool_size),
-      enable_rate_limiter_(enable_rate_limiter),
-      max_batch_size_(max_batch_size),
-      enable_api_auth_(enable_api_auth),
+IPGeoHTTPServer::IPGeoHTTPServer(const ServerConfig& config)
+    : host_(config.host_),
+      port_(config.port_),
+      thread_pool_size_(config.thread_pool_size_),
+      enable_rate_limiter_(config.enable_rate_limiter_),
+      max_batch_size_(config.max_batch_size_),
+      enable_api_auth_(config.enable_api_auth_),
       metrics_(std::make_unique<Metrics>()),
       password_handler_(metrics_.get(), max_batch_size_) {
 
     if (enable_rate_limiter_) {
         rate_limiter_ =
-            std::make_unique<RateLimiter>(max_requests_per_minute, std::chrono::seconds(60),
+            std::make_unique<RateLimiter>(config.max_requests_per_minute_, std::chrono::seconds(60),
                                           constants::DEFAULT_RATE_LIMITER_MAX_IPS);
-        LOG_INFO("Rate limiter enabled: " + std::to_string(max_requests_per_minute)
+        LOG_INFO("Rate limiter enabled: " + std::to_string(config.max_requests_per_minute_)
                  + " requests per minute");
     }
 
     if (enable_api_auth_) {
-        api_auth_ = std::make_unique<APIAuth>(true);
+        api_auth_ = std::make_unique<APIAuth>();
 
-        if (!api_keys_file.empty()) {
-            if (api_auth_->load_keys_from_file(api_keys_file)) {
+        if (!config.api_keys_file_.empty()) {
+            if (api_auth_->load_keys_from_file(config.api_keys_file_)) {
                 LOG_INFO("Loaded " + std::to_string(api_auth_->key_count())
                          + " API keys from file");
             }
         }
 
-        if (!default_api_key.empty()) {
-            api_auth_->add_key(default_api_key);
+        if (!config.default_api_key_.empty()) {
+            api_auth_->add_key(config.default_api_key_);
             LOG_INFO("Added default API key");
         }
 
@@ -504,18 +500,14 @@ void IPGeoHTTPServer::cleanup_thread_func(std::atomic<bool>& shutdown_requested,
                                               std::stop_token stop_token) {
     LOG_INFO("Rate limiter cleanup thread running");
 
+    std::condition_variable_any cleanup_cv;
+    std::mutex cleanup_mutex;
     while (!shutdown_requested.load() && !stop_token.stop_requested()) {
-        for (int i = 0; i < constants::CLEANUP_INTERVAL_SECONDS && !shutdown_requested.load()
-             && !stop_token.stop_requested();
-             ++i) {
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-        }
-
-        if (shutdown_requested.load() || stop_token.stop_requested()) {
-            break;
-        }
-
-        if (rate_limiter_) {
+        std::unique_lock lock(cleanup_mutex);
+        (void)cleanup_cv.wait_for(  // ponytail: 300s sleep, woken early on stop/shutdown
+            lock, stop_token, std::chrono::seconds(constants::CLEANUP_INTERVAL_SECONDS),
+            [&] { return shutdown_requested.load() || stop_token.stop_requested(); });
+        if (rate_limiter_ && !shutdown_requested.load() && !stop_token.stop_requested()) {
             rate_limiter_->cleanup();
         }
     }

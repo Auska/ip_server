@@ -8,14 +8,11 @@
 
 #include "logger.h"
 #include "paths.h"
+#include "validation.h"
 
 namespace ip_server {
 
 namespace {
-
-bool parseBoolString(const std::string& value) {
-    return value == "true" || value == "1";
-}
 
 void applyDefaultPaths(ServerConfig& config) {
     config.city_db_path_  = ip_server::paths::city_db_path().string();

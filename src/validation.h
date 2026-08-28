@@ -12,4 +12,9 @@ bool isValidIpFormat(const std::string& ip);
 /// "XX-XX-XX-XX-XX-XX" (17 chars), or "XXXXXXXXXXXX" (12 chars, hex only).
 bool isValidMacFormat(const std::string& mac);
 
+/// Shared "true"/"1" \u2192 true parser for CLI/config/HTTP bool parameters.
+inline bool parseBoolString(const std::string& value) {
+    return value == "true" || value == "1";
+}
+
 }  // namespace ip_server

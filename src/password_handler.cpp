@@ -6,6 +6,7 @@
 #include "logger.h"
 #include "password_generator.h"
 #include "types.h"
+#include "validation.h"
 
 namespace ip_server {
 
@@ -14,7 +15,7 @@ namespace {
 bool parseBoolParam(const httplib::Request& req, const char* key, bool default_val) {
     auto val = req.get_param_value(key);
     if (val.empty()) return default_val;
-    return val == "true" || val == "1";
+    return parseBoolString(val);
 }
 
 }  // namespace

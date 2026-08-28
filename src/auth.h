@@ -9,7 +9,7 @@ namespace ip_server {
 
 class APIAuth {
    public:
-    explicit APIAuth(bool enabled = false);
+    APIAuth() = default;
     ~APIAuth() = default;
 
     void add_key(const std::string& key);
@@ -21,10 +21,6 @@ class APIAuth {
     size_t key_count() const;
 
    private:
-    static std::string hash_key(const std::string& key);
-    static std::string generate_key_id(const std::string& key_hash);
-
-    bool enabled_;
     std::unordered_set<std::string> api_key_hashes_;
     mutable std::mutex mutex_;
 };

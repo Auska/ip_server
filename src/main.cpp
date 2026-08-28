@@ -16,14 +16,11 @@ namespace ip_server {
 namespace {
 
 std::atomic<bool> g_shutdown_requested{false};
-std::atomic<const Logger*> g_signal_logger{nullptr};
 
 extern "C" void handle_signal(int sig) {
     if (!g_shutdown_requested.exchange(true)) {
         const char* name = (sig == SIGINT) ? "SIGINT" : "SIGTERM";
-        if (auto* logger = g_signal_logger.load(std::memory_order_acquire)) {
-            logger->signal_safe_log(name);
-        }
+        signal_safe_log(name);
     }
 }
 
@@ -34,10 +31,7 @@ class Application {
     Application(const ServerConfig& config)
         : geo_service_(config.city_db_path_, config.asn_db_path_, config.cache_size_),
           mac_service_(config.oui_db_path_, config.cache_size_),
-          http_server_(config.host_, config.port_, config.thread_pool_size_,
-                       config.enable_rate_limiter_, config.max_requests_per_minute_,
-                       config.max_batch_size_, config.enable_api_auth_, config.api_keys_file_,
-                       config.default_api_key_) {
+          http_server_(config) {
         http_server_.set_lookup_handler(
             [this](const std::string& ip) { return geo_service_.lookup(ip); });
 
@@ -55,7 +49,6 @@ class Application {
         LOG_INFO("Application starting...");
 
         g_shutdown_requested.store(false);
-        g_signal_logger.store(&Logger::instance(), std::memory_order_release);
 
         struct sigaction sa{};
         std::memset(&sa, 0, sizeof(sa));
@@ -102,26 +95,13 @@ int main(int argc, char* argv[]) {
             log_config.enable_file_logging_ = config.enable_file_logging_;
             log_config.log_file_path_       = config.log_file_path_;
             log_config.enable_stdout_       = config.log_enable_stdout_;
-
-            log_config.rotation_type_ =
-                config.log_rotation_type_ == "size" ? RotationType::SIZE : RotationType::NONE;
-
-            log_config.max_file_size_ = config.log_max_file_size_;
-            log_config.max_backup_files_ = config.log_max_backup_files_;
-
-            Logger::instance().set_config(log_config);
+            log_config.rotation_type_       = config.log_rotation_type_;
+            log_config.max_file_size_       = config.log_max_file_size_;
+            log_config.max_backup_files_    = config.log_max_backup_files_;
+            init_logging(log_config);
         }
 
-        {
-            std::string level = config.log_level_;
-            if (level == "warning") {
-                level = "warn";
-            }
-            auto const spd_level = spdlog::level::from_str(level);
-            if (spd_level >= spdlog::level::debug && spd_level <= spdlog::level::err) {
-                Logger::instance().set_level(static_cast<LogLevel>(spd_level));
-            }
-        }
+        set_log_level(config.log_level_);
 
         paths::ensure_directories();
 

@@ -85,10 +85,6 @@ std::vector<PasswordResult> PasswordGenerator::generate_batch(const PasswordConf
         throw std::runtime_error("Count must be positive");
     }
 
-    if (count > MAX_BATCH) {
-        throw std::runtime_error("Batch count cannot exceed MAX_BATCH");
-    }
-
     std::vector<PasswordResult> results;
     results.reserve(count);
 

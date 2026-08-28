@@ -13,6 +13,7 @@
 #include <thread>
 
 #include "cache.h"
+#include "config.h"
 #include "password_handler.h"
 #include "types.h"
 
@@ -23,9 +24,6 @@ class APIAuth;
 class Metrics;
 
 namespace constants {
-constexpr int DEFAULT_THREAD_POOL_SIZE = 4;
-constexpr int DEFAULT_MAX_REQUESTS_PER_MINUTE = 100;
-constexpr int DEFAULT_MAX_BATCH_SIZE = 100;
 constexpr int CLEANUP_INTERVAL_SECONDS = 300;
 constexpr size_t DEFAULT_RATE_LIMITER_MAX_IPS = 10000;
 }  // namespace constants
@@ -34,14 +32,7 @@ class IPGeoHTTPServer {
    public:
     using LookupHandler = std::function<LookupResult(const std::string&)>;
 
-    explicit IPGeoHTTPServer(std::string  host, uint16_t port,
-                             int thread_pool_size = constants::DEFAULT_THREAD_POOL_SIZE,
-                             bool enable_rate_limiter = true,
-                             int max_requests_per_minute = constants::DEFAULT_MAX_REQUESTS_PER_MINUTE,
-                             int max_batch_size = constants::DEFAULT_MAX_BATCH_SIZE,
-                             bool enable_api_auth = false,
-                             const std::string& api_keys_file = "",
-                             const std::string& default_api_key = "");
+    explicit IPGeoHTTPServer(const ServerConfig& config);
     ~IPGeoHTTPServer();
 
     IPGeoHTTPServer(const IPGeoHTTPServer&) = delete;

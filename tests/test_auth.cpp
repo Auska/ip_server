@@ -9,7 +9,7 @@ using namespace ip_server;
 
 class APIAuthTest : public ::testing::Test {
    protected:
-    void SetUp() override { auth = std::make_unique<APIAuth>(true); }
+    void SetUp() override { auth = std::make_unique<APIAuth>(); }
 
     void TearDown() override {
         // Clean up test files
@@ -84,14 +84,6 @@ TEST_F(APIAuthTest, LoadKeysFromFile) {
 TEST_F(APIAuthTest, LoadKeysFromNonExistentFile) {
     bool result = auth->load_keys_from_file("nonexistent_file.txt");
     EXPECT_FALSE(result);
-}
-
-TEST_F(APIAuthTest, AuthDisabled) {
-    auto disabled_auth = std::make_unique<APIAuth>(false);
-
-    // When auth is disabled, all keys should be valid
-    EXPECT_TRUE(disabled_auth->is_valid("any_key"));
-    EXPECT_TRUE(disabled_auth->is_valid(""));
 }
 
 TEST_F(APIAuthTest, LoadKeysFromFileWithWhitespace) {
@@ -203,7 +195,7 @@ TEST_F(APIAuthTest, KeyWithWhitespaceOnly) {
 }
 
 TEST_F(APIAuthTest, ConcurrentAddAndValidate) {
-    auto concurrent_auth = std::make_unique<APIAuth>(true);
+    auto concurrent_auth = std::make_unique<APIAuth>();
 
     std::vector<std::thread> threads;
     for (int i = 0; i < 10; i++) {

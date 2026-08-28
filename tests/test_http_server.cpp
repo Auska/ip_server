@@ -13,6 +13,19 @@
 
 using namespace ip_server;
 
+namespace {
+ServerConfig make_config(uint16_t port, bool rate_limiter = true, int max_rpm = 100,
+                         int max_batch = 100) {
+    ServerConfig config;
+    config.host_                    = "127.0.0.1";
+    config.port_                    = port;
+    config.enable_rate_limiter_     = rate_limiter;
+    config.max_requests_per_minute_ = max_rpm;
+    config.max_batch_size_          = max_batch;
+    return config;
+}
+}  // namespace
+
 class HTTPServerTest : public ::testing::Test {
    protected:
     void SetUp() override {
@@ -31,7 +44,7 @@ class HTTPServerTest : public ::testing::Test {
 
         // Start server on a random port
         test_port = 18080;
-        server    = std::make_unique<IPGeoHTTPServer>("127.0.0.1", test_port);
+        server    = std::make_unique<IPGeoHTTPServer>(make_config(test_port));
 
         server->set_lookup_handler([this](const std::string& ip) { return service->lookup(ip); });
 
@@ -216,7 +229,7 @@ TEST_F(HTTPServerTest, RateLimiting) {
     // Create a new server with strict rate limiting (3 requests per minute)
     uint16_t rate_limit_port = 18081;
     auto rate_limited_server =
-        std::make_unique<IPGeoHTTPServer>("127.0.0.1", rate_limit_port, 4, true, 3);
+        std::make_unique<IPGeoHTTPServer>(make_config(rate_limit_port, true, 3));
 
     rate_limited_server->set_lookup_handler(
         [this](const std::string& ip) { return service->lookup(ip); });
@@ -267,7 +280,7 @@ TEST_F(HTTPServerTest, BatchSizeLimit) {
     // Create a new server with small batch size limit (3 IPs)
     uint16_t batch_limit_port = 18082;
     auto batch_limited_server =
-        std::make_unique<IPGeoHTTPServer>("127.0.0.1", batch_limit_port, 4, false, 100, 3);
+        std::make_unique<IPGeoHTTPServer>(make_config(batch_limit_port, false, 100, 3));
 
     batch_limited_server->set_lookup_handler(
         [this](const std::string& ip) { return service->lookup(ip); });
@@ -323,7 +336,7 @@ TEST_F(HTTPServerTest, RateLimitingWithBatchRequests) {
     // Create a new server with strict rate limiting (2 requests per minute)
     uint16_t rate_limit_batch_port = 18083;
     auto rate_limited_server =
-        std::make_unique<IPGeoHTTPServer>("127.0.0.1", rate_limit_batch_port, 4, true, 2);
+        std::make_unique<IPGeoHTTPServer>(make_config(rate_limit_batch_port, true, 2));
 
     rate_limited_server->set_lookup_handler(
         [this](const std::string& ip) { return service->lookup(ip); });
@@ -372,7 +385,7 @@ TEST_F(HTTPServerTest, DisabledRateLimiter) {
     // Create a new server with rate limiter disabled
     uint16_t no_rate_limit_port = 18084;
     auto no_rate_limit_server =
-        std::make_unique<IPGeoHTTPServer>("127.0.0.1", no_rate_limit_port, 4, false);
+        std::make_unique<IPGeoHTTPServer>(make_config(no_rate_limit_port, false));
 
     no_rate_limit_server->set_lookup_handler(
         [this](const std::string& ip) { return service->lookup(ip); });

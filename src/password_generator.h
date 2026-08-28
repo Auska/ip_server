@@ -23,10 +23,6 @@ struct PasswordResult {
 
 class PasswordGenerator {
    public:
-    /// Engine safety cap for a single batch call. The HTTP layer enforces the
-    /// configurable per-request limit (config max_batch_size, validated <= this).
-    static constexpr int MAX_BATCH = 1000;
-
     static PasswordResult generate(const PasswordConfig& config);
     static std::vector<PasswordResult> generate_batch(const PasswordConfig& config, int count);
 

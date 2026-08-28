@@ -26,25 +26,6 @@ std::string sha256Hash(const std::string& input) {
 
 }  // namespace
 
-APIAuth::APIAuth(bool enabled) : enabled_(enabled) {
-    if (enabled_) {
-        LOG_INFO("API authentication enabled with secure key hashing");
-    } else {
-        LOG_INFO("API authentication disabled");
-    }
-}
-
-std::string APIAuth::hash_key(const std::string& key) {
-    return sha256Hash(key);
-}
-
-std::string APIAuth::generate_key_id(const std::string& key_hash) {
-    if (key_hash.size() >= 8) {
-        return "key_" + key_hash.substr(0, 8);
-    }
-    return "key_unknown";
-}
-
 void APIAuth::add_key(const std::string& key) {
     if (key.empty()) {
         LOG_WARNING("Attempted to add empty API key");
@@ -52,28 +33,22 @@ void APIAuth::add_key(const std::string& key) {
     }
 
     std::scoped_lock const lock(mutex_);
-    std::string const key_hash = hash_key(key);
-    std::string const key_id   = generate_key_id(key_hash);
+    std::string const key_hash = sha256Hash(key);
 
     if (api_key_hashes_.insert(key_hash).second) {
-        LOG_INFO("Added API key: " + key_id);
+        LOG_INFO("Added API key: key_" + key_hash.substr(0, 8));
     } else {
-        LOG_WARNING("API key already exists: " + key_id);
+        LOG_WARNING("API key already exists: key_" + key_hash.substr(0, 8));
     }
 }
 
 bool APIAuth::is_valid(const std::string& key) const {
-    if (!enabled_) {
-        return true;
-    }
-
     if (key.empty()) {
         return false;
     }
 
-    std::string const key_hash = hash_key(key);
     std::scoped_lock const lock(mutex_);
-    return api_key_hashes_.contains(key_hash);
+    return api_key_hashes_.contains(sha256Hash(key));
 }
 
 bool APIAuth::load_keys_from_file(const std::string& filepath) {
@@ -97,9 +72,7 @@ bool APIAuth::load_keys_from_file(const std::string& filepath) {
         size_t const end   = line.find_last_not_of(" \t\r\n");
 
         if (start != std::string::npos && end != std::string::npos) {
-            std::string const key      = line.substr(start, end - start + 1);
-            std::string const key_hash = hash_key(key);
-            std::string const key_id   = generate_key_id(key_hash);
+            std::string const key_hash = sha256Hash(line.substr(start, end - start + 1));
 
             if (api_key_hashes_.insert(key_hash).second) {
                 count++;
