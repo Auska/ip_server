@@ -31,7 +31,7 @@ IPGeoHTTPServer::IPGeoHTTPServer(std::string host, uint16_t port, int thread_poo
       max_batch_size_(max_batch_size),
       enable_api_auth_(enable_api_auth),
       metrics_(std::make_unique<Metrics>()),
-      password_handler_(metrics_.get()) {
+      password_handler_(metrics_.get(), max_batch_size_) {
 
     if (enable_rate_limiter_) {
         rate_limiter_ =
@@ -75,6 +75,11 @@ void IPGeoHTTPServer::set_lookup_handler(LookupHandler handler) {
 void IPGeoHTTPServer::set_mac_lookup_handler(LookupHandler handler) {
     mac_lookup_handler_ = std::move(handler);
     LOG_INFO("MAC lookup handler registered");
+}
+
+void IPGeoHTTPServer::set_cache_stats_handler(std::function<CacheStats()> handler) {
+    cache_stats_handler_ = std::move(handler);
+    LOG_INFO("Cache stats handler registered");
 }
 
 bool IPGeoHTTPServer::authenticate_request(const httplib::Request& req, httplib::Response& res) {
@@ -223,9 +228,17 @@ void IPGeoHTTPServer::handle_health(const httplib::Request&, httplib::Response& 
                          {"p95_latency_ms", round(stats.p95_latency_ms_ * 1000) / 1000},
                          {"p99_latency_ms", round(stats.p99_latency_ms_ * 1000) / 1000}};
 
-    health["cache"] = {{"hits", stats.cache_hits_},
-                       {"misses", stats.cache_misses_},
-                       {"hit_rate_percent", round(stats.cache_hit_rate_ * 100) / 100}};
+    if (cache_stats_handler_) {
+        auto const cache = cache_stats_handler_();
+        health["cache"]  = {
+            {"hits", cache.hits_},
+            {"misses", cache.misses_},
+            {"hit_rate_percent", round(cache.hit_rate() * 100) / 100},
+            {"evictions", cache.evictions_},
+            {"expired_entries", cache.expired_entries_},
+            {"memory_usage_mb", round(cache.get_memory_usage_mb() * 100) / 100},
+        };
+    }
 
     health["errors"] = {{"total", stats.total_errors_},
                         {"rate_percent", round(stats.error_rate_ * 100) / 100}};
@@ -239,13 +252,8 @@ void IPGeoHTTPServer::handle_lookup_get(const httplib::Request& req, httplib::Re
     auto client_ip = prepare_request(req, res);
     if (!client_ip) return;
 
-    auto mac_param = req.get_param_value("mac");
-    auto ip_param  = req.get_param_value("ip");
-
-    if (mac_param.empty() && ip_param.empty()) {
-        ip_param = *client_ip;
-        LOG_DEBUG("Lookup request using source IP: " + ip_param);
-    }
+    auto const mac_param = req.get_param_value("mac");
+    auto const ip_param  = req.get_param_value("ip");
 
     if (!mac_param.empty() && !ip_param.empty()) {
         send_error_response(res, 400, "Bad Request",
@@ -254,46 +262,41 @@ void IPGeoHTTPServer::handle_lookup_get(const httplib::Request& req, httplib::Re
         return;
     }
 
+    const bool is_mac        = !mac_param.empty();
+    std::string const& query = is_mac ? mac_param : (ip_param.empty() ? *client_ip : ip_param);
+    LookupHandler const* handler = is_mac ? &mac_lookup_handler_ : &lookup_handler_;
+    bool const valid             = is_mac ? isValidMacFormat(query) : isValidIpFormat(query);
+    char const* const type   = is_mac ? "MAC" : "IP";
+
+    if (!is_mac && ip_param.empty()) {
+        LOG_DEBUG("Lookup request using source IP: " + query);
+    }
+
     try {
-        if (!mac_param.empty()) {
-            if (!isValidMacFormat(mac_param)) {
-                send_error_response(res, 400, "Bad Request", "Invalid MAC address format");
-                return;
-            }
-            if (!mac_lookup_handler_) {
-                send_error_response(res, 500, "Internal Server Error",
-                                    "MAC lookup handler not configured");
-                LOG_WARNING("MAC lookup requested but handler not set");
-                return;
-            }
-            LOG_DEBUG("MAC lookup request for: " + mac_param);
-            auto result = mac_lookup_handler_(mac_param);
-            metrics_->record_request(result.cache_hit_, result.latency_ms_);
-            res.set_content(result.data_.dump(), "application/json");
-        } else {
-            if (!isValidIpFormat(ip_param)) {
-                send_error_response(res, 400, "Bad Request", "Invalid IP address format");
-                return;
-            }
-            if (!lookup_handler_) {
-                send_error_response(res, 500, "Internal Server Error",
-                                    "IP lookup handler not configured");
-                LOG_WARNING("IP lookup requested but handler not set");
-                return;
-            }
-            LOG_DEBUG("IP lookup request for: " + ip_param);
-            auto result = lookup_handler_(ip_param);
-            metrics_->record_request(result.cache_hit_, result.latency_ms_);
-            res.set_content(result.data_.dump(), "application/json");
+        if (!valid) {
+            send_error_response(res, 400, "Bad Request",
+                                is_mac ? "Invalid MAC address format" : "Invalid IP address format");
+            return;
         }
+        if (!*handler) {
+            send_error_response(res, 500, "Internal Server Error",
+                                std::string(type) + " lookup handler not configured");
+            LOG_WARNING(std::string(type) + " lookup requested but handler not set");
+            return;
+        }
+        LOG_DEBUG(std::string(type) + " lookup request for: " + query);
+
+        ScopedTimer timer;
+        auto result = (*handler)(query);
+        metrics_->record_request(timer.elapsed());
+        res.set_content(result.data_.dump(), "application/json");
     } catch (const std::exception& e) {
         res.status = 500;
         nlohmann::json error;
         error["error"] = e.what();
         res.set_content(error.dump(), "application/json");
         metrics_->record_error();
-        std::string const query_param = mac_param.empty() ? ip_param : mac_param;
-        LOG_ERROR(std::string("Error processing lookup for ") + query_param + ": " + e.what());
+        LOG_ERROR(std::string("Error processing lookup for ") + query + ": " + e.what());
     }
 }
 
@@ -369,23 +372,26 @@ void IPGeoHTTPServer::handle_lookup_post(const httplib::Request& req, httplib::R
 
         if (query_list.size() <= 10) {
             for (const auto& query_str : query_list) {
+                ScopedTimer timer;
                 auto result = handler(query_str);
-                metrics_->record_request(result.cache_hit_, result.latency_ms_);
+                metrics_->record_request(timer.elapsed());
                 results.push_back(std::move(result.data_));
             }
         } else {
-            std::vector<std::future<LookupResult>> futures;
+            std::vector<std::future<std::pair<LookupResult, double>>> futures;
             futures.reserve(query_list.size());
 
             for (const auto& query_str : query_list) {
-                futures.push_back(std::async(std::launch::async, [handler, query_str]() {
-                    return handler(query_str);
+                futures.push_back(std::async(std::launch::async, [handler, query_str] {
+                    ScopedTimer timer;
+                    auto result = handler(query_str);
+                    return std::make_pair(std::move(result), timer.elapsed());
                 }));
             }
 
             for (auto& future : futures) {
-                auto result = future.get();
-                metrics_->record_request(result.cache_hit_, result.latency_ms_);
+                auto [result, latency] = future.get();
+                metrics_->record_request(latency);
                 results.push_back(std::move(result.data_));
             }
         }
@@ -420,8 +426,10 @@ bool IPGeoHTTPServer::start(std::atomic<bool>& shutdown_requested) {
     log_startup_banner();
 
     if (enable_rate_limiter_ && rate_limiter_) {
-        cleanup_thread_ = std::jthread(
-            [this, &shutdown_requested]() { cleanup_thread_func(shutdown_requested); });
+        cleanup_thread_ =
+            std::jthread([this, &shutdown_requested](std::stop_token stop_token) {
+                cleanup_thread_func(shutdown_requested, stop_token);
+            });
     }
 
     bool const result = start_server_and_wait(shutdown_requested);
@@ -455,26 +463,23 @@ void IPGeoHTTPServer::log_startup_banner() const {
 }
 
 bool IPGeoHTTPServer::start_server_and_wait(std::atomic<bool>& shutdown_requested) {
-    std::atomic<bool> server_running(true);
+    std::atomic<bool> server_running{true};
     std::mutex server_mutex;
     std::condition_variable server_cv;
     std::thread server_thread([this, &server_running, &server_cv]() {
-        server_.listen(host_, port_);
-        server_running.store(false);
+        server_running.store(server_.listen(host_, port_));
         server_cv.notify_all();
     });
 
     {
         std::unique_lock lock(server_mutex);
-        if (!server_cv.wait_for(lock, std::chrono::milliseconds(500),
-                                [&] { return !server_running.load(); })) {
-            LOG_DEBUG("Server started successfully");
-        } else {
-            if (server_thread.joinable()) {
-                server_thread.join();
-            }
+        server_cv.wait_for(lock, std::chrono::milliseconds(500),
+                           [&] { return !server_running.load(); });
+        if (!server_running.load()) {  // listen() failed within the grace period
+            server_thread.join();
             return false;
         }
+        LOG_DEBUG("Server started successfully");
     }
 
     {
@@ -485,11 +490,9 @@ bool IPGeoHTTPServer::start_server_and_wait(std::atomic<bool>& shutdown_requeste
     }
 
     server_.stop();
-    if (server_thread.joinable()) {
-        server_thread.join();
-    }
+    server_thread.join();
 
-    return true;
+    return server_running.load();
 }
 
 void IPGeoHTTPServer::stop() {
@@ -497,25 +500,23 @@ void IPGeoHTTPServer::stop() {
     server_.stop();
 }
 
-void IPGeoHTTPServer::cleanup_thread_func(std::atomic<bool>& shutdown_requested) {
+void IPGeoHTTPServer::cleanup_thread_func(std::atomic<bool>& shutdown_requested,
+                                              std::stop_token stop_token) {
     LOG_INFO("Rate limiter cleanup thread running");
 
-    while (!shutdown_requested.load()) {
-        for (int i = 0; i < constants::CLEANUP_INTERVAL_SECONDS && !shutdown_requested.load();
+    while (!shutdown_requested.load() && !stop_token.stop_requested()) {
+        for (int i = 0; i < constants::CLEANUP_INTERVAL_SECONDS && !shutdown_requested.load()
+             && !stop_token.stop_requested();
              ++i) {
             std::this_thread::sleep_for(std::chrono::seconds(1));
         }
 
-        if (shutdown_requested.load()) {
+        if (shutdown_requested.load() || stop_token.stop_requested()) {
             break;
         }
 
         if (rate_limiter_) {
             rate_limiter_->cleanup();
-
-            auto stats = rate_limiter_->get_memory_stats();
-            LOG_INFO("Rate limiter memory stats: " + std::to_string(stats.ip_record_count_)
-                     + " IP records, " + std::to_string(stats.total_timestamps_) + " timestamps");
         }
     }
 

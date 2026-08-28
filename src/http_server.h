@@ -5,13 +5,16 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
-#include <optional>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <optional>
+#include <stop_token>
 #include <string>
+#include <thread>
 
-#include "types.h"
+#include "cache.h"
 #include "password_handler.h"
+#include "types.h"
 
 namespace ip_server {
 
@@ -46,6 +49,7 @@ class IPGeoHTTPServer {
 
     void set_lookup_handler(LookupHandler handler);
     void set_mac_lookup_handler(LookupHandler handler);
+    void set_cache_stats_handler(std::function<CacheStats()> handler);
 
     Metrics* get_metrics() { return metrics_.get(); }
 
@@ -66,7 +70,7 @@ class IPGeoHTTPServer {
 
     std::string get_real_client_ip(const httplib::Request& req) const;
 
-    void cleanup_thread_func(std::atomic<bool>& shutdown_requested);
+    void cleanup_thread_func(std::atomic<bool>& shutdown_requested, std::stop_token stop_token);
     void log_startup_banner() const;
     bool start_server_and_wait(std::atomic<bool>& shutdown_requested);
 
@@ -79,6 +83,7 @@ class IPGeoHTTPServer {
     httplib::Server server_;
     LookupHandler lookup_handler_;
     LookupHandler mac_lookup_handler_;
+    std::function<CacheStats()> cache_stats_handler_;
     std::unique_ptr<RateLimiter> rate_limiter_;
     std::unique_ptr<APIAuth> api_auth_;
     std::unique_ptr<Metrics> metrics_;

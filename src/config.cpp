@@ -120,13 +120,6 @@ ServerConfig ConfigParser::parse(int argc, char* argv[]) {
 
         applyDefaultPaths(config);
 
-        LOG_INFO("Using default paths:");
-        LOG_INFO("  Config: " + config.config_file_.string());
-        LOG_INFO("  City DB: " + config.city_db_path_);
-        LOG_INFO("  ASN DB: " + config.asn_db_path_);
-        LOG_INFO("  OUI DB: " + config.oui_db_path_);
-        LOG_INFO("  Log File: " + config.log_file_path_);
-
         if (result.contains("config")) {
             config.config_file_ = result["config"].as<std::string>();
         }

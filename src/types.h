@@ -9,11 +9,9 @@ namespace ip_server {
 struct LookupResult {
     nlohmann::json data_;
     bool cache_hit_;
-    double latency_ms_;
 
-    LookupResult() : cache_hit_(false), latency_ms_(0.0) {}
-    LookupResult(const nlohmann::json& d, bool hit, double latency)
-        : data_(d), cache_hit_(hit), latency_ms_(latency) {}
+    LookupResult() : cache_hit_(false) {}
+    LookupResult(const nlohmann::json& d, bool hit) : data_(d), cache_hit_(hit) {}
 
     LookupResult(LookupResult&&) noexcept            = default;
     LookupResult& operator=(LookupResult&&) noexcept = default;

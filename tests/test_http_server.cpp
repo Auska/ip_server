@@ -35,6 +35,8 @@ class HTTPServerTest : public ::testing::Test {
 
         server->set_lookup_handler([this](const std::string& ip) { return service->lookup(ip); });
 
+        server->set_cache_stats_handler([this]() { return service->cache_stats(); });
+
         // Start server in background thread
         shutdown_requested.store(false);
         server_thread = std::thread([this]() { server->start(shutdown_requested); });

@@ -13,40 +13,26 @@ nlohmann::json CityDatabase::lookup(const std::string& ip_address) const {
     }
 
     MMDB_entry_data_s entry_data;
-    int status = 0;
 
-    status = MMDB_get_value(&lookup_result.entry, &entry_data, "country", "names", "en", nullptr);
-    if (status == MMDB_SUCCESS && entry_data.has_data) {
+    if (get_value(lookup_result.entry, entry_data, "country", "names", "en")) {
         result["country"] = std::string(entry_data.utf8_string, entry_data.data_size);
     }
-
-    status = MMDB_get_value(&lookup_result.entry, &entry_data, "country", "iso_code", nullptr);
-    if (status == MMDB_SUCCESS && entry_data.has_data) {
+    if (get_value(lookup_result.entry, entry_data, "country", "iso_code")) {
         result["country_code"] = std::string(entry_data.utf8_string, entry_data.data_size);
     }
-
-    status = MMDB_get_value(&lookup_result.entry, &entry_data, "city", "names", "en", nullptr);
-    if (status == MMDB_SUCCESS && entry_data.has_data) {
+    if (get_value(lookup_result.entry, entry_data, "city", "names", "en")) {
         result["city"] = std::string(entry_data.utf8_string, entry_data.data_size);
     }
-
-    status = MMDB_get_value(&lookup_result.entry, &entry_data, "continent", "names", "en", nullptr);
-    if (status == MMDB_SUCCESS && entry_data.has_data) {
+    if (get_value(lookup_result.entry, entry_data, "continent", "names", "en")) {
         result["continent"] = std::string(entry_data.utf8_string, entry_data.data_size);
     }
-
-    status = MMDB_get_value(&lookup_result.entry, &entry_data, "location", "latitude", nullptr);
-    if (status == MMDB_SUCCESS && entry_data.has_data) {
+    if (get_value(lookup_result.entry, entry_data, "location", "latitude")) {
         result["latitude"] = entry_data.double_value;
     }
-
-    status = MMDB_get_value(&lookup_result.entry, &entry_data, "location", "longitude", nullptr);
-    if (status == MMDB_SUCCESS && entry_data.has_data) {
+    if (get_value(lookup_result.entry, entry_data, "location", "longitude")) {
         result["longitude"] = entry_data.double_value;
     }
-
-    status = MMDB_get_value(&lookup_result.entry, &entry_data, "location", "time_zone", nullptr);
-    if (status == MMDB_SUCCESS && entry_data.has_data) {
+    if (get_value(lookup_result.entry, entry_data, "location", "time_zone")) {
         result["timezone"] = std::string(entry_data.utf8_string, entry_data.data_size);
     }
 

@@ -13,16 +13,11 @@ nlohmann::json ASNDatabase::lookup(const std::string& ip_address) const {
     }
 
     MMDB_entry_data_s entry_data;
-    int status = 0;
 
-    status = MMDB_get_value(&lookup_result.entry, &entry_data, "autonomous_system_organization",
-                            nullptr);
-    if (status == MMDB_SUCCESS && entry_data.has_data) {
+    if (get_value(lookup_result.entry, entry_data, "autonomous_system_organization")) {
         result["as_organization"] = std::string(entry_data.utf8_string, entry_data.data_size);
     }
-
-    status = MMDB_get_value(&lookup_result.entry, &entry_data, "autonomous_system_number", nullptr);
-    if (status == MMDB_SUCCESS && entry_data.has_data) {
+    if (get_value(lookup_result.entry, entry_data, "autonomous_system_number")) {
         result["as_number"] = entry_data.uint32;
     }
 

@@ -5,12 +5,12 @@
 
 namespace ip_server {
 
-bool isValidIpv4(const std::string& ip) {
+bool isValidIpFormat(const std::string& ip) {
     struct in_addr addr {};
-    return inet_pton(AF_INET, ip.c_str(), &addr) == 1;
-}
+    if (inet_pton(AF_INET, ip.c_str(), &addr) == 1) {
+        return true;
+    }
 
-bool isValidIpv6(const std::string& ip) {
     if (ip.empty() || ip.find('%') != std::string::npos) {
         return false;
     }
@@ -27,10 +27,6 @@ bool isValidIpv6(const std::string& ip) {
 
     freeaddrinfo(result);
     return true;
-}
-
-bool isValidIpFormat(const std::string& ip) {
-    return isValidIpv4(ip) || isValidIpv6(ip);
 }
 
 bool isValidMacFormat(const std::string& mac) {

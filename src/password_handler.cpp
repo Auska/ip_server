@@ -19,7 +19,8 @@ bool parseBoolParam(const httplib::Request& req, const char* key, bool default_v
 
 }  // namespace
 
-PasswordHandler::PasswordHandler(Metrics* metrics) : metrics_(metrics) {
+PasswordHandler::PasswordHandler(Metrics* metrics, int max_batch)
+    : metrics_(metrics), max_batch_(max_batch) {
 }
 
 void PasswordHandler::handle_get(const httplib::Request& req, httplib::Response& res) {
@@ -44,7 +45,7 @@ void PasswordHandler::handle_get(const httplib::Request& req, httplib::Response&
         ScopedTimer timer;
         auto result = PasswordGenerator::generate(config);
 
-        metrics_->record_request(false, timer.elapsed());
+        metrics_->record_request(timer.elapsed());
 
         nlohmann::json response;
         response["password"] = result.password_;
@@ -92,10 +93,9 @@ void PasswordHandler::handle_post(const httplib::Request& req, httplib::Response
             return;
         }
 
-        if (count > PasswordGenerator::MAX_BATCH) {
+        if (count > max_batch_) {
             send_error_response(res, 400, "Bad Request",
-                                "Count cannot exceed "
-                                    + std::to_string(PasswordGenerator::MAX_BATCH));
+                                "Count cannot exceed " + std::to_string(max_batch_));
             return;
         }
 
@@ -108,7 +108,7 @@ void PasswordHandler::handle_post(const httplib::Request& req, httplib::Response
         ScopedTimer timer;
         auto results = PasswordGenerator::generate_batch(config, count);
 
-        metrics_->record_request(false, timer.elapsed());
+        metrics_->record_request(timer.elapsed());
 
         nlohmann::json response;
         response["count"]     = static_cast<int>(results.size());

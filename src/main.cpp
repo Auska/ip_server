@@ -1,8 +1,7 @@
-#include <array>
 #include <atomic>
 #include <csignal>
 #include <cstring>
-#include <string_view>
+#include <string>
 
 #include "config.h"
 #include "http_server.h"
@@ -44,6 +43,12 @@ class Application {
 
         http_server_.set_mac_lookup_handler(
             [this](const std::string& mac) { return mac_service_.lookup(mac); });
+
+        http_server_.set_cache_stats_handler([this] {
+            CacheStats stats = geo_service_.cache_stats();
+            stats += mac_service_.cache_stats();
+            return stats;
+        });
     }
 
     bool run() {
@@ -108,17 +113,13 @@ int main(int argc, char* argv[]) {
         }
 
         {
-            static constexpr auto levels = std::to_array<std::pair<std::string_view, LogLevel>>({
-                {"debug", LogLevel::DEBUG},
-                {"info", LogLevel::INFO},
-                {"warning", LogLevel::WARNING},
-                {"error", LogLevel::ERROR},
-            });
-            for (const auto& [name, level] : levels) {
-                if (name == config.log_level_) {
-                    Logger::instance().set_level(level);
-                    break;
-                }
+            std::string level = config.log_level_;
+            if (level == "warning") {
+                level = "warn";
+            }
+            auto const spd_level = spdlog::level::from_str(level);
+            if (spd_level >= spdlog::level::debug && spd_level <= spdlog::level::err) {
+                Logger::instance().set_level(static_cast<LogLevel>(spd_level));
             }
         }
 

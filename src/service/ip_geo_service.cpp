@@ -25,11 +25,9 @@ IPGeoService::IPGeoService(const std::string& city_db_path, const std::string& a
 }
 
 LookupResult IPGeoService::lookup(const std::string& ip_address) const {
-    ScopedTimer timer;
-
     if (auto cached = cache_.get(ip_address)) {
         LOG_DEBUG("Cache hit for IP: " + ip_address);
-        return LookupResult(cached.value(), true, timer.elapsed());
+        return LookupResult(cached.value(), true);
     }
 
     nlohmann::json result;
@@ -42,7 +40,7 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
 
         if (city_result.contains("error")) {
             result["error"] = city_result["error"];
-            return LookupResult(result, false, timer.elapsed());
+            return LookupResult(result, false);
         }
 
         bool const city_found = city_result.value("found", false);
@@ -51,7 +49,7 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
         if (!city_found && !asn_found) {
             cache_.put(ip_address, result, CacheDataType::NEGATIVE);
             LOG_DEBUG("Cached negative result for IP: " + ip_address);
-            return LookupResult(result, false, timer.elapsed());
+            return LookupResult(result, false);
         }
 
         result["found"] = true;
@@ -67,7 +65,7 @@ LookupResult IPGeoService::lookup(const std::string& ip_address) const {
         result["error"] = e.what();
     }
 
-    return LookupResult(result, false, timer.elapsed());
+    return LookupResult(result, false);
 }
 
 void IPGeoService::merge_city_result(nlohmann::json& result, const nlohmann::json& city_result) {

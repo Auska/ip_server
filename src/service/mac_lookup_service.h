@@ -21,6 +21,8 @@ class MACLookupService {
 
     bool is_oui_db_open() const { return oui_db_.is_open(); }
 
+    CacheStats cache_stats() const { return cache_.get_stats(); }
+
    private:
     OUIDatabase oui_db_;
     mutable IPCache cache_;

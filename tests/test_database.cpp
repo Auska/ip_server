@@ -188,7 +188,6 @@ TEST_F(DatabaseTest, LookupResultStructure) {
     // Verify LookupResult structure
     EXPECT_TRUE(result.data_.contains("ip"));
     EXPECT_TRUE(result.data_.contains("found"));
-    EXPECT_GE(result.latency_ms_, 0.0);
     EXPECT_TRUE(result.cache_hit_ == true || result.cache_hit_ == false);
 }
 
@@ -204,9 +203,6 @@ TEST_F(DatabaseTest, CacheHitTracking) {
     auto result2 = service.lookup("8.8.8.8");
     EXPECT_TRUE(result2.cache_hit_);
     EXPECT_TRUE(result2.data_.contains("found"));
-
-    // Cache hit should be much faster
-    EXPECT_LT(result2.latency_ms_, result1.latency_ms_);
 
     // Results should be identical
     EXPECT_EQ(result1.data_.dump(), result2.data_.dump());
@@ -252,19 +248,6 @@ TEST_F(DatabaseTest, CacheSizeLimit) {
     EXPECT_TRUE(result5.cache_hit_);
 }
 
-TEST_F(DatabaseTest, LatencyMeasurement) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
-
-    auto result = service.lookup("8.8.8.8");
-
-    // Latency should be positive
-    EXPECT_GT(result.latency_ms_, 0.0);
-
-    // Latency should be reasonable (less than 1 second for cached, less than 10
-    // seconds for uncached)
-    EXPECT_LT(result.latency_ms_, 10000.0);
-}
-
 TEST_F(DatabaseTest, ParallelLookupConsistency) {
     IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
 
@@ -282,7 +265,6 @@ TEST_F(DatabaseTest, ParallelLookupConsistency) {
         EXPECT_TRUE(results[i].data_.contains("ip"));
         EXPECT_EQ(results[i].data_["ip"], test_ips[i]);
         EXPECT_TRUE(results[i].data_.contains("found"));
-        EXPECT_GE(results[i].latency_ms_, 0.0);
     }
 
     // Perform same lookups again - should all be cache hits
@@ -303,7 +285,6 @@ TEST_F(DatabaseTest, LookupResultMoveSemantics) {
 
     EXPECT_TRUE(result2.data_.contains("ip"));
     EXPECT_TRUE(result2.cache_hit_ == true || result2.cache_hit_ == false);
-    EXPECT_GE(result2.latency_ms_, 0.0);
 
     // Test move assignment
     LookupResult result3;
@@ -311,7 +292,6 @@ TEST_F(DatabaseTest, LookupResultMoveSemantics) {
 
     EXPECT_TRUE(result3.data_.contains("ip"));
     EXPECT_TRUE(result3.cache_hit_ == true || result3.cache_hit_ == false);
-    EXPECT_GE(result3.latency_ms_, 0.0);
 }
 
 TEST_F(DatabaseTest, BatchLookupPerformance) {

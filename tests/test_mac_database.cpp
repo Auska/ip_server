@@ -279,14 +279,6 @@ TEST_F(MACLookupServiceTest, MACLookupServiceIsOUIDBOpen) {
     EXPECT_TRUE(service.is_oui_db_open());
 }
 
-TEST_F(MACLookupServiceTest, MACLookupServiceLatencyTracking) {
-    MACLookupService service(oui_db_path.string(), 1000);
-
-    auto result = service.lookup("00:1A:2B:3C:4D:5E");
-
-    EXPECT_GE(result.latency_ms_, 0.0);
-}
-
 TEST_F(MACLookupServiceTest, MACLookupServiceConcurrentLookups) {
     MACLookupService service(oui_db_path.string(), 1000);
 

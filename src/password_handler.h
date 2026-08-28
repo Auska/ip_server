@@ -30,13 +30,14 @@ inline void send_error_response(httplib::Response& res, int status, const std::s
 /// Extracted from IPGeoHTTPServer to reduce god-class size.
 class PasswordHandler {
    public:
-    explicit PasswordHandler(Metrics* metrics);
+    explicit PasswordHandler(Metrics* metrics, int max_batch);
 
     void handle_get(const httplib::Request& req, httplib::Response& res);
     void handle_post(const httplib::Request& req, httplib::Response& res);
 
    private:
     Metrics* metrics_;
+    int max_batch_;
 };
 
 }  // namespace ip_server

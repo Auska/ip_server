@@ -14,20 +14,13 @@ constexpr size_t MAX_LATENCIES = 1000;
 
 Metrics::Metrics()
     : total_requests_(0),
-      cache_hits_(0),
-      cache_misses_(0),
       total_errors_(0),
       start_time_(std::chrono::steady_clock::now()) {
     LOG_INFO("Metrics collector initialized");
 }
 
-void Metrics::record_request(bool cache_hit, double latency_ms) {
+void Metrics::record_request(double latency_ms) {
     total_requests_++;
-    if (cache_hit) {
-        cache_hits_++;
-    } else {
-        cache_misses_++;
-    }
 
     std::scoped_lock const lock(mutex_);
     latencies_.push_back(latency_ms);
@@ -51,14 +44,10 @@ void Metrics::record_error() {
 Metrics::Stats Metrics::get_stats() const {
     Stats stats{};
 
-    stats.total_requests_  = total_requests_.load();
-    stats.cache_hits_      = cache_hits_.load();
-    stats.cache_misses_    = cache_misses_.load();
-    stats.total_errors_    = total_errors_.load();
+    stats.total_requests_ = total_requests_.load();
+    stats.total_errors_   = total_errors_.load();
 
     if (stats.total_requests_ > 0) {
-        stats.cache_hit_rate_ =
-            (static_cast<double>(stats.cache_hits_) / stats.total_requests_) * 100.0;
         stats.error_rate_ =
             (static_cast<double>(stats.total_errors_) / stats.total_requests_) * 100.0;
     }

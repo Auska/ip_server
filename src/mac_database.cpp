@@ -4,6 +4,7 @@
 #include <cctype>
 #include <memory>
 #include <stdexcept>
+#include <utility>
 
 #include "logger.h"
 
@@ -156,19 +157,15 @@ nlohmann::json OUIDatabase::lookup(const std::string& mac_address) const {
         result["oui"]   = oui;
         result["found"] = true;
 
-        auto extractCol = [&](int col_idx, const char* key) {
+        static constexpr std::pair<int, const char*> OUI_COLUMNS[] = {
+            {1, "manufacturer"}, {2, "registry"},       {3, "short_name"},
+            {4, "device_type"},  {5, "registered_date"}, {6, "address"},
+            {7, "sources"}};
+        for (const auto& [col_idx, key] : OUI_COLUMNS) {
             const char* col =
                 reinterpret_cast<const char*>(sqlite3_column_text(lookup_stmt_.get(), col_idx));
             if (col != nullptr) result[key] = col;
-        };
-
-        extractCol(1, "manufacturer");
-        extractCol(2, "registry");
-        extractCol(3, "short_name");
-        extractCol(4, "device_type");
-        extractCol(5, "registered_date");
-        extractCol(6, "address");
-        extractCol(7, "sources");
+        }
 
     } else if (status == SQLITE_DONE) {
         result["mac"]   = mac_address;

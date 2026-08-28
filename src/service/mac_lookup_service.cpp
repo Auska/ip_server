@@ -21,11 +21,9 @@ MACLookupService::MACLookupService(const std::string& oui_db_path, size_t cache_
 }
 
 LookupResult MACLookupService::lookup(const std::string& mac_address) const {
-    ScopedTimer timer;
-
     if (auto cached = cache_.get(mac_address)) {
         LOG_DEBUG("Cache hit for MAC: " + mac_address);
-        return LookupResult(cached.value(), true, timer.elapsed());
+        return LookupResult(cached.value(), true);
     }
 
     nlohmann::json result;
@@ -48,7 +46,7 @@ LookupResult MACLookupService::lookup(const std::string& mac_address) const {
         result["error"] = e.what();
     }
 
-    return LookupResult(result, false, timer.elapsed());
+    return LookupResult(result, false);
 }
 
 }  // namespace ip_server

@@ -24,6 +24,8 @@ class IPGeoService {
     bool is_city_db_open() const { return city_db_.is_open(); }
     bool is_asn_db_open() const { return asn_db_.is_open(); }
 
+    CacheStats cache_stats() const { return cache_.get_stats(); }
+
    private:
     static void merge_city_result(nlohmann::json& result, const nlohmann::json& city_result);
     static void merge_asn_result(nlohmann::json& result, const nlohmann::json& asn_result);

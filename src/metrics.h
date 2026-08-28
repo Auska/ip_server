@@ -13,16 +13,13 @@ class Metrics {
     Metrics();
     ~Metrics() = default;
 
-    void record_request(bool cache_hit, double latency_ms);
+    void record_request(double latency_ms);
     void record_error();
 
     struct Stats {
         uint64_t total_requests_;
-        uint64_t cache_hits_;
-        uint64_t cache_misses_;
         uint64_t total_errors_;
 
-        double cache_hit_rate_;
         double error_rate_;
 
         double current_qps_;
@@ -46,8 +43,6 @@ class Metrics {
     mutable std::mutex mutex_;
 
     std::atomic<uint64_t> total_requests_;
-    std::atomic<uint64_t> cache_hits_;
-    std::atomic<uint64_t> cache_misses_;
     std::atomic<uint64_t> total_errors_;
 
     std::deque<double> latencies_;
