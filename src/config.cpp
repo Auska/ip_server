@@ -1,10 +1,10 @@
 #include "config.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <fstream>
 #include <iostream>
-#include <string_view>
 
 #include "logger.h"
 #include "paths.h"
@@ -41,8 +41,7 @@ cxxopts::Options ConfigParser::create_option_parser() {
                         cxxopts::value<uint16_t>()->default_value(
                             "8080"))("threads", "Thread pool size",
                                      cxxopts::value<int>()->default_value(
-                                         "4"))("cache-size", "Cache size",
-                                               cxxopts::value<size_t>()->default_value("10000"))(
+                                         "4"))(
         "enable-rate-limiter", "Enable rate limiting",
         cxxopts::value<std::string>()->default_value(
             "true"))("max-requests-per-minute", "Maximum requests per IP per minute",
@@ -58,8 +57,7 @@ cxxopts::Options ConfigParser::create_option_parser() {
         cxxopts::value<std::string>())("enable-file-logging", "Enable file logging",
                                        cxxopts::value<std::string>()->default_value(
                                            "false"))("log-file", "Path to log file",
-                                                     cxxopts::value<std::string>()->default_value(
-                                                         "logs/ip_server.log"))(
+                                                     cxxopts::value<std::string>())(
         "log-enable-stdout", "Enable stdout logging",
         cxxopts::value<std::string>()->default_value(
             "true"))("log-rotation", "Log rotation type: none or size",
@@ -159,14 +157,6 @@ void ConfigParser::validate(const ServerConfig& config) {
                                  + std::to_string(MAX_THREAD_POOL));
     }
 
-    // Validate cache size
-    if (config.cache_size_ > MAX_CACHE_SIZE) {
-        LOG_ERROR("Cache size must be between 0 and " + std::to_string(MAX_CACHE_SIZE)
-                  + ", got: " + std::to_string(config.cache_size_));
-        throw std::runtime_error("Invalid cache size: must be between 0 and "
-                                 + std::to_string(MAX_CACHE_SIZE));
-    }
-
     // Validate rate limiter settings
     if (config.enable_rate_limiter_) {
         if (config.max_requests_per_minute_ < MIN_RATE_LIMIT
@@ -201,16 +191,8 @@ void ConfigParser::validate(const ServerConfig& config) {
 
     // Validate logging configuration
     if (config.enable_file_logging_) {
-        static constexpr auto valid_rotation_types =
-            std::to_array<std::string_view>({"none", "size"});
-        bool valid_rotation = false;
-        for (const auto& t : valid_rotation_types) {
-            if (config.log_rotation_type_ == t) {
-                valid_rotation = true;
-                break;
-            }
-        }
-        if (!valid_rotation) {
+        static constexpr std::array valid_rotation_types{"none", "size"};
+        if (!std::ranges::contains(valid_rotation_types, config.log_rotation_type_)) {
             LOG_ERROR("Invalid log rotation type: " + config.log_rotation_type_);
             throw std::runtime_error("Invalid log rotation type: must be none or size");
         }
@@ -264,7 +246,6 @@ void ConfigParser::from_json(ServerConfig& config, const nlohmann::json& j) {
     readStr("asn_db", config.asn_db_path_);
     readStr("oui_db", config.oui_db_path_);
     readInt("threads", config.thread_pool_size_);
-    readInt("cache_size", config.cache_size_);
     readBool("enable_rate_limiter", config.enable_rate_limiter_);
     readInt("max_requests_per_minute", config.max_requests_per_minute_);
     readInt("max_batch_size", config.max_batch_size_);
@@ -315,7 +296,6 @@ void ConfigParser::apply_cli_overrides(const cxxopts::ParseResult& result, Serve
     set_str("host", config.host_);
     set_int("port", config.port_);
     set_int("threads", config.thread_pool_size_);
-    set_int("cache-size", config.cache_size_);
     set_str("city-db", config.city_db_path_);
     set_str("asn-db", config.asn_db_path_);
     set_str("oui-db", config.oui_db_path_);
@@ -332,8 +312,6 @@ void ConfigParser::apply_cli_overrides(const cxxopts::ParseResult& result, Serve
     if (result.contains("enable-file-logging")) {
         config.enable_file_logging_ =
             parseBoolString(result["enable-file-logging"].as<std::string>());
-        if (config.enable_file_logging_ && config.log_file_path_ == "logs/ip_server.log")
-            config.log_file_path_ = ip_server::paths::log_file_path().string();
     }
     if (result.contains("log-file")) {
         config.log_file_path_       = result["log-file"].as<std::string>();
@@ -360,7 +338,6 @@ bool ConfigParser::save_to_file(const ServerConfig& config,
         j["asn_db"]                  = config.asn_db_path_;
         j["oui_db"]                  = config.oui_db_path_;
         j["threads"]                 = config.thread_pool_size_;
-        j["cache_size"]              = config.cache_size_;
         j["enable_rate_limiter"]     = config.enable_rate_limiter_;
         j["max_requests_per_minute"] = config.max_requests_per_minute_;
         j["max_batch_size"]          = config.max_batch_size_;

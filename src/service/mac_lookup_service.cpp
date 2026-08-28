@@ -1,20 +1,13 @@
 #include "mac_lookup_service.h"
 
-#include <chrono>
-#include <stdexcept>
-
 #include "logger.h"
 #include "types.h"
 
 namespace ip_server {
 
-MACLookupService::MACLookupService(const std::string& oui_db_path, size_t cache_size)
-    : cache_(cache_size, 8, 50 * 1024 * 1024) {  // MAC service: 50MB
-    if (!oui_db_.open(oui_db_path)) {
-        throw std::runtime_error("Failed to open OUI database: " + oui_db_path);
-    }
-
-    LOG_INFO("MACLookupService initialized with cache size: " + std::to_string(cache_size));
+MACLookupService::MACLookupService(const std::string& oui_db_path)
+    : oui_db_(oui_db_path), cache_(50 * 1024 * 1024) {  // MAC service: 50MB
+    LOG_INFO("MACLookupService initialized");
 }
 
 LookupResult MACLookupService::lookup(const std::string& mac_address) const {

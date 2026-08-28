@@ -14,7 +14,6 @@ constexpr int    MIN_PORT                  = 1;
 constexpr int    MAX_PORT                  = 65535;
 constexpr int    MIN_THREAD_POOL           = 1;
 constexpr int    MAX_THREAD_POOL           = 64;
-constexpr size_t MAX_CACHE_SIZE            = 1000000;
 constexpr int    MIN_RATE_LIMIT            = 1;
 constexpr int    MAX_RATE_LIMIT            = 10000;
 constexpr int    MIN_BATCH_SIZE            = 1;
@@ -32,7 +31,6 @@ struct ServerConfig {
     std::string asn_db_path_;
     std::string oui_db_path_;
     int thread_pool_size_ = 4;
-    size_t cache_size_    = 10000;
     std::filesystem::path config_file_;
     bool enable_rate_limiter_    = true;
     int max_requests_per_minute_ = 100;

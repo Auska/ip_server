@@ -11,17 +11,13 @@ namespace ip_server {
 
 class IPGeoService {
    public:
-    explicit IPGeoService(const std::string& city_db_path, const std::string& asn_db_path,
-                          size_t cache_size = 10000);
+    explicit IPGeoService(const std::string& city_db_path, const std::string& asn_db_path);
     ~IPGeoService() = default;
 
     IPGeoService(const IPGeoService&) = delete;
     IPGeoService& operator=(const IPGeoService&) = delete;
 
     LookupResult lookup(const std::string& ip_address) const;
-
-    bool is_city_db_open() const { return city_db_.is_open(); }
-    bool is_asn_db_open() const { return asn_db_.is_open(); }
 
     CacheStats cache_stats() const { return cache_.get_stats(); }
 

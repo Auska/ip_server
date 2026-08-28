@@ -4,12 +4,22 @@
 #include <cmath>
 #include <random>
 #include <stdexcept>
-
-#include "logger.h"
+#include <string_view>
 
 namespace ip_server {
 
 namespace {
+
+// Character sets
+constexpr const char* UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+constexpr const char* LOWERCASE = "abcdefghijklmnopqrstuvwxyz";
+constexpr const char* DIGITS    = "0123456789";
+constexpr const char* SYMBOLS   = "!@#$%^&*()_+-=[]{}|;:,.<>?";
+
+// Confusing characters to exclude
+constexpr const char* CONFUSING_UPPER  = "IO";
+constexpr const char* CONFUSING_LOWER  = "ilo";
+constexpr const char* CONFUSING_DIGITS = "01";
 
 thread_local std::mt19937_64 password_gen = [] {
     std::random_device rd;
@@ -17,9 +27,66 @@ thread_local std::mt19937_64 password_gen = [] {
     return std::mt19937_64(seq);
 }();
 
+struct CharacterSets {
+    std::string pool_;
+    std::vector<std::string> required_chars_;
+};
+
+CharacterSets build_character_sets(const PasswordConfig& config) {
+    CharacterSets sets;
+
+    auto addSet = [&](const char* chars, const char* confusable, bool enabled) {
+        if (!enabled) {
+            return;
+        }
+        std::string filtered(chars);
+        if (config.exclude_similar_ && confusable) {
+            for (char const c : std::string_view(confusable)) {
+                filtered.erase(std::remove(filtered.begin(), filtered.end(), c), filtered.end());
+            }
+        }
+        sets.pool_ += filtered;
+        if (!filtered.empty()) {
+            sets.required_chars_.push_back(std::move(filtered));
+        }
+    };
+
+    addSet(UPPERCASE, CONFUSING_UPPER, config.uppercase_);
+    addSet(LOWERCASE, CONFUSING_LOWER, config.lowercase_);
+    addSet(DIGITS, CONFUSING_DIGITS, config.digits_);
+    addSet(SYMBOLS, nullptr, config.symbols_);
+
+    return sets;
+}
+
+double calculate_entropy(const std::string& password, int pool_size) {
+    if (password.empty() || pool_size == 0) {
+        return 0.0;
+    }
+
+    double const log2_pool_size = std::log2(pool_size);
+    return static_cast<double>(password.length()) * log2_pool_size;
+}
+
+std::string get_strength_rating(double entropy) {
+    if (entropy < 28.0) {
+        return "very_weak";
+    }
+    if (entropy < 36.0) {
+        return "weak";
+    }
+    if (entropy < 60.0) {
+        return "fair";
+    }
+    if (entropy < 80.0) {
+        return "strong";
+    }
+    return "very_strong";
+}
+
 }  // namespace
 
-bool PasswordGenerator::validate_config(const PasswordConfig& config, std::string& error_message) {
+bool validate_config(const PasswordConfig& config, std::string& error_message) {
     if (config.length_ < 8) {
         error_message = "Password length must be at least 8 characters";
         return false;
@@ -38,15 +105,15 @@ bool PasswordGenerator::validate_config(const PasswordConfig& config, std::strin
     return true;
 }
 
-PasswordResult PasswordGenerator::generate(const PasswordConfig& config) {
+PasswordResult generate(const PasswordConfig& config) {
     std::string error_message;
     if (!validate_config(config, error_message)) {
-        throw std::runtime_error(error_message);
+        throw std::invalid_argument(error_message);
     }
 
     auto sets = build_character_sets(config);
     if (sets.pool_.empty()) {
-        throw std::runtime_error("Character pool is empty");
+        throw std::invalid_argument("Character pool is empty");
     }
 
     std::uniform_int_distribution<size_t> dist(0, sets.pool_.size() - 1);
@@ -79,10 +146,9 @@ PasswordResult PasswordGenerator::generate(const PasswordConfig& config) {
     return result;
 }
 
-std::vector<PasswordResult> PasswordGenerator::generate_batch(const PasswordConfig& config,
-                                                              int count) {
+std::vector<PasswordResult> generate_batch(const PasswordConfig& config, int count) {
     if (count <= 0) {
-        throw std::runtime_error("Count must be positive");
+        throw std::invalid_argument("Count must be positive");
     }
 
     std::vector<PasswordResult> results;
@@ -93,59 +159,6 @@ std::vector<PasswordResult> PasswordGenerator::generate_batch(const PasswordConf
     }
 
     return results;
-}
-
-PasswordGenerator::CharacterSets PasswordGenerator::build_character_sets(
-    const PasswordConfig& config) {
-    CharacterSets sets;
-
-    auto addSet = [&](const char* chars, const char* confusable, bool enabled) {
-        if (!enabled) {
-            return;
-        }
-        std::string filtered(chars);
-        if (config.exclude_similar_ && confusable) {
-            for (char const c : std::string_view(confusable)) {
-                filtered.erase(std::remove(filtered.begin(), filtered.end(), c), filtered.end());
-            }
-        }
-        sets.pool_ += filtered;
-        if (!filtered.empty()) {
-            sets.required_chars_.push_back(std::move(filtered));
-        }
-    };
-
-    addSet(UPPERCASE, CONFUSING_UPPER, config.uppercase_);
-    addSet(LOWERCASE, CONFUSING_LOWER, config.lowercase_);
-    addSet(DIGITS, CONFUSING_DIGITS, config.digits_);
-    addSet(SYMBOLS, nullptr, config.symbols_);
-
-    return sets;
-}
-
-double PasswordGenerator::calculate_entropy(const std::string& password, int pool_size) {
-    if (password.empty() || pool_size == 0) {
-        return 0.0;
-    }
-
-    double const log2_pool_size = std::log2(pool_size);
-    return static_cast<double>(password.length()) * log2_pool_size;
-}
-
-std::string PasswordGenerator::get_strength_rating(double entropy) {
-    if (entropy < 28.0) {
-        return "very_weak";
-    }
-    if (entropy < 36.0) {
-        return "weak";
-    }
-    if (entropy < 60.0) {
-        return "fair";
-    }
-    if (entropy < 80.0) {
-        return "strong";
-    }
-    return "very_strong";
 }
 
 }  // namespace ip_server

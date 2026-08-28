@@ -10,15 +10,13 @@ namespace ip_server {
 
 class MACLookupService {
    public:
-    explicit MACLookupService(const std::string& oui_db_path, size_t cache_size = 10000);
+    explicit MACLookupService(const std::string& oui_db_path);
     ~MACLookupService() = default;
 
     MACLookupService(const MACLookupService&) = delete;
     MACLookupService& operator=(const MACLookupService&) = delete;
 
     LookupResult lookup(const std::string& mac_address) const;
-
-    bool is_oui_db_open() const { return oui_db_.is_open(); }
 
     CacheStats cache_stats() const { return cache_.get_stats(); }
 

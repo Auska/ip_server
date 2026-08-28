@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <stdexcept>
 #include <filesystem>
 #include <future>
 #include <thread>
@@ -33,20 +34,14 @@ class DatabaseTest : public ::testing::Test {
 };
 
 TEST_F(DatabaseTest, CityDatabaseOpenSuccess) {
-    CityDatabase db;
-    EXPECT_TRUE(db.open(city_db_path.string()));
-    EXPECT_TRUE(db.is_open());
-}
+    EXPECT_NO_THROW({ CityDatabase db(city_db_path.string()); });}
 
 TEST_F(DatabaseTest, CityDatabaseOpenFailure) {
-    CityDatabase db;
-    EXPECT_FALSE(db.open("/nonexistent/path/to/database.mmdb"));
-    EXPECT_FALSE(db.is_open());
+    EXPECT_THROW({ CityDatabase db("/nonexistent/path/to/database.mmdb"); }, std::runtime_error);
 }
 
 TEST_F(DatabaseTest, CityDatabaseLookupValidIP) {
-    CityDatabase db;
-    ASSERT_TRUE(db.open(city_db_path.string()));
+    CityDatabase db(city_db_path.string());
 
     auto result = db.lookup("8.8.8.8");
 
@@ -57,8 +52,7 @@ TEST_F(DatabaseTest, CityDatabaseLookupValidIP) {
 }
 
 TEST_F(DatabaseTest, CityDatabaseLookupInvalidIP) {
-    CityDatabase db;
-    ASSERT_TRUE(db.open(city_db_path.string()));
+    CityDatabase db(city_db_path.string());
 
     auto result = db.lookup("invalid.ip.address");
 
@@ -66,46 +60,26 @@ TEST_F(DatabaseTest, CityDatabaseLookupInvalidIP) {
 }
 
 TEST_F(DatabaseTest, CityDatabaseMoveConstructor) {
-    CityDatabase db1;
-    ASSERT_TRUE(db1.open(city_db_path.string()));
+    CityDatabase db1(city_db_path.string());
 
     CityDatabase db2 = std::move(db1);
-
-    EXPECT_FALSE(db1.is_open());
-    EXPECT_TRUE(db2.is_open());
 
     auto result = db2.lookup("8.8.8.8");
     EXPECT_TRUE(result.contains("found"));
 }
 
 TEST_F(DatabaseTest, CityDatabaseMoveAssignment) {
-    CityDatabase db1, db2;
-    ASSERT_TRUE(db1.open(city_db_path.string()));
+    CityDatabase db1(city_db_path.string());
+    CityDatabase db2(city_db_path.string());
 
     db2 = std::move(db1);
-
-    EXPECT_FALSE(db1.is_open());
-    EXPECT_TRUE(db2.is_open());
-}
-
-TEST_F(DatabaseTest, CityDatabaseClose) {
-    CityDatabase db;
-    ASSERT_TRUE(db.open(city_db_path.string()));
-    EXPECT_TRUE(db.is_open());
-
-    db.close();
-    EXPECT_FALSE(db.is_open());
 }
 
 TEST_F(DatabaseTest, ASNDatabaseOpenSuccess) {
-    ASNDatabase db;
-    EXPECT_TRUE(db.open(asn_db_path.string()));
-    EXPECT_TRUE(db.is_open());
-}
+    EXPECT_NO_THROW({ ASNDatabase db(asn_db_path.string()); });}
 
 TEST_F(DatabaseTest, ASNDatabaseLookupValidIP) {
-    ASNDatabase db;
-    ASSERT_TRUE(db.open(asn_db_path.string()));
+    ASNDatabase db(asn_db_path.string());
 
     auto result = db.lookup("8.8.8.8");
 
@@ -171,13 +145,11 @@ TEST_F(DatabaseTest, IPGeoServiceNotCopyable) {
 }
 
 TEST_F(DatabaseTest, MaxMindDatabaseNotCopyable) {
-    MaxMindDatabase db;
-
     // Test that copy constructor is deleted
-    EXPECT_FALSE(std::is_copy_constructible<MaxMindDatabase>::value);
+    EXPECT_FALSE(std::is_copy_constructible<CityDatabase>::value);
 
     // Test that copy assignment is deleted
-    EXPECT_FALSE(std::is_copy_assignable<MaxMindDatabase>::value);
+    EXPECT_FALSE(std::is_copy_assignable<CityDatabase>::value);
 }
 
 TEST_F(DatabaseTest, LookupResultStructure) {
@@ -192,7 +164,7 @@ TEST_F(DatabaseTest, LookupResultStructure) {
 }
 
 TEST_F(DatabaseTest, CacheHitTracking) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+    IPGeoService service(city_db_path.string(), asn_db_path.string());
 
     // First lookup - should be cache miss
     auto result1 = service.lookup("8.8.8.8");
@@ -209,7 +181,7 @@ TEST_F(DatabaseTest, CacheHitTracking) {
 }
 
 TEST_F(DatabaseTest, CacheMissTracking) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+    IPGeoService service(city_db_path.string(), asn_db_path.string());
 
     std::vector<std::string> unique_ips = {"8.8.8.8", "1.1.1.1", "9.9.9.9", "208.67.222.222"};
 
@@ -220,36 +192,8 @@ TEST_F(DatabaseTest, CacheMissTracking) {
     }
 }
 
-TEST_F(DatabaseTest, CacheSizeLimit) {
-    // Create service with small cache size
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 2);
-
-    // First lookup - cache miss
-    auto result1 = service.lookup("8.8.8.8");
-    ASSERT_TRUE(result1.data_["found"].get<bool>());
-    EXPECT_FALSE(result1.cache_hit_);
-
-    // Second lookup of same IP - cache hit
-    auto result2 = service.lookup("8.8.8.8");
-    EXPECT_TRUE(result2.cache_hit_);
-    EXPECT_EQ(result2.data_.dump(), result1.data_.dump());
-
-    // Third lookup of different IP - cache miss
-    auto result3 = service.lookup("1.1.1.1");
-    ASSERT_TRUE(result3.data_["found"].get<bool>());
-    EXPECT_FALSE(result3.cache_hit_);
-
-    // Fourth lookup of first IP - should still be in cache (cache hit)
-    auto result4 = service.lookup("8.8.8.8");
-    EXPECT_TRUE(result4.cache_hit_);
-
-    // Fifth lookup of second IP - should still be in cache (cache hit)
-    auto result5 = service.lookup("1.1.1.1");
-    EXPECT_TRUE(result5.cache_hit_);
-}
-
 TEST_F(DatabaseTest, ParallelLookupConsistency) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+    IPGeoService service(city_db_path.string(), asn_db_path.string());
 
     std::vector<std::string> test_ips = {"8.8.8.8", "1.1.1.1", "9.9.9.9", "208.67.222.222",
                                          "208.67.220.220"};
@@ -276,7 +220,7 @@ TEST_F(DatabaseTest, ParallelLookupConsistency) {
 }
 
 TEST_F(DatabaseTest, LookupResultMoveSemantics) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+    IPGeoService service(city_db_path.string(), asn_db_path.string());
 
     auto result1 = service.lookup("8.8.8.8");
 
@@ -295,7 +239,7 @@ TEST_F(DatabaseTest, LookupResultMoveSemantics) {
 }
 
 TEST_F(DatabaseTest, BatchLookupPerformance) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+    IPGeoService service(city_db_path.string(), asn_db_path.string());
 
     std::vector<std::string> test_ips;
     for (int i = 0; i < 50; ++i) {
@@ -332,25 +276,8 @@ TEST_F(DatabaseTest, BatchLookupPerformance) {
     }
 }
 
-TEST_F(DatabaseTest, CacheTTLExpiration) {
-    // Create service with very short TTL (1 second)
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
-
-    // First lookup
-    auto result1 = service.lookup("8.8.8.8");
-    EXPECT_FALSE(result1.cache_hit_);
-
-    // Immediate second lookup - should be cache hit
-    auto result2 = service.lookup("8.8.8.8");
-    EXPECT_TRUE(result2.cache_hit_);
-
-    // Wait for TTL to expire (default TTL is 1 hour, so we can't test this
-    // without modifying cache) This test is conceptual - in production, you might
-    // want to add a method to set TTL
-}
-
 TEST_F(DatabaseTest, ConcurrentLookups) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+    IPGeoService service(city_db_path.string(), asn_db_path.string());
 
     std::vector<std::string> test_ips = {"8.8.8.8", "1.1.1.1", "9.9.9.9", "208.67.222.222"};
 
@@ -372,7 +299,7 @@ TEST_F(DatabaseTest, ConcurrentLookups) {
 }
 
 TEST_F(DatabaseTest, LookupResultDataIntegrity) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+    IPGeoService service(city_db_path.string(), asn_db_path.string());
 
     auto result = service.lookup("8.8.8.8");
 
@@ -404,7 +331,7 @@ TEST_F(DatabaseTest, LookupResultDataIntegrity) {
 // ============================================================================
 
 TEST_F(DatabaseTest, CacheStatsInitialization) {
-    IPCache cache(1000);
+    IPCache cache;
 
     auto stats = cache.get_stats();
 
@@ -417,7 +344,7 @@ TEST_F(DatabaseTest, CacheStatsInitialization) {
 }
 
 TEST_F(DatabaseTest, CacheStatsHitRate) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+    IPGeoService service(city_db_path.string(), asn_db_path.string());
 
     // First lookup - miss
     auto first = service.lookup("8.8.8.8");
@@ -428,33 +355,8 @@ TEST_F(DatabaseTest, CacheStatsHitRate) {
     EXPECT_TRUE(second.cache_hit_);
 }
 
-TEST(CacheEdgeTest, StatsAfterClear) {
-    IPCache cache(1000);
-
-    cache.put("8.8.8.8", nlohmann::json{{"found", true}});
-    cache.put("1.1.1.1", nlohmann::json{{"found", true}});
-    EXPECT_TRUE(cache.get("8.8.8.8").has_value());
-    EXPECT_GT(cache.get_stats().hits_, 0);
-
-    cache.clear();
-
-    EXPECT_EQ(cache.size(), 0);
-    EXPECT_FALSE(cache.get("8.8.8.8").has_value());
-}
-
-TEST(CacheEdgeTest, StatsEvictionTracking) {
-    IPCache cache(5, 1);
-
-    for (int i = 0; i < 6; ++i) {
-        cache.put("ip" + std::to_string(i), nlohmann::json{{"found", true}});
-    }
-
-    // With 6 puts and cache size 5, we should have at least 1 eviction
-    EXPECT_GT(cache.get_stats().evictions_, 0);
-}
-
 TEST(CacheEdgeTest, ShardDistribution) {
-    IPCache cache(1000);
+    IPCache cache;
 
     std::vector<std::string> test_ips = {"8.8.8.8",        "1.1.1.1",        "9.9.9.9",
                                          "208.67.222.222", "208.67.220.220", "64.6.64.6",
@@ -467,16 +369,13 @@ TEST(CacheEdgeTest, ShardDistribution) {
         cache.get(test_ips[i % test_ips.size()]);
     }
 
-    EXPECT_GT(cache.size(), 0);
-    EXPECT_LE(cache.size(), 1000);
-
     auto stats = cache.get_stats();
     EXPECT_EQ(stats.total_lookups_, 100);
     EXPECT_GT(stats.hits_, 0);
 }
 
 TEST(CacheEdgeTest, ConcurrentAccess) {
-    IPCache cache(1000);
+    IPCache cache;
 
     std::vector<std::future<bool>> futures;
     for (int i = 0; i < 50; ++i) {
@@ -499,7 +398,7 @@ TEST(CacheEdgeTest, ConcurrentAccess) {
 }
 
 TEST(CacheEdgeTest, ConcurrencyStress) {
-    IPCache cache(1000);
+    IPCache cache;
 
     const int num_threads        = 4;
     const int lookups_per_thread = 25;
@@ -538,7 +437,7 @@ TEST(CacheEdgeTest, ConcurrencyStress) {
 // ============================================================================
 
 TEST(CacheEdgeTest, MemoryUsageTracking) {
-    IPCache cache(1000);
+    IPCache cache;
 
     cache.put("8.8.8.8", nlohmann::json{{"found", true}});
     cache.put("1.1.1.1", nlohmann::json{{"found", true}});
@@ -551,7 +450,7 @@ TEST(CacheEdgeTest, MemoryUsageTracking) {
 
 TEST(CacheEdgeTest, MemoryBasedEviction) {
     // Small memory limit (1KB)
-    IPCache cache(10000, 8, 1024);
+    IPCache cache(1024, 8);
 
     for (int i = 0; i < 100; ++i) {
         cache.put("8.8.8." + std::to_string(i % 255), nlohmann::json{{"found", true}});
@@ -562,7 +461,7 @@ TEST(CacheEdgeTest, MemoryBasedEviction) {
 }
 
 TEST_F(DatabaseTest, CacheNegativeCaching) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 1000);
+    IPGeoService service(city_db_path.string(), asn_db_path.string());
 
     // Use a valid IP that likely doesn't exist in the GeoLite database
     // 10.0.0.1 is a private IP, typically not in public IP databases
@@ -577,19 +476,8 @@ TEST_F(DatabaseTest, CacheNegativeCaching) {
     EXPECT_EQ(result2.data_.dump(), result1.data_.dump());
 }
 
-TEST(CacheEdgeTest, TTLConfiguration) {
-    IPCache cache(1000);
-
-    cache.set_ttl(CacheDataType::IP_GEOLOCATION, std::chrono::seconds(7200));
-    cache.set_ttl(CacheDataType::NEGATIVE, std::chrono::seconds(60));
-
-    cache.put("8.8.8.8", nlohmann::json{{"found", true}});
-
-    EXPECT_TRUE(cache.get("8.8.8.8").has_value());
-}
-
 TEST(CacheEdgeTest, ConcurrentReadWritePerformance) {
-    IPCache cache(10000, 16);
+    IPCache cache(10 * 1024 * 1024, 16);
 
     const int num_readers           = 8;
     const int num_writers           = 4;
@@ -626,7 +514,7 @@ TEST(CacheEdgeTest, ConcurrentReadWritePerformance) {
 
 TEST(CacheEdgeTest, MemoryLimitRespected) {
     const size_t memory_limit = 50 * 1024;  // 50KB
-    IPCache cache(10000, 4, memory_limit);
+    IPCache cache(memory_limit, 4);
 
     for (int i = 0; i < 2000; ++i) {
         std::string const key = "10." + std::to_string(i / 256) + "." + std::to_string(i % 256);
@@ -641,7 +529,7 @@ TEST(CacheEdgeTest, MemoryLimitRespected) {
 }
 
 TEST(CacheEdgeTest, MemoryTracking) {
-    IPCache cache(1000);
+    IPCache cache;
 
     cache.put("00:1A:2B:3C:4D:5E", nlohmann::json{{"found", true}});
     cache.put("F4:EA:B5:12:34:56", nlohmann::json{{"found", true}});
@@ -653,18 +541,8 @@ TEST(CacheEdgeTest, MemoryTracking) {
 
 // ─── Cache edge-case tests ────────────────────────────────────────
 
-TEST(CacheEdgeTest, ZeroSizeCache) {
-    IPCache cache(0, 1, 1024);
-    EXPECT_EQ(cache.size(), 0);
-
-    // Putting into zero-size cache should not crash
-    EXPECT_NO_THROW(cache.put("test-key", nlohmann::json::object(), CacheDataType::IP_GEOLOCATION));
-    EXPECT_EQ(cache.size(), 0);
-}
-
 TEST(CacheEdgeTest, SingleShardCache) {
-    IPCache cache(100, 1, 1024 * 1024);
-    EXPECT_EQ(cache.shard_count(), 1);
+    IPCache cache(1024 * 1024, 1);
 
     cache.put("key1", nlohmann::json{{"data", 1}});
     cache.put("key2", nlohmann::json{{"data", 2}});
@@ -678,21 +556,8 @@ TEST(CacheEdgeTest, SingleShardCache) {
     EXPECT_EQ((*val2)["data"], 2);
 }
 
-TEST(CacheEdgeTest, ZeroTTLEntry) {
-    IPCache cache(100, 4, 1024 * 1024);
-
-    // Override the per-type TTLs that configure_default_ttls() sets
-    cache.set_ttl(CacheDataType::IP_GEOLOCATION, std::chrono::seconds(0));
-
-    cache.put("immediate-expire", nlohmann::json{{"data", 1}});
-
-    // With TTL=0, the entry should expire immediately
-    auto val = cache.get("immediate-expire");
-    EXPECT_FALSE(val.has_value());
-}
-
 TEST(CacheEdgeTest, ConcurrentPutSameKey) {
-    IPCache cache(1000, 8, 10 * 1024 * 1024);
+    IPCache cache(10 * 1024 * 1024, 8);
     std::string key = "concurrent-key";
 
     std::vector<std::thread> threads;
@@ -706,14 +571,8 @@ TEST(CacheEdgeTest, ConcurrentPutSameKey) {
     EXPECT_TRUE(val.has_value());
 }
 
-TEST(CacheEdgeTest, ClearEmptyCache) {
-    IPCache cache(100, 4, 1024 * 1024);
-    EXPECT_NO_THROW(cache.clear());
-    EXPECT_EQ(cache.size(), 0);
-}
-
 TEST(CacheEdgeTest, NegativeCacheThenOverwrite) {
-    IPCache cache(100, 4, 1024 * 1024);
+    IPCache cache(1024 * 1024, 4);
 
     // Put negative cache entry
     cache.put("test-key", nlohmann::json{{"found", false}}, CacheDataType::NEGATIVE);
@@ -750,8 +609,7 @@ TEST(CacheEdgeTest, CacheStatsOperatorPlusEquals) {
 
 TEST(CacheEdgeTest, LargeShardCount) {
     // Shard count > 64 is unusual but shouldn't crash
-    IPCache cache(1000, 128, 10 * 1024 * 1024);
-    EXPECT_EQ(cache.shard_count(), 128);
+    IPCache cache(10 * 1024 * 1024, 128);
 
     cache.put("test", nlohmann::json{{"data", 1}});
     auto val = cache.get("test");

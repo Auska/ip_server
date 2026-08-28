@@ -1,6 +1,7 @@
 #include <benchmark/benchmark.h>
 
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -36,8 +37,8 @@ class DatabaseBenchmark : public benchmark::Fixture {
         }
 
         // Open databases
-        city_db_.open(city_db_path.string());
-        asn_db_.open(asn_db_path.string());
+        city_db_ = std::make_unique<CityDatabase>(city_db_path.string());
+        asn_db_ = std::make_unique<ASNDatabase>(asn_db_path.string());
 
         // Prepare test IPs
         test_ips_ = {
@@ -59,21 +60,21 @@ class DatabaseBenchmark : public benchmark::Fixture {
     }
 
     void TearDown(const ::benchmark::State& /*state*/) override {
-        city_db_.close();
-        asn_db_.close();
+        city_db_.reset();
+        asn_db_.reset();
     }
 
     std::filesystem::path city_db_path;
     std::filesystem::path asn_db_path;
-    CityDatabase city_db_;
-    ASNDatabase asn_db_;
+    std::unique_ptr<CityDatabase> city_db_;
+    std::unique_ptr<ASNDatabase> asn_db_;
     std::vector<std::string> test_ips_;
 };
 
 // Benchmark CityDatabase lookup for a single IP
 BENCHMARK_F(DatabaseBenchmark, CityDatabase_SingleLookup)(benchmark::State& state) {
     for (auto _ : state) {
-        auto result = city_db_.lookup("8.8.8.8");
+        auto result = city_db_->lookup("8.8.8.8");
         benchmark::DoNotOptimize(result);
     }
     state.SetItemsProcessed(state.iterations());
@@ -82,7 +83,7 @@ BENCHMARK_F(DatabaseBenchmark, CityDatabase_SingleLookup)(benchmark::State& stat
 // Benchmark ASNDatabase lookup for a single IP
 BENCHMARK_F(DatabaseBenchmark, ASNDatabase_SingleLookup)(benchmark::State& state) {
     for (auto _ : state) {
-        auto result = asn_db_.lookup("8.8.8.8");
+        auto result = asn_db_->lookup("8.8.8.8");
         benchmark::DoNotOptimize(result);
     }
     state.SetItemsProcessed(state.iterations());
@@ -92,7 +93,7 @@ BENCHMARK_F(DatabaseBenchmark, ASNDatabase_SingleLookup)(benchmark::State& state
 BENCHMARK_F(DatabaseBenchmark, CityDatabase_MultipleLookup)(benchmark::State& state) {
     size_t index = 0;
     for (auto _ : state) {
-        auto result = city_db_.lookup(test_ips_[index % test_ips_.size()]);
+        auto result = city_db_->lookup(test_ips_[index % test_ips_.size()]);
         benchmark::DoNotOptimize(result);
         index++;
     }
@@ -103,7 +104,7 @@ BENCHMARK_F(DatabaseBenchmark, CityDatabase_MultipleLookup)(benchmark::State& st
 BENCHMARK_F(DatabaseBenchmark, ASNDatabase_MultipleLookup)(benchmark::State& state) {
     size_t index = 0;
     for (auto _ : state) {
-        auto result = asn_db_.lookup(test_ips_[index % test_ips_.size()]);
+        auto result = asn_db_->lookup(test_ips_[index % test_ips_.size()]);
         benchmark::DoNotOptimize(result);
         index++;
     }
@@ -112,7 +113,7 @@ BENCHMARK_F(DatabaseBenchmark, ASNDatabase_MultipleLookup)(benchmark::State& sta
 
 // Benchmark IPGeoService lookup with repeated IPs (cache hit)
 BENCHMARK_F(DatabaseBenchmark, IPGeoService_CacheHit)(benchmark::State& state) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 10000);
+    IPGeoService service(city_db_path.string(), asn_db_path.string());
 
     // Pre-warm cache
     for (const auto& ip : test_ips_) {
@@ -132,10 +133,8 @@ BENCHMARK_F(DatabaseBenchmark, IPGeoService_CacheHit)(benchmark::State& state) {
 // Benchmark CityDatabase open/close
 BENCHMARK_F(DatabaseBenchmark, CityDatabase_OpenClose)(benchmark::State& state) {
     for (auto _ : state) {
-        CityDatabase db;
-        db.open(city_db_path.string());
+        CityDatabase db(city_db_path.string());
         benchmark::DoNotOptimize(db);
-        db.close();
     }
     state.SetItemsProcessed(state.iterations());
 }
@@ -143,10 +142,8 @@ BENCHMARK_F(DatabaseBenchmark, CityDatabase_OpenClose)(benchmark::State& state) 
 // Benchmark ASNDatabase open/close
 BENCHMARK_F(DatabaseBenchmark, ASNDatabase_OpenClose)(benchmark::State& state) {
     for (auto _ : state) {
-        ASNDatabase db;
-        db.open(asn_db_path.string());
+        ASNDatabase db(asn_db_path.string());
         benchmark::DoNotOptimize(db);
-        db.close();
     }
     state.SetItemsProcessed(state.iterations());
 }
@@ -154,7 +151,7 @@ BENCHMARK_F(DatabaseBenchmark, ASNDatabase_OpenClose)(benchmark::State& state) {
 // Benchmark IPGeoService initialization
 BENCHMARK_F(DatabaseBenchmark, IPGeoService_Initialization)(benchmark::State& state) {
     for (auto _ : state) {
-        IPGeoService service(city_db_path.string(), asn_db_path.string(), 10000);
+        IPGeoService service(city_db_path.string(), asn_db_path.string());
         benchmark::DoNotOptimize(service);
     }
     state.SetItemsProcessed(state.iterations());
@@ -168,7 +165,7 @@ BENCHMARK_F(DatabaseBenchmark, CityDatabase_IPv6Lookup)(benchmark::State& state)
 
     size_t index = 0;
     for (auto _ : state) {
-        auto result = city_db_.lookup(ipv6_addresses[index % ipv6_addresses.size()]);
+        auto result = city_db_->lookup(ipv6_addresses[index % ipv6_addresses.size()]);
         benchmark::DoNotOptimize(result);
         index++;
     }
@@ -177,7 +174,7 @@ BENCHMARK_F(DatabaseBenchmark, CityDatabase_IPv6Lookup)(benchmark::State& state)
 
 // Benchmark concurrent lookups (simulated)
 BENCHMARK_F(DatabaseBenchmark, IPGeoService_ConcurrentLookups)(benchmark::State& state) {
-    IPGeoService service(city_db_path.string(), asn_db_path.string(), 10000);
+    IPGeoService service(city_db_path.string(), asn_db_path.string());
 
     size_t index = 0;
     for (auto _ : state) {

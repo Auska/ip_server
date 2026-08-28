@@ -37,14 +37,8 @@ void PasswordHandler::handle_get(const httplib::Request& req, httplib::Response&
         config.symbols_         = parseBoolParam(req, "symbols", true);
         config.exclude_similar_ = parseBoolParam(req, "exclude_similar", true);
 
-        std::string error_message;
-        if (!PasswordGenerator::validate_config(config, error_message)) {
-            send_error_response(res, 400, "Bad Request", error_message);
-            return;
-        }
-
         ScopedTimer timer;
-        auto result = PasswordGenerator::generate(config);
+        auto result = generate(config);
 
         metrics_->record_request(timer.elapsed());
 
@@ -100,14 +94,8 @@ void PasswordHandler::handle_post(const httplib::Request& req, httplib::Response
             return;
         }
 
-        std::string error_message;
-        if (!PasswordGenerator::validate_config(config, error_message)) {
-            send_error_response(res, 400, "Bad Request", error_message);
-            return;
-        }
-
         ScopedTimer timer;
-        auto results = PasswordGenerator::generate_batch(config, count);
+        auto results = generate_batch(config, count);
 
         metrics_->record_request(timer.elapsed());
 
@@ -128,6 +116,8 @@ void PasswordHandler::handle_post(const httplib::Request& req, httplib::Response
 
     } catch (const nlohmann::json::exception& e) {
         send_error_response(res, 400, "Bad Request", "Invalid JSON: " + std::string(e.what()));
+    } catch (const std::invalid_argument& e) {
+        send_error_response(res, 400, "Bad Request", e.what());
     } catch (const std::exception& e) {
         send_error_response(res, 500, "Internal Server Error", e.what());
         metrics_->record_error();

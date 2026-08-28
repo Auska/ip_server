@@ -29,15 +29,9 @@ class Metrics {
         double p99_latency_ms_;
 
         uint64_t uptime_seconds_;
-
-        bool city_db_open_;
-        bool asn_db_open_;
-        bool oui_db_open_;
     };
 
     Stats get_stats() const;
-
-    void set_db_status(bool city_open, bool asn_open, bool oui_open);
 
    private:
     mutable std::mutex mutex_;
@@ -49,10 +43,6 @@ class Metrics {
 
     std::chrono::steady_clock::time_point start_time_;
     std::deque<std::chrono::steady_clock::time_point> request_timestamps_;
-
-    bool city_db_open_{false};
-    bool asn_db_open_{false};
-    bool oui_db_open_{false};
 
     double calculate_percentile(double percentile) const;
 

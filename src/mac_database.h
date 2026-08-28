@@ -2,7 +2,6 @@
 
 #include <sqlite3.h>
 
-#include <atomic>
 #include <memory>
 #include <mutex>
 #include <nlohmann/json.hpp>
@@ -18,19 +17,17 @@ struct SQLiteStmtDeleter {
 
 using SQLiteStmtPtr = std::unique_ptr<sqlite3_stmt, SQLiteStmtDeleter>;
 
+/// Opens the OUI database in the constructor and throws std::runtime_error on
+/// failure; the database stays open for the object's lifetime.
 class OUIDatabase {
    public:
-    OUIDatabase() = default;
+    explicit OUIDatabase(const std::string& db_path);
     ~OUIDatabase();
 
     OUIDatabase(const OUIDatabase&) = delete;
     OUIDatabase& operator=(const OUIDatabase&) = delete;
     OUIDatabase(OUIDatabase&&) noexcept;
     OUIDatabase& operator=(OUIDatabase&&) noexcept;
-
-    bool open(const std::string& db_path);
-    void close();
-    bool is_open() const { return is_open_.load(std::memory_order_acquire); }
 
     nlohmann::json lookup(const std::string& mac_address) const;
 
@@ -40,9 +37,8 @@ class OUIDatabase {
 
     sqlite3* db_ = nullptr;
     mutable SQLiteStmtPtr lookup_stmt_;
-    std::atomic<bool> is_open_{false};
-    mutable std::mutex open_close_mutex_;
-    mutable std::mutex query_mutex_;
+    bool is_open_ = false;  // false only in a moved-from database
+    mutable std::mutex query_mutex_;  // serializes the shared prepared statement
 };
 
 }  // namespace ip_server

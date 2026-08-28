@@ -9,9 +9,6 @@ namespace ip_server {
 
 class APIAuth {
    public:
-    APIAuth() = default;
-    ~APIAuth() = default;
-
     void add_key(const std::string& key);
 
     bool is_valid(const std::string& key) const;

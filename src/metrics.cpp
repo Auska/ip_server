@@ -52,10 +52,6 @@ Metrics::Stats Metrics::get_stats() const {
             (static_cast<double>(stats.total_errors_) / stats.total_requests_) * 100.0;
     }
 
-    stats.city_db_open_ = city_db_open_;
-    stats.asn_db_open_  = asn_db_open_;
-    stats.oui_db_open_  = oui_db_open_;
-
     {
         std::scoped_lock const lock(mutex_);
         if (!latencies_.empty()) {
@@ -74,12 +70,6 @@ Metrics::Stats Metrics::get_stats() const {
         std::chrono::duration_cast<std::chrono::seconds>(now - start_time_).count();
 
     return stats;
-}
-
-void Metrics::set_db_status(bool city_open, bool asn_open, bool oui_open) {
-    city_db_open_ = city_open;
-    asn_db_open_  = asn_open;
-    oui_db_open_  = oui_open;
 }
 
 double Metrics::calculate_percentile(double percentile) const {

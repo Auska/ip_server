@@ -3,6 +3,7 @@
 #include <atomic>
 #include <filesystem>
 #include <future>
+#include <memory>
 #include <random>
 #include <string>
 #include <thread>
@@ -10,8 +11,6 @@
 
 #include "auth.h"
 #include "cache.h"
-#include "database/asn_database.h"
-#include "database/city_database.h"
 #include "mac_database.h"
 #include "rate_limiter.h"
 #include "service/ip_geo_service.h"
@@ -43,7 +42,7 @@ class MACDatabaseBenchmark : public benchmark::Fixture {
             return;
         }
 
-        oui_db_.open(oui_db_path.string());
+        oui_db_ = std::make_unique<OUIDatabase>(oui_db_path.string());
 
         // Test MAC addresses
         test_macs_ = {"00:1A:2B:3C:4D:5E", "00:1A:2B:3C:4D:5F", "F4:EA:B5:12:34:56",
@@ -52,16 +51,16 @@ class MACDatabaseBenchmark : public benchmark::Fixture {
                       "00:24:81:00:00:00"};
     }
 
-    void TearDown(const ::benchmark::State& /*state*/) override { oui_db_.close(); }
+    void TearDown(const ::benchmark::State& /*state*/) override { oui_db_.reset(); }
 
     std::filesystem::path oui_db_path;
-    OUIDatabase oui_db_;
+    std::unique_ptr<OUIDatabase> oui_db_;
     std::vector<std::string> test_macs_;
 };
 
 BENCHMARK_F(MACDatabaseBenchmark, OUIDatabase_SingleLookup)(benchmark::State& state) {
     for (auto _ : state) {
-        auto result = oui_db_.lookup("00:1A:2B:3C:4D:5E");
+        auto result = oui_db_->lookup("00:1A:2B:3C:4D:5E");
         benchmark::DoNotOptimize(result);
     }
     state.SetItemsProcessed(state.iterations());
@@ -70,7 +69,7 @@ BENCHMARK_F(MACDatabaseBenchmark, OUIDatabase_SingleLookup)(benchmark::State& st
 BENCHMARK_F(MACDatabaseBenchmark, OUIDatabase_MultipleLookup)(benchmark::State& state) {
     size_t index = 0;
     for (auto _ : state) {
-        auto result = oui_db_.lookup(test_macs_[index % test_macs_.size()]);
+        auto result = oui_db_->lookup(test_macs_[index % test_macs_.size()]);
         benchmark::DoNotOptimize(result);
         index++;
     }
@@ -86,7 +85,7 @@ BENCHMARK_F(MACDatabaseBenchmark, OUIDatabase_MACFormatVariants)(benchmark::Stat
     };
     size_t index = 0;
     for (auto _ : state) {
-        auto result = oui_db_.lookup(mac_formats[index % mac_formats.size()]);
+        auto result = oui_db_->lookup(mac_formats[index % mac_formats.size()]);
         benchmark::DoNotOptimize(result);
         index++;
     }
@@ -95,7 +94,7 @@ BENCHMARK_F(MACDatabaseBenchmark, OUIDatabase_MACFormatVariants)(benchmark::Stat
 
 BENCHMARK_F(MACDatabaseBenchmark, OUIDatabase_NotFoundLookup)(benchmark::State& state) {
     for (auto _ : state) {
-        auto result = oui_db_.lookup("FF:FF:FF:FF:FF:FF");
+        auto result = oui_db_->lookup("FF:FF:FF:FF:FF:FF");
         benchmark::DoNotOptimize(result);
     }
     state.SetItemsProcessed(state.iterations());
@@ -117,16 +116,8 @@ class CacheBenchmark : public benchmark::Fixture {
             return;
         }
 
-        city_db_.open(city_db_path.string());
-        asn_db_.open(asn_db_path.string());
-
         // Generate test IPs
         generate_test_ips(1000);
-    }
-
-    void TearDown(const ::benchmark::State& /*state*/) override {
-        city_db_.close();
-        asn_db_.close();
     }
 
     void generate_test_ips(size_t count) {
@@ -140,13 +131,11 @@ class CacheBenchmark : public benchmark::Fixture {
 
     std::filesystem::path city_db_path;
     std::filesystem::path asn_db_path;
-    CityDatabase city_db_;
-    ASNDatabase asn_db_;
     std::vector<std::string> test_ips_;
 };
 
 BENCHMARK_DEFINE_F(CacheBenchmark, Cache_GetHit)(benchmark::State& state) {
-    IPCache cache(state.range(0));
+    IPCache cache(static_cast<size_t>(state.range(0)) * 1024);
     nlohmann::json dummy_result{{"test", "data"}};
 
     // Pre-populate cache
@@ -169,7 +158,7 @@ BENCHMARK_REGISTER_F(CacheBenchmark, Cache_GetHit)
     ->Args({10000});
 
 BENCHMARK_DEFINE_F(CacheBenchmark, Cache_GetMiss)(benchmark::State& state) {
-    IPCache cache(state.range(0));
+    IPCache cache(static_cast<size_t>(state.range(0)) * 1024);
     nlohmann::json dummy_result{{"test", "data"}};
 
     // Pre-populate with different IPs
@@ -192,7 +181,7 @@ BENCHMARK_REGISTER_F(CacheBenchmark, Cache_GetMiss)
     ->Args({10000});
 
 BENCHMARK_DEFINE_F(CacheBenchmark, Cache_Put)(benchmark::State& state) {
-    IPCache cache(state.range(0));
+    IPCache cache(static_cast<size_t>(state.range(0)) * 1024);
     nlohmann::json dummy_result{{"test", "data"}};
 
     for (auto _ : state) {
@@ -209,14 +198,16 @@ BENCHMARK_REGISTER_F(CacheBenchmark, Cache_Put)
     ->Args({10000});
 
 BENCHMARK_DEFINE_F(CacheBenchmark, Cache_Eviction)(benchmark::State& state) {
-    IPCache cache(state.range(0));
+    // 1MB memory budget forces evictions as unique keys stream in
+    IPCache cache(1024 * 1024);
     nlohmann::json dummy_result{{"test", "data"}};
+    uint64_t iteration = 0;
 
     for (auto _ : state) {
-        cache.clear();
         for (size_t i = 0; i < test_ips_.size(); ++i) {
-            cache.put(test_ips_[i], dummy_result);
+            cache.put(test_ips_[i] + "." + std::to_string(iteration), dummy_result);
         }
+        ++iteration;
     }
     state.SetItemsProcessed(state.iterations() * test_ips_.size());
 }
@@ -294,23 +285,6 @@ BENCHMARK_F(RateLimiterBenchmark, RateLimiter_Cleanup)(benchmark::State& state) 
     state.SetItemsProcessed(state.iterations());
 }
 
-BENCHMARK_F(RateLimiterBenchmark, RateLimiter_MemoryStats)(benchmark::State& state) {
-    RateLimiter limiter(100, std::chrono::seconds(60), 10000);
-
-    // Create entries
-    for (const auto& ip : test_ips_) {
-        for (int i = 0; i < 50; ++i) {
-            limiter.is_allowed(ip);
-        }
-    }
-
-    for (auto _ : state) {
-        auto stats = limiter.get_memory_stats();
-        benchmark::DoNotOptimize(stats);
-    }
-    state.SetItemsProcessed(state.iterations());
-}
-
 // ============================================================================
 // Batch Lookup Performance Benchmarks
 // ============================================================================
@@ -328,7 +302,7 @@ class BatchLookupBenchmark : public benchmark::Fixture {
         }
 
         service_ =
-            std::make_unique<IPGeoService>(city_db_path.string(), asn_db_path.string(), 10000);
+            std::make_unique<IPGeoService>(city_db_path.string(), asn_db_path.string());
     }
 
     std::filesystem::path city_db_path;
@@ -447,7 +421,7 @@ class MemoryBenchmark : public benchmark::Fixture {
 
 BENCHMARK_DEFINE_F(MemoryBenchmark, Memory_IPServiceWithCache)(benchmark::State& state) {
     for (auto _ : state) {
-        IPGeoService service(city_db_path.string(), asn_db_path.string(), state.range(0));
+        IPGeoService service(city_db_path.string(), asn_db_path.string());
         benchmark::DoNotOptimize(service);
 
         // Pre-warm cache
@@ -472,8 +446,8 @@ BENCHMARK_DEFINE_F(MemoryBenchmark, Memory_RateLimiterWithEntries)(benchmark::St
             limiter.is_allowed("192.168.1." + std::to_string(i));
         }
 
-        auto stats = limiter.get_memory_stats();
-        benchmark::DoNotOptimize(stats);
+        auto remaining = limiter.get_remaining("192.168.1.0");
+        benchmark::DoNotOptimize(remaining);
     }
     state.SetItemsProcessed(state.iterations());
 }
@@ -586,7 +560,7 @@ class ConcurrentBenchmark : public benchmark::Fixture {
         }
 
         service_ =
-            std::make_unique<IPGeoService>(city_db_path.string(), asn_db_path.string(), 10000);
+            std::make_unique<IPGeoService>(city_db_path.string(), asn_db_path.string());
     }
 
     void TearDown(const ::benchmark::State& /*state*/) override {
@@ -650,7 +624,7 @@ class ShardedCacheBenchmark : public benchmark::Fixture {
     void SetUp(::benchmark::State& state) override {
         // Test with different shard counts
         shard_count_ = state.range(0);
-        cache_size_  = state.range(1);
+        cache_size_  = static_cast<size_t>(state.range(1)) * 1024;
 
         // Generate test IPs
         for (int i = 0; i < 1000; ++i) {
@@ -817,7 +791,7 @@ class CacheHitRateBenchmark : public benchmark::Fixture {
         }
 
         service_ =
-            std::make_unique<IPGeoService>(city_db_path.string(), asn_db_path.string(), 10000);
+            std::make_unique<IPGeoService>(city_db_path.string(), asn_db_path.string());
 
         // Use known public DNS servers
         test_ips_ = {"8.8.8.8",   "1.1.1.1",   "9.9.9.9",       "208.67.222.222", "208.67.220.220",

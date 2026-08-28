@@ -1,20 +1,18 @@
 #include <gtest/gtest.h>
 
 #include <set>
+#include <stdexcept>
 #include <string>
 
 #include "password_generator.h"
 
 using namespace ip_server;
 
-class PasswordGeneratorTest : public ::testing::Test {
-   protected:
-    PasswordGenerator generator_;
-};
+class PasswordGeneratorTest : public ::testing::Test {};
 
 TEST_F(PasswordGeneratorTest, GenerateDefaultPassword) {
     PasswordConfig config;
-    auto result = generator_.generate(config);
+    auto result = generate(config);
 
     EXPECT_EQ(result.length_, 16);
     EXPECT_FALSE(result.password_.empty());
@@ -25,7 +23,7 @@ TEST_F(PasswordGeneratorTest, GenerateDefaultPassword) {
 TEST_F(PasswordGeneratorTest, GenerateCustomLengthPassword) {
     PasswordConfig config;
     config.length_ = 24;
-    auto result    = generator_.generate(config);
+    auto result    = generate(config);
 
     EXPECT_EQ(result.length_, 24);
     EXPECT_EQ(result.password_.length(), 24);
@@ -34,7 +32,7 @@ TEST_F(PasswordGeneratorTest, GenerateCustomLengthPassword) {
 TEST_F(PasswordGeneratorTest, GenerateMinimalLengthPassword) {
     PasswordConfig config;
     config.length_ = 8;
-    auto result    = generator_.generate(config);
+    auto result    = generate(config);
 
     EXPECT_EQ(result.length_, 8);
     EXPECT_EQ(result.password_.length(), 8);
@@ -43,7 +41,7 @@ TEST_F(PasswordGeneratorTest, GenerateMinimalLengthPassword) {
 TEST_F(PasswordGeneratorTest, GenerateMaximalLengthPassword) {
     PasswordConfig config;
     config.length_ = 128;
-    auto result    = generator_.generate(config);
+    auto result    = generate(config);
 
     EXPECT_EQ(result.length_, 128);
     EXPECT_EQ(result.password_.length(), 128);
@@ -57,7 +55,7 @@ TEST_F(PasswordGeneratorTest, GenerateUppercaseOnlyPassword) {
     config.symbols_         = false;
     config.exclude_similar_ = true;
 
-    auto result = generator_.generate(config);
+    auto result = generate(config);
 
     for (char c : result.password_) {
         EXPECT_GE(c, 'A');
@@ -75,7 +73,7 @@ TEST_F(PasswordGeneratorTest, GenerateLowercaseOnlyPassword) {
     config.symbols_         = false;
     config.exclude_similar_ = true;
 
-    auto result = generator_.generate(config);
+    auto result = generate(config);
 
     for (char c : result.password_) {
         EXPECT_GE(c, 'a');
@@ -94,7 +92,7 @@ TEST_F(PasswordGeneratorTest, GenerateDigitsOnlyPassword) {
     config.symbols_         = false;
     config.exclude_similar_ = true;
 
-    auto result = generator_.generate(config);
+    auto result = generate(config);
 
     for (char c : result.password_) {
         EXPECT_GE(c, '0');
@@ -111,7 +109,7 @@ TEST_F(PasswordGeneratorTest, GenerateMixedPassword) {
     config.digits_    = true;
     config.symbols_   = true;
 
-    auto result = generator_.generate(config);
+    auto result = generate(config);
 
     bool has_upper  = false;
     bool has_lower  = false;
@@ -140,7 +138,7 @@ TEST_F(PasswordGeneratorTest, ExcludeSimilarCharacters) {
     config.lowercase_       = true;
     config.digits_          = true;
 
-    auto result = generator_.generate(config);
+    auto result = generate(config);
 
     for (char c : result.password_) {
         EXPECT_NE(c, 'I');
@@ -156,7 +154,7 @@ TEST_F(PasswordGeneratorTest, ExcludeSimilarCharacters) {
 TEST_F(PasswordGeneratorTest, GenerateBatchPasswords) {
     PasswordConfig config;
     int count    = 5;
-    auto results = generator_.generate_batch(config, count);
+    auto results = generate_batch(config, count);
 
     EXPECT_EQ(results.size(), count);
 
@@ -174,7 +172,7 @@ TEST_F(PasswordGeneratorTest, GenerateBatchPasswords) {
 TEST_F(PasswordGeneratorTest, GenerateMaxBatchPasswords) {
     PasswordConfig config;
     int count    = 100;
-    auto results = generator_.generate_batch(config, count);
+    auto results = generate_batch(config, count);
 
     EXPECT_EQ(results.size(), 100);
 }
@@ -183,7 +181,7 @@ TEST_F(PasswordGeneratorTest, ValidateConfigInvalidLengthTooShort) {
     PasswordConfig config;
     config.length_ = 7;
     std::string error_message;
-    EXPECT_FALSE(PasswordGenerator::validate_config(config, error_message));
+    EXPECT_FALSE(validate_config(config, error_message));
     EXPECT_FALSE(error_message.empty());
 }
 
@@ -191,7 +189,7 @@ TEST_F(PasswordGeneratorTest, ValidateConfigInvalidLengthTooLong) {
     PasswordConfig config;
     config.length_ = 129;
     std::string error_message;
-    EXPECT_FALSE(PasswordGenerator::validate_config(config, error_message));
+    EXPECT_FALSE(validate_config(config, error_message));
     EXPECT_FALSE(error_message.empty());
 }
 
@@ -202,21 +200,21 @@ TEST_F(PasswordGeneratorTest, ValidateConfigNoCharacterTypes) {
     config.digits_    = false;
     config.symbols_   = false;
     std::string error_message;
-    EXPECT_FALSE(PasswordGenerator::validate_config(config, error_message));
+    EXPECT_FALSE(validate_config(config, error_message));
     EXPECT_FALSE(error_message.empty());
 }
 
 TEST_F(PasswordGeneratorTest, ValidateConfigValid) {
     PasswordConfig config;
     std::string error_message;
-    EXPECT_TRUE(PasswordGenerator::validate_config(config, error_message));
+    EXPECT_TRUE(validate_config(config, error_message));
     EXPECT_TRUE(error_message.empty());
 }
 
 TEST_F(PasswordGeneratorTest, EntropyCalculation) {
     PasswordConfig config;
     config.length_ = 16;
-    auto result    = generator_.generate(config);
+    auto result    = generate(config);
 
     // Entropy should be positive for a valid password
     EXPECT_GT(result.entropy_, 0.0);
@@ -239,7 +237,7 @@ TEST_F(PasswordGeneratorTest, StrengthRating) {
     for (const auto& tc : test_cases) {
         PasswordConfig config;
         config.length_ = tc.length_;
-        auto result    = generator_.generate(config);
+        auto result    = generate(config);
 
         // Verify strength is one of the valid ratings
         EXPECT_TRUE(result.strength_ == "very_weak" || result.strength_ == "weak"
@@ -255,7 +253,7 @@ TEST_F(PasswordGeneratorTest, GenerateWithExcludeSimilarFalse) {
     config.lowercase_       = true;
     config.digits_          = true;
 
-    auto result = generator_.generate(config);
+    auto result = generate(config);
 
     // Verify password contains characters from all types
     bool has_upper = false;
@@ -276,15 +274,15 @@ TEST_F(PasswordGeneratorTest, GenerateWithExcludeSimilarFalse) {
 TEST_F(PasswordGeneratorTest, GenerateBatchInvalidCount) {
     PasswordConfig config;
 
-    EXPECT_THROW(generator_.generate_batch(config, 0), std::runtime_error);
-    EXPECT_THROW(generator_.generate_batch(config, -1), std::runtime_error);
+    EXPECT_THROW(generate_batch(config, 0), std::invalid_argument);
+    EXPECT_THROW(generate_batch(config, -1), std::invalid_argument);
 }
 
 TEST_F(PasswordGeneratorTest, GenerateInvalidLengthThrows) {
     PasswordConfig config;
     config.length_ = 5;
 
-    EXPECT_THROW(generator_.generate(config), std::runtime_error);
+    EXPECT_THROW(generate(config), std::invalid_argument);
 }
 
 // ─── Edge-case tests ──────────────────────────────────────────────
@@ -292,7 +290,7 @@ TEST_F(PasswordGeneratorTest, GenerateInvalidLengthThrows) {
 TEST_F(PasswordGeneratorTest, LengthBoundaryEight) {
     PasswordConfig config;
     config.length_ = 8;
-    auto result    = generator_.generate(config);
+    auto result    = generate(config);
     EXPECT_EQ(result.length_, 8);
     EXPECT_FALSE(result.password_.empty());
 }
@@ -300,7 +298,7 @@ TEST_F(PasswordGeneratorTest, LengthBoundaryEight) {
 TEST_F(PasswordGeneratorTest, LengthBoundaryOneTwentyEight) {
     PasswordConfig config;
     config.length_ = 128;
-    auto result    = generator_.generate(config);
+    auto result    = generate(config);
     EXPECT_EQ(result.length_, 128);
     EXPECT_FALSE(result.password_.empty());
 }
@@ -313,7 +311,7 @@ TEST_F(PasswordGeneratorTest, SymbolsOnlyPassword) {
     config.symbols_         = true;
     config.exclude_similar_ = false;
 
-    auto result = generator_.generate(config);
+    auto result = generate(config);
     EXPECT_EQ(result.length_, 16);
 
     for (char c : result.password_) {
@@ -336,7 +334,7 @@ TEST_F(PasswordGeneratorTest, ExcludeSimilarReducesPool) {
     config.exclude_similar_ = true;
 
     // Only uppercase with exclude_similar: pool = 26 - 2 = 24 chars
-    auto result = generator_.generate(config);
+    auto result = generate(config);
     EXPECT_EQ(result.length_, 16);
 
     // 'I' and 'O' should not appear (confusable)
@@ -406,7 +404,7 @@ TEST_F(PasswordGeneratorTest, StrengthRatingBoundaries) {
     }
 
     for (size_t i = 0; i < cases.size(); ++i) {
-        auto result = generator_.generate(cases[i].config);
+        auto result = generate(cases[i].config);
         EXPECT_EQ(result.strength_, cases[i].expected_strength)
             << "Case " << i << " failed: expected " << cases[i].expected_strength << " but got "
             << result.strength_ << " (entropy=" << result.entropy_ << ")";
@@ -415,7 +413,7 @@ TEST_F(PasswordGeneratorTest, StrengthRatingBoundaries) {
 
 TEST_F(PasswordGeneratorTest, GenerateBatchValidOne) {
     PasswordConfig config;
-    auto results = generator_.generate_batch(config, 1);
+    auto results = generate_batch(config, 1);
     EXPECT_EQ(results.size(), 1);
     EXPECT_EQ(results[0].length_, 16);
 }
@@ -423,7 +421,7 @@ TEST_F(PasswordGeneratorTest, GenerateBatchValidOne) {
 TEST_F(PasswordGeneratorTest, GenerateBatchUniqueResults) {
     PasswordConfig config;
     config.length_ = 32;  // Long enough to be unique
-    auto results   = generator_.generate_batch(config, 10);
+    auto results   = generate_batch(config, 10);
 
     std::set<std::string> seen;
     for (const auto& r : results) {

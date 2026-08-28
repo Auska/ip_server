@@ -1,25 +1,13 @@
 #include "ip_geo_service.h"
 
-#include <chrono>
-#include <stdexcept>
-
 #include "logger.h"
 #include "types.h"
 
 namespace ip_server {
 
-IPGeoService::IPGeoService(const std::string& city_db_path, const std::string& asn_db_path,
-                           size_t cache_size)
-    : cache_(cache_size) {
-    if (!city_db_.open(city_db_path)) {
-        throw std::runtime_error("Failed to open City database: " + city_db_path);
-    }
-
-    if (!asn_db_.open(asn_db_path)) {
-        throw std::runtime_error("Failed to open ASN database: " + asn_db_path);
-    }
-
-    LOG_INFO("IPGeoService initialized with cache size: " + std::to_string(cache_size));
+IPGeoService::IPGeoService(const std::string& city_db_path, const std::string& asn_db_path)
+    : city_db_(city_db_path), asn_db_(asn_db_path) {
+    LOG_INFO("IPGeoService initialized");
 }
 
 LookupResult IPGeoService::lookup(const std::string& ip_address) const {

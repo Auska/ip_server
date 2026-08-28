@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <stdexcept>
 #include <filesystem>
 #include <future>
 #include <thread>
@@ -28,20 +29,14 @@ class MACDatabaseTest : public ::testing::Test {
 };
 
 TEST_F(MACDatabaseTest, OUIDatabaseOpenSuccess) {
-    OUIDatabase db;
-    EXPECT_TRUE(db.open(oui_db_path.string()));
-    EXPECT_TRUE(db.is_open());
-}
+    EXPECT_NO_THROW({ OUIDatabase db(oui_db_path.string()); });}
 
 TEST_F(MACDatabaseTest, OUIDatabaseOpenFailure) {
-    OUIDatabase db;
-    EXPECT_FALSE(db.open("/nonexistent/path/to/database.db"));
-    EXPECT_FALSE(db.is_open());
+    EXPECT_THROW({ OUIDatabase db("/nonexistent/path/to/database.db"); }, std::runtime_error);
 }
 
 TEST_F(MACDatabaseTest, OUIDatabaseLookupValidMAC) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
+    OUIDatabase db(oui_db_path.string());
 
     auto result = db.lookup("00:1A:2B:3C:4D:5E");
 
@@ -54,8 +49,7 @@ TEST_F(MACDatabaseTest, OUIDatabaseLookupValidMAC) {
 }
 
 TEST_F(MACDatabaseTest, OUIDatabaseLookupWithHyphenSeparator) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
+    OUIDatabase db(oui_db_path.string());
 
     auto result = db.lookup("00-1A-2B-3C-4D-5E");
 
@@ -68,8 +62,7 @@ TEST_F(MACDatabaseTest, OUIDatabaseLookupWithHyphenSeparator) {
 }
 
 TEST_F(MACDatabaseTest, OUIDatabaseLookupWithoutSeparator) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
+    OUIDatabase db(oui_db_path.string());
 
     auto result = db.lookup("001A2B3C4D5E");
 
@@ -82,8 +75,7 @@ TEST_F(MACDatabaseTest, OUIDatabaseLookupWithoutSeparator) {
 }
 
 TEST_F(MACDatabaseTest, OUIDatabaseLookupLowercase) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
+    OUIDatabase db(oui_db_path.string());
 
     auto result = db.lookup("00:1a:2b:3c:4d:5e");
 
@@ -94,8 +86,7 @@ TEST_F(MACDatabaseTest, OUIDatabaseLookupLowercase) {
 }
 
 TEST_F(MACDatabaseTest, OUIDatabaseLookupMixedCase) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
+    OUIDatabase db(oui_db_path.string());
 
     auto result = db.lookup("00:1a:2B:3c:4D:5e");
 
@@ -106,8 +97,7 @@ TEST_F(MACDatabaseTest, OUIDatabaseLookupMixedCase) {
 }
 
 TEST_F(MACDatabaseTest, OUIDatabaseLookupInvalidMAC) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
+    OUIDatabase db(oui_db_path.string());
 
     auto result = db.lookup("invalid.mac.address");
 
@@ -115,8 +105,7 @@ TEST_F(MACDatabaseTest, OUIDatabaseLookupInvalidMAC) {
 }
 
 TEST_F(MACDatabaseTest, OUIDatabaseLookupTooShort) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
+    OUIDatabase db(oui_db_path.string());
 
     auto result = db.lookup("00:1A:2B");
 
@@ -124,8 +113,7 @@ TEST_F(MACDatabaseTest, OUIDatabaseLookupTooShort) {
 }
 
 TEST_F(MACDatabaseTest, OUIDatabaseLookupTooLong) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
+    OUIDatabase db(oui_db_path.string());
 
     auto result = db.lookup("00:1A:2B:3C:4D:5E:6F");
 
@@ -133,8 +121,7 @@ TEST_F(MACDatabaseTest, OUIDatabaseLookupTooLong) {
 }
 
 TEST_F(MACDatabaseTest, OUIDatabaseLookupNonExistentOUI) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
+    OUIDatabase db(oui_db_path.string());
 
     auto result = db.lookup("FF:FF:FF:FF:FF:FF");
 
@@ -147,8 +134,7 @@ TEST_F(MACDatabaseTest, OUIDatabaseLookupNonExistentOUI) {
 }
 
 TEST_F(MACDatabaseTest, OUIDatabaseLookupContainsManufacturer) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
+    OUIDatabase db(oui_db_path.string());
 
     auto result = db.lookup("00:1A:2B:3C:4D:5E");
 
@@ -157,8 +143,7 @@ TEST_F(MACDatabaseTest, OUIDatabaseLookupContainsManufacturer) {
 }
 
 TEST_F(MACDatabaseTest, OUIDatabaseLookupContainsRegistry) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
+    OUIDatabase db(oui_db_path.string());
 
     auto result = db.lookup("00:1A:2B:3C:4D:5E");
 
@@ -167,56 +152,19 @@ TEST_F(MACDatabaseTest, OUIDatabaseLookupContainsRegistry) {
 }
 
 TEST_F(MACDatabaseTest, OUIDatabaseMoveConstructor) {
-    OUIDatabase db1;
-    ASSERT_TRUE(db1.open(oui_db_path.string()));
+    OUIDatabase db1(oui_db_path.string());
 
     OUIDatabase db2 = std::move(db1);
-
-    EXPECT_FALSE(db1.is_open());
-    EXPECT_TRUE(db2.is_open());
 
     auto result = db2.lookup("00:1A:2B:3C:4D:5E");
     EXPECT_TRUE(result.contains("found"));
 }
 
 TEST_F(MACDatabaseTest, OUIDatabaseMoveAssignment) {
-    OUIDatabase db1, db2;
-    ASSERT_TRUE(db1.open(oui_db_path.string()));
+    OUIDatabase db1(oui_db_path.string());
+    OUIDatabase db2(oui_db_path.string());
 
     db2 = std::move(db1);
-
-    EXPECT_FALSE(db1.is_open());
-    EXPECT_TRUE(db2.is_open());
-}
-
-TEST_F(MACDatabaseTest, OUIDatabaseClose) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
-    EXPECT_TRUE(db.is_open());
-
-    db.close();
-    EXPECT_FALSE(db.is_open());
-}
-
-TEST_F(MACDatabaseTest, OUIDatabaseReopen) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
-    EXPECT_TRUE(db.is_open());
-
-    db.close();
-    EXPECT_FALSE(db.is_open());
-
-    EXPECT_TRUE(db.open(oui_db_path.string()));
-    EXPECT_TRUE(db.is_open());
-}
-
-TEST_F(MACDatabaseTest, OUIDatabaseLookupWhenNotOpen) {
-    OUIDatabase db;
-
-    auto result = db.lookup("00:1A:2B:3C:4D:5E");
-
-    EXPECT_TRUE(result.contains("error"));
-    EXPECT_EQ(result["error"], "Database not open");
 }
 
 class MACLookupServiceTest : public ::testing::Test {
@@ -236,17 +184,17 @@ class MACLookupServiceTest : public ::testing::Test {
 };
 
 TEST_F(MACLookupServiceTest, MACLookupServiceInitialization) {
-    EXPECT_NO_THROW({ MACLookupService service(oui_db_path.string(), 1000); });
+    EXPECT_NO_THROW({ MACLookupService service(oui_db_path.string()); });
 }
 
 TEST_F(MACLookupServiceTest, MACLookupServiceInitializationFailure) {
     EXPECT_THROW(
-        { MACLookupService service("/nonexistent/path/to/database.db", 1000); },
+        { MACLookupService service("/nonexistent/path/to/database.db"); },
         std::runtime_error);
 }
 
 TEST_F(MACLookupServiceTest, MACLookupServiceLookup) {
-    MACLookupService service(oui_db_path.string(), 1000);
+    MACLookupService service(oui_db_path.string());
 
     auto result = service.lookup("00:1A:2B:3C:4D:5E");
 
@@ -256,7 +204,7 @@ TEST_F(MACLookupServiceTest, MACLookupServiceLookup) {
 }
 
 TEST_F(MACLookupServiceTest, MACLookupServiceCacheEnabled) {
-    MACLookupService service(oui_db_path.string(), 1000);
+    MACLookupService service(oui_db_path.string());
 
     // First lookup
     auto result1 = service.lookup("00:1A:2B:3C:4D:5E");
@@ -267,20 +215,8 @@ TEST_F(MACLookupServiceTest, MACLookupServiceCacheEnabled) {
     EXPECT_TRUE(result2.cache_hit_);
 }
 
-TEST_F(MACLookupServiceTest, MACLookupServiceSetCacheSize) {
-    MACLookupService service(oui_db_path.string(), 1000);
-
-    service.lookup("00:1A:2B:3C:4D:5E");
-}
-
-TEST_F(MACLookupServiceTest, MACLookupServiceIsOUIDBOpen) {
-    MACLookupService service(oui_db_path.string(), 1000);
-
-    EXPECT_TRUE(service.is_oui_db_open());
-}
-
 TEST_F(MACLookupServiceTest, MACLookupServiceConcurrentLookups) {
-    MACLookupService service(oui_db_path.string(), 1000);
+    MACLookupService service(oui_db_path.string());
 
     std::vector<std::future<LookupResult>> futures;
 
@@ -298,7 +234,7 @@ TEST_F(MACLookupServiceTest, MACLookupServiceConcurrentLookups) {
 }
 
 TEST_F(MACLookupServiceTest, MACLookupServiceMultipleOUIs) {
-    MACLookupService service(oui_db_path.string(), 1000);
+    MACLookupService service(oui_db_path.string());
 
     auto result1 = service.lookup("00:1A:2B:3C:4D:5E");
     auto result2 = service.lookup("F4:EA:B5:12:34:56");
@@ -315,16 +251,14 @@ TEST_F(MACLookupServiceTest, MACLookupServiceMultipleOUIs) {
 // ─── MAC database edge-case tests ─────────────────────────────────
 
 TEST_F(MACDatabaseTest, EmptyMACAddress) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
+    OUIDatabase db(oui_db_path.string());
 
     auto result = db.lookup("");
     EXPECT_TRUE(result.contains("error"));
 }
 
 TEST_F(MACDatabaseTest, ZeroMACAddress) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
+    OUIDatabase db(oui_db_path.string());
 
     auto result = db.lookup("00:00:00:00:00:00");
     EXPECT_TRUE(result.contains("found"));
@@ -333,16 +267,14 @@ TEST_F(MACDatabaseTest, ZeroMACAddress) {
 }
 
 TEST_F(MACDatabaseTest, SQLInjectionAttempt) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
+    OUIDatabase db(oui_db_path.string());
 
     auto result = db.lookup("'; DROP TABLE oui_registry; --");
     EXPECT_TRUE(result.contains("error"));
 }
 
 TEST_F(MACDatabaseTest, VeryLongMACString) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
+    OUIDatabase db(oui_db_path.string());
 
     std::string long_mac(10000, 'A');
     auto result = db.lookup(long_mac);
@@ -350,38 +282,21 @@ TEST_F(MACDatabaseTest, VeryLongMACString) {
 }
 
 TEST_F(MACDatabaseTest, InvalidHexCharsG) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
+    OUIDatabase db(oui_db_path.string());
 
     auto result = db.lookup("GG:GG:GG:GG:GG:GG");
     EXPECT_TRUE(result.contains("error"));
 }
 
 TEST_F(MACDatabaseTest, OnlySeparators) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
+    OUIDatabase db(oui_db_path.string());
 
     auto result = db.lookup("::::::");
     EXPECT_TRUE(result.contains("error"));
 }
 
-TEST_F(MACDatabaseTest, LookupAfterClose) {
-    OUIDatabase db;
-    ASSERT_TRUE(db.open(oui_db_path.string()));
-    db.close();
-
-    auto result = db.lookup("00:1A:2B:3C:4D:5E");
-    EXPECT_TRUE(result.contains("error"));
-}
-
-TEST_F(MACLookupServiceTest, CacheSizeZero) {
-    MACLookupService service(oui_db_path.string(), 0);
-    auto result = service.lookup("00:1A:2B:3C:4D:5E");
-    EXPECT_TRUE(result.data_.contains("found"));
-}
-
 TEST_F(MACLookupServiceTest, LookupSameMACRepeatedly) {
-    MACLookupService service(oui_db_path.string(), 100);
+    MACLookupService service(oui_db_path.string());
 
     // First lookup — cache miss
     auto result1 = service.lookup("00:1A:2B:3C:4D:5E");

@@ -19,47 +19,17 @@ constexpr const char* OUI_LOOKUP_SQL =
 
 }  // namespace
 
-OUIDatabase::~OUIDatabase() {
-    close();
-}
-
-OUIDatabase::OUIDatabase(OUIDatabase&& other) noexcept
-    : db_(other.db_),
-      lookup_stmt_(std::move(other.lookup_stmt_)),
-      is_open_(other.is_open_.load(std::memory_order_acquire)) {
-    other.is_open_.store(false, std::memory_order_release);
-    other.db_ = nullptr;
-}
-
-OUIDatabase& OUIDatabase::operator=(OUIDatabase&& other) noexcept {
-    if (this != &other) {
-        close();
-        db_          = other.db_;
-        lookup_stmt_ = std::move(other.lookup_stmt_);
-        is_open_.store(other.is_open_.load(std::memory_order_acquire), std::memory_order_release);
-        other.is_open_.store(false, std::memory_order_release);
-        other.db_ = nullptr;
-    }
-    return *this;
-}
-
-bool OUIDatabase::open(const std::string& db_path) {
-    std::scoped_lock const lock(open_close_mutex_);
-
-    if (is_open_.load(std::memory_order_acquire)) {
-        close();
-    }
-
+OUIDatabase::OUIDatabase(const std::string& db_path) {
     int status = sqlite3_open_v2(db_path.c_str(), &db_,
                                  SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nullptr);
 
     if (status != SQLITE_OK) {
-        LOG_ERROR("Failed to open OUI database '" + db_path + "': " + sqlite3_errmsg(db_));
+        std::string const error = (db_ != nullptr) ? sqlite3_errmsg(db_) : "unknown error";
         if (db_ != nullptr) {
             sqlite3_close(db_);
             db_ = nullptr;
         }
-        return false;
+        throw std::runtime_error("Failed to open OUI database '" + db_path + "': " + error);
     }
 
     char* error_msg = nullptr;
@@ -72,28 +42,45 @@ bool OUIDatabase::open(const std::string& db_path) {
     sqlite3_stmt* raw_stmt = nullptr;
     status                 = sqlite3_prepare_v2(db_, OUI_LOOKUP_SQL, -1, &raw_stmt, nullptr);
     if (status != SQLITE_OK) {
-        LOG_ERROR("Failed to prepare OUI lookup statement: " + std::string(sqlite3_errmsg(db_)));
+        std::string const error = sqlite3_errmsg(db_);
         sqlite3_close(db_);
         db_ = nullptr;
-        return false;
+        throw std::runtime_error("Failed to prepare OUI lookup statement: " + error);
     }
     lookup_stmt_.reset(raw_stmt);
 
-    is_open_.store(true, std::memory_order_release);
+    is_open_ = true;
     LOG_INFO("Opened OUI database: " + db_path);
-    return true;
 }
 
-void OUIDatabase::close() {
-    std::scoped_lock const lock(open_close_mutex_);
-
-    if (is_open_.load(std::memory_order_acquire) && (db_ != nullptr)) {
+OUIDatabase::~OUIDatabase() {
+    if (is_open_) {
         lookup_stmt_.reset();
         sqlite3_close(db_);
-        db_ = nullptr;
-        is_open_.store(false, std::memory_order_release);
-        LOG_INFO("Closed OUI database");
     }
+}
+
+OUIDatabase::OUIDatabase(OUIDatabase&& other) noexcept
+    : db_(other.db_),
+      lookup_stmt_(std::move(other.lookup_stmt_)),
+      is_open_(other.is_open_) {
+    other.is_open_ = false;
+    other.db_      = nullptr;
+}
+
+OUIDatabase& OUIDatabase::operator=(OUIDatabase&& other) noexcept {
+    if (this != &other) {
+        if (is_open_) {
+            lookup_stmt_.reset();
+            sqlite3_close(db_);
+        }
+        db_            = other.db_;
+        lookup_stmt_   = std::move(other.lookup_stmt_);
+        is_open_       = other.is_open_;
+        other.is_open_ = false;
+        other.db_      = nullptr;
+    }
+    return *this;
 }
 
 std::string OUIDatabase::normalize_mac_address(const std::string& mac_address) {
@@ -120,7 +107,7 @@ std::string OUIDatabase::extract_oui(const std::string& normalized_mac) {
 nlohmann::json OUIDatabase::lookup(const std::string& mac_address) const {
     nlohmann::json result;
 
-    if (!is_open_) {
+    if (!is_open_) {  // moved-from database
         result["error"] = "Database not open";
         return result;
     }
@@ -133,11 +120,6 @@ nlohmann::json OUIDatabase::lookup(const std::string& mac_address) const {
     }
 
     std::string const oui = extract_oui(normalized);
-
-    if (!lookup_stmt_) {
-        result["error"] = "Lookup statement not prepared";
-        return result;
-    }
 
     std::scoped_lock const lock(query_mutex_);
 

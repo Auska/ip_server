@@ -213,10 +213,6 @@ void IPGeoHTTPServer::handle_health(const httplib::Request&, httplib::Response& 
     health["status"]    = "ok";
     health["timestamp"] = std::time(nullptr);
 
-    health["databases"] = {{"city", {{"open", stats.city_db_open_}}},
-                           {"asn", {{"open", stats.asn_db_open_}}},
-                           {"oui", {{"open", stats.oui_db_open_}}}};
-
     health["metrics"] = {{"total_requests", stats.total_requests_},
                          {"qps", round(stats.current_qps_ * 100) / 100},
                          {"avg_latency_ms", round(stats.avg_latency_ms_ * 1000) / 1000},

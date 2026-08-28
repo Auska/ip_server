@@ -27,10 +27,7 @@ void RateLimiter::evict_lru() {
 bool RateLimiter::is_allowed(const std::string& ip_address) {
     std::scoped_lock const lock(mutex_);
 
-    total_requests_++;
-
     if (max_requests_ <= 0) {
-        total_rate_limited_++;
         return false;
     }
 
@@ -60,7 +57,6 @@ bool RateLimiter::is_allowed(const std::string& ip_address) {
         return true;
     }
 
-    total_rate_limited_++;
     return false;
 }
 
@@ -99,22 +95,6 @@ void RateLimiter::cleanup() {
     if (removed_count > 0) {
         LOG_DEBUG("Rate limiter: Cleaned up " + std::to_string(removed_count) + " idle IP records");
     }
-}
-
-RateLimiter::MemoryStats RateLimiter::get_memory_stats() const {
-    std::scoped_lock const lock(mutex_);
-
-    MemoryStats stats{};
-    stats.ip_record_count_    = ip_records_.size();
-    stats.total_timestamps_   = 0;
-    stats.total_requests_     = total_requests_.load();
-    stats.total_rate_limited_ = total_rate_limited_.load();
-
-    for (const auto& [ip, record] : ip_records_) {
-        stats.total_timestamps_ += record.timestamps_.size();
-    }
-
-    return stats;
 }
 
 }  // namespace ip_server

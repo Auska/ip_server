@@ -21,33 +21,13 @@ struct PasswordResult {
     std::string strength_;
 };
 
-class PasswordGenerator {
-   public:
-    static PasswordResult generate(const PasswordConfig& config);
-    static std::vector<PasswordResult> generate_batch(const PasswordConfig& config, int count);
+/// Returns false and fills error_message when the config is invalid.
+bool validate_config(const PasswordConfig& config, std::string& error_message);
 
-    static bool validate_config(const PasswordConfig& config, std::string& error_message);
+/// Generates one password; throws std::invalid_argument on invalid config.
+PasswordResult generate(const PasswordConfig& config);
 
-   private:
-    struct CharacterSets {
-        std::string pool_;
-        std::vector<std::string> required_chars_;
-    };
-
-    static CharacterSets build_character_sets(const PasswordConfig& config);
-    static double calculate_entropy(const std::string& password, int pool_size);
-    static std::string get_strength_rating(double entropy);
-
-    // Character sets
-    static constexpr const char* UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    static constexpr const char* LOWERCASE = "abcdefghijklmnopqrstuvwxyz";
-    static constexpr const char* DIGITS    = "0123456789";
-    static constexpr const char* SYMBOLS   = "!@#$%^&*()_+-=[]{}|;:,.<>?";
-
-    // Confusing characters to exclude
-    static constexpr const char* CONFUSING_UPPER  = "IO";
-    static constexpr const char* CONFUSING_LOWER  = "ilo";
-    static constexpr const char* CONFUSING_DIGITS = "01";
-};
+/// Generates count passwords; throws std::invalid_argument on bad input.
+std::vector<PasswordResult> generate_batch(const PasswordConfig& config, int count);
 
 }  // namespace ip_server

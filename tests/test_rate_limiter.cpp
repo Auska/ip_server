@@ -224,46 +224,6 @@ TEST_F(RateLimiterTest, SlidingWindowBehavior) {
     // Should be allowed now (first request has expired from window)
     EXPECT_TRUE(short_limiter->is_allowed(ip));
 }
-TEST_F(RateLimiterTest, MemoryStats) {
-    std::string ip1 = "192.168.1.1";
-    std::string ip2 = "192.168.1.2";
-
-    // Make some requests
-    for (int i = 0; i < 3; i++) {
-        limiter->is_allowed(ip1);
-    }
-
-    for (int i = 0; i < 2; i++) {
-        limiter->is_allowed(ip2);
-    }
-
-    // Get memory stats
-    auto stats = limiter->get_memory_stats();
-
-    EXPECT_EQ(stats.ip_record_count_, 2);
-    EXPECT_EQ(stats.total_timestamps_, 5);
-    EXPECT_EQ(stats.total_requests_, 5);
-    EXPECT_EQ(stats.total_rate_limited_, 0);
-}
-
-TEST_F(RateLimiterTest, MemoryStatsWithRateLimiting) {
-    std::string ip = "192.168.1.1";
-
-    // Make 5 requests (all allowed)
-    for (int i = 0; i < 5; i++) {
-        limiter->is_allowed(ip);
-    }
-
-    // Make 2 more requests (both rate limited)
-    limiter->is_allowed(ip);
-    limiter->is_allowed(ip);
-
-    auto stats = limiter->get_memory_stats();
-
-    EXPECT_EQ(stats.total_requests_, 7);
-    EXPECT_EQ(stats.total_rate_limited_, 2);
-}
-
 TEST_F(RateLimiterTest, CleanupRemovesIdleRecords) {
     auto short_limiter = std::make_unique<RateLimiter>(5, std::chrono::seconds(2));
     std::string ip1    = "192.168.1.1";
@@ -273,15 +233,16 @@ TEST_F(RateLimiterTest, CleanupRemovesIdleRecords) {
     short_limiter->is_allowed(ip1);
     short_limiter->is_allowed(ip2);
 
-    EXPECT_EQ(short_limiter->get_memory_stats().ip_record_count_, 2);
+    EXPECT_LT(short_limiter->get_remaining(ip1), 5);
 
     // Wait for window to expire
     std::this_thread::sleep_for(std::chrono::seconds(3));
 
-    // Cleanup should remove idle records
+    // Cleanup should remove idle records, restoring full quota
     short_limiter->cleanup();
 
-    EXPECT_EQ(short_limiter->get_memory_stats().ip_record_count_, 0);
+    EXPECT_EQ(short_limiter->get_remaining(ip1), 5);
+    EXPECT_EQ(short_limiter->get_remaining(ip2), 5);
 }
 
 TEST_F(RateLimiterTest, MaxIPRecordsLimit) {
@@ -294,9 +255,9 @@ TEST_F(RateLimiterTest, MaxIPRecordsLimit) {
         small_limiter->is_allowed(ip);
     }
 
-    // Should only have 3 IP records (LRU eviction)
-    auto stats = small_limiter->get_memory_stats();
-    EXPECT_LE(stats.ip_record_count_, 3);
+    // Oldest IP was evicted (fresh quota), newest is still tracked
+    EXPECT_EQ(small_limiter->get_remaining("192.168.1.1"), 5);
+    EXPECT_LT(small_limiter->get_remaining("192.168.1.5"), 5);
 }
 
 TEST_F(RateLimiterTest, LRUEviction) {
@@ -318,9 +279,6 @@ TEST_F(RateLimiterTest, LRUEviction) {
 
     // Add 4th IP - should evict ip2 (least recently used)
     small_limiter->is_allowed(ip4);
-
-    auto stats = small_limiter->get_memory_stats();
-    EXPECT_EQ(stats.ip_record_count_, 3);
 
     // ip2 should be evicted, so it should have full quota
     EXPECT_EQ(small_limiter->get_remaining(ip2), 5);

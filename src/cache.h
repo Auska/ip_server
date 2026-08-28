@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <functional>
 #include <list>
 #include <memory>
 #include <mutex>
@@ -48,11 +49,11 @@ struct CacheStats {
     }
 };
 
+/// LRU shard with a single eviction policy: memory budget.
 class CacheShard {
    public:
-    explicit CacheShard(size_t max_size = 100,
-                        size_t max_memory_bytes = cache_constants::DEFAULT_SHARD_MEMORY)
-        : max_size_(max_size), max_memory_bytes_(max_memory_bytes) {}
+    explicit CacheShard(size_t max_memory_bytes = cache_constants::DEFAULT_SHARD_MEMORY)
+        : max_memory_bytes_(max_memory_bytes) {}
 
     std::optional<nlohmann::json> get(const std::string& key) {
         std::unique_lock<std::shared_mutex> lock(mutex_);
@@ -107,23 +108,6 @@ class CacheShard {
                          entry_size, data_type};
         cache_map_.emplace(std::move(key), std::move(entry));
         memory_usage_bytes_ += entry_size;
-
-        if (cache_map_.size() > max_size_) {
-            auto oldest = cache_list_.back();
-            evict_entry(oldest, stats_);
-        }
-    }
-
-    void clear() {
-        std::unique_lock<std::shared_mutex> lock(mutex_);
-        cache_map_.clear();
-        cache_list_.clear();
-        memory_usage_bytes_ = 0;
-    }
-
-    size_t size() const {
-        std::shared_lock<std::shared_mutex> lock(mutex_);
-        return cache_map_.size();
     }
 
     size_t memory_usage() const {
@@ -183,23 +167,22 @@ class CacheShard {
     std::list<std::string> cache_list_;
     std::unordered_map<CacheDataType, std::chrono::seconds> ttl_config_;
     mutable std::shared_mutex mutex_;
-    size_t max_size_;
     size_t max_memory_bytes_;
     size_t memory_usage_bytes_{0};
     CacheStats stats_;
 };
 
+/// Sharded LRU cache bounded by total memory.
 class IPCache {
    public:
-    explicit IPCache(size_t max_size = 10000, size_t shard_count = 8,
-                     size_t max_memory_bytes = cache_constants::DEFAULT_MAX_MEMORY)
+    explicit IPCache(size_t max_memory_bytes = cache_constants::DEFAULT_MAX_MEMORY,
+                     size_t shard_count = 8)
         : shard_count_(shard_count) {
-        size_t shard_size = (max_size + shard_count - 1) / shard_count;
-        size_t shard_memory = (max_memory_bytes + shard_count - 1) / shard_count;
+        size_t const shard_memory = (max_memory_bytes + shard_count - 1) / shard_count;
         shards_.reserve(shard_count);
 
         for (size_t i = 0; i < shard_count_; ++i) {
-            shards_.push_back(std::make_unique<CacheShard>(shard_size, shard_memory));
+            shards_.push_back(std::make_unique<CacheShard>(shard_memory));
         }
 
         configure_default_ttls();
@@ -216,12 +199,6 @@ class IPCache {
         shards_[shard_index]->put(std::move(key), std::move(result), data_type);
     }
 
-    void clear() {
-        for (auto& shard : shards_) {
-            shard->clear();
-        }
-    }
-
     CacheStats get_stats() const {
         CacheStats combined;
         for (const auto& shard : shards_) {
@@ -231,28 +208,12 @@ class IPCache {
         return combined;
     }
 
-    size_t size() const {
-        size_t total = 0;
-        for (const auto& shard : shards_) {
-            total += shard->size();
-        }
-        return total;
-    }
-
     size_t get_total_memory_usage() const {
         size_t total = 0;
         for (const auto& shard : shards_) {
             total += shard->memory_usage();
         }
         return total;
-    }
-
-    size_t shard_count() const { return shard_count_; }
-
-    void set_ttl(CacheDataType type, std::chrono::seconds ttl) {
-        for (auto& shard : shards_) {
-            shard->set_ttl(type, ttl);
-        }
     }
 
    private:

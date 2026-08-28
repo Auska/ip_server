@@ -1,7 +1,6 @@
 {
     "api_keys_file": "",
     "asn_db": "~/.local/share/ip-server/databases/GeoLite2-ASN.mmdb",
-    "cache_size": 10000,
     "city_db": "~/.local/share/ip-server/databases/GeoLite2-City.mmdb",
     "default_api_key": "",
     "enable_api_auth": false,
